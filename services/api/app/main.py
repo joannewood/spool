@@ -12,7 +12,7 @@ from .filters import ext_class, format_size
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 THUMBNAILS_DIR = os.environ.get("THUMBNAILS_DIR", "/data/thumbnails")
-ALL_EXTENSIONS = [".stl", ".3mf", ".step", ".stp"]
+ALL_EXTENSIONS = [".stl", ".3mf", ".step", ".stp", ".svg", ".scad"]
 INGEST_MODES = ["index_in_place", "relocate_to_dropfolder"]
 RELATIONSHIP_TYPES = ["derived_from", "new_version_of", "variant_of", "duplicate_of"]
 

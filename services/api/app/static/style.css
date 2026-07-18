@@ -10,13 +10,18 @@
   --warn-bg: #fdf1e6;
   --ok: #1a7a4c;
   --ok-bg: #e9f7ef;
-  /* Categorical, fixed order (dataviz skill's default palette, slots 1-3) —
+  /* Categorical, fixed order (dataviz skill's default palette, slots 1-4) —
      text stays --ink-muted always; these are accent-only (border + tint),
-     never the label's own text color, since slot 3 fails light-mode text
-     contrast on its own. Room left for slots 4/5 (svg/scad) later. */
+     never the label's own text color, since slots 3/4 fail light-mode text
+     contrast on their own. Stops at 4 deliberately — the skill's palette
+     only validates all-pairs comparisons (any two badges might sit side by
+     side in a grid, not just adjacent-in-sequence) through the first four
+     slots; a 5th (.scad, no preview anyway) stays the neutral default
+     ext-badge style rather than reach for an unvalidated 5th hue. */
   --ext-stl: #2a78d6;
   --ext-3mf: #008300;
   --ext-step: #e87ba4;
+  --ext-svg: #eda100;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -35,6 +40,7 @@
     --ext-stl: #3987e5;
     --ext-3mf: #008300;
     --ext-step: #d55181;
+    --ext-svg: #c98500;
   }
 }
 
@@ -205,6 +211,7 @@ main {
 .ext-badge.ext-stl { border-color: var(--ext-stl); background: color-mix(in oklab, var(--ext-stl) 14%, transparent); }
 .ext-badge.ext-3mf { border-color: var(--ext-3mf); background: color-mix(in oklab, var(--ext-3mf) 14%, transparent); }
 .ext-badge.ext-step { border-color: var(--ext-step); background: color-mix(in oklab, var(--ext-step) 14%, transparent); }
+.ext-badge.ext-svg { border-color: var(--ext-svg); background: color-mix(in oklab, var(--ext-svg) 14%, transparent); }
 .badge.warn {
   font-size: 11px;
   color: var(--warn);

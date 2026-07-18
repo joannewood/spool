@@ -3,6 +3,7 @@ import time
 from datetime import datetime, timezone
 
 from common import ingest
+from common.config import SCAD_EXTENSIONS, SVG_EXTENSIONS
 from common.db import get_connection
 from common.hashing import sha256_file
 from common.paths import to_container_path
@@ -11,7 +12,7 @@ from common.roots import fetch_root_by_id
 from .backfill import run_backfill
 from .bambu_metadata import extract_bambu_metadata, upsert_extracted_metadata
 from .relationship_suggest import suggest_folder_project, suggest_for_file
-from .render import render_thumbnail
+from .render import render_svg_thumbnail, render_thumbnail
 from .rescan import RESCAN_INTERVAL_SECONDS, run_rescan
 from .zip_extract import process_extract_zip_job
 
@@ -80,6 +81,22 @@ def process_render_job(conn, file_id):
 
     root = fetch_root_by_id(conn, watched_root_id)
     container_path = to_container_path(root, host_path)
+    ext = os.path.splitext(container_path)[1].lower()
+
+    if ext in SVG_EXTENSIONS:
+        thumbnail_filename = render_svg_thumbnail(container_path, file_id)
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE files SET thumbnail_path = %s, render_status = 'done' WHERE id = %s",
+                (thumbnail_filename, file_id),
+            )
+        return
+
+    if ext in SCAD_EXTENSIONS:
+        # Deliberately no preview — see config.py's SCAD_EXTENSIONS comment.
+        with conn.cursor() as cur:
+            cur.execute("UPDATE files SET render_status = 'done' WHERE id = %s", (file_id,))
+        return
 
     thumbnail_filename, mesh = render_thumbnail(container_path, file_id)
 

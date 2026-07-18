@@ -454,8 +454,27 @@ first), independent of the paused Phase 09:
       (`.star-rating`, reverse DOM order + `flex-direction: row-reverse`
       + `~` sibling selectors); the rating/comments fields are revealed
       only once "printed" is checked, via `:has()` — no JS.
-- [ ] `.svg` and `.scad` file support (indexing, and a rendering/preview
-      approach still to be decided for each).
+- [x] `.svg` and `.scad` file support — both added to `MODEL_EXTENSIONS`
+      (`common/config.py`) and get a `render` job (fast lane) like STL/3MF,
+      but `process_render_job` (`worker/app/main.py`) branches by
+      extension before touching trimesh: `.svg` → `render_svg_thumbnail`
+      (`worker/app/render.py`) just copies the file into `thumbnails/` as
+      `{file_id}.svg` — browsers render SVG natively and safely even via a
+      plain `<img>` tag (no script execution in that context), so no
+      rasterization dependency was needed. `.scad` → marked
+      `render_status='done'` immediately with no thumbnail (deliberately
+      no preview — a real one means running arbitrary `.scad` scripts
+      through the OpenSCAD CLI, a much heavier dependency than anything
+      else in this project; settling at `done` instead of `pending`
+      avoids it looking like a stuck job). Both map to an app in
+      `host_helper.py`/`host_helper_client.py`'s `APP_MAP` (`.svg` →
+      BambuStudio, `.scad` → Autodesk Fusion, per the user's instruction).
+      Ext-badge color-coding deliberately stops at 4 slots (stl/3mf/step/
+      svg) — the dataviz skill's palette only validates *all-pairs*
+      comparisons (any two badges might sit side by side in a grid, not
+      just adjacent-in-sequence) through its first four slots; `.scad`
+      (no preview anyway) stays the neutral default badge style rather
+      than reach for an unvalidated 5th hue.
 - [ ] Duplicate-file review/deletion admin UI (same hash + same render →
       flag one of a pair, bulk accept/reject with a select-all).
 - [ ] Test coverage for major components — deliberately last, once the

@@ -27,8 +27,10 @@ APP_MAP = {
     ".step": "Autodesk Fusion",
     ".stp": "Autodesk Fusion",
     ".f3d": "Autodesk Fusion",
+    ".scad": "Autodesk Fusion",
     ".stl": "BambuStudio",
     ".3mf": "BambuStudio",
+    ".svg": "BambuStudio",
 }
 ALLOWED_APPS = set(APP_MAP.values())
 

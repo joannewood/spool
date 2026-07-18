@@ -1,4 +1,5 @@
 import os
+import shutil
 
 import numpy as np
 import pyrender
@@ -44,6 +45,16 @@ def _camera_pose(radius):
         [np.cos(el) * np.cos(az), np.cos(el) * np.sin(az), np.sin(el)]
     )
     return _look_at_pose(eye, np.zeros(3))
+
+
+def render_svg_thumbnail(container_path, file_id):
+    """SVG previews are the file itself — browsers render SVG natively and
+    safely even via a plain <img> tag (no script execution in that
+    context), so no rasterization dependency is needed."""
+    os.makedirs(THUMBNAILS_DIR, exist_ok=True)
+    filename = f"{file_id}.svg"
+    shutil.copyfile(container_path, os.path.join(THUMBNAILS_DIR, filename))
+    return filename
 
 
 def load_mesh(container_path):
