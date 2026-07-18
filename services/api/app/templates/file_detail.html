@@ -19,6 +19,10 @@
   <div class="detail-meta">
     <h1>{{ file.filename }}</h1>
 
+    {% if file.status == "missing" %}
+    <p class="badge warn">⚠ not found at last scan — the file may have been moved or deleted</p>
+    {% endif %}
+
     {% if file.is_manifold == false %}
     <p class="badge warn">⚠ not watertight — may not slice cleanly</p>
     {% endif %}

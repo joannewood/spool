@@ -1,5 +1,6 @@
 import os
 import shutil
+from datetime import datetime, timezone
 
 from .config import MESH_EXTENSIONS, STEP_EXTENSIONS
 from .hashing import sha256_file
@@ -50,15 +51,16 @@ def stage_and_hash(conn, root, container_path):
     ext = os.path.splitext(filename)[1].lower()
     size_bytes = os.path.getsize(container_path)
     content_hash = sha256_file(container_path)
+    mtime = datetime.fromtimestamp(os.path.getmtime(container_path), tz=timezone.utc)
     with conn.cursor() as cur:
         cur.execute(
             """
-            INSERT INTO files (watched_root_id, path, filename, ext, size_bytes, content_hash, status)
-            VALUES (%s, %s, %s, %s, %s, %s, 'active')
+            INSERT INTO files (watched_root_id, path, filename, ext, size_bytes, content_hash, mtime, status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, 'active')
             ON CONFLICT (path) DO NOTHING
             RETURNING id
             """,
-            (root.id, host_path, filename, ext, size_bytes, content_hash),
+            (root.id, host_path, filename, ext, size_bytes, content_hash, mtime),
         )
         row = cur.fetchone()
     return row[0] if row else None

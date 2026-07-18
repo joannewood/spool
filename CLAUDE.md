@@ -20,8 +20,8 @@ This file tracks *current build status* — the artifact is the design record.
 - [x] Phase 04 — browse & search UI (FastAPI + Jinja2 + htmx)
 - [x] Phase 05 — tags, projects (nestable), print metadata (auto + manual), admin page
 - [x] Phase 06 — relationships (manual + auto-suggest: filename/version, folder grouping)
-- [ ] Phase 07 — drift reconciliation (periodic rescan, hash rematching) ← **next**
-- [ ] Phase 08 — host-helper (native launchd agent, open-in-Fusion360/Bambu)
+- [x] Phase 07 — drift reconciliation (periodic rescan, hash rematching)
+- [ ] Phase 08 — host-helper (native launchd agent, open-in-Fusion360/Bambu) ← **next**
 - [ ] Phase 09 — polish & scale
 
 The stack (postgres, api, watcher, worker) runs continuously — it's not a
@@ -81,7 +81,27 @@ services/
             status='suggested' via `ON CONFLICT ... DO NOTHING` against the
             relationships_from_to_type_uniq constraint (migration 005) /
             the project_files PK, so a user's manual confirm or reject is
-            never silently overwritten by a later rescan. Also has bambu_metadata.py —
+            never silently overwritten by a later rescan. Also has
+            rescan.py (Phase 07) — a periodic (`RESCAN_INTERVAL_SECONDS`,
+            default 300s) repeat of the same walk backfill does at startup,
+            but for files already in the DB: cheap `os.stat` (size + the
+            `mtime` column added in migration 006) gates an expensive
+            re-hash, so an untouched library costs one stat per file per
+            pass, not a full re-hash. A file gone from disk gets
+            `status='missing'`; one that reappears (same path) gets
+            revived; a real content change (hash differs) resets
+            `render_status='pending'` + nulls the now-stale geometry/
+            thumbnail columns + enqueues a fresh render. Deliberately
+            does *not* re-run Phase 06's relationship/folder-grouping
+            heuristics on a content change, to avoid suggestion-noise on
+            every in-place slicer re-save. Shares `backfill.py`'s
+            `_ingest_new_path`/`_walk_matching` rather than duplicating
+            "how a brand-new file gets indexed." Gated on the same
+            `RUN_BACKFILL` flag as backfill (only the fast `worker` lane
+            runs it, not `worker-step` — otherwise both lanes would
+            double-hash and race on the same rows) and checked once per
+            iteration of the existing job-poll loop, no separate
+            thread/scheduler. Also has bambu_metadata.py —
             after rendering a .3mf, checks for Metadata/project_settings.config
             (JSON) and Metadata/slice_info.config (XML) inside the zip; if
             present (a real Bambu Studio project export, not just any 3MF),
@@ -193,6 +213,22 @@ db/migrations/   plain numbered SQL files, NOT a real migration tool (see
   a schema change (a path or per-root scoping column on `projects`) to fix
   properly. Since membership is inserted as `status='suggested'`, a wrong
   auto-grouping is just one reject click away, not a destructive merge.
+- **`files.mtime` starts `NULL` on rows from before migration 006** — the
+  rescan drift check (`services/worker/app/rescan.py`) deliberately treats a
+  `NULL` mtime as "changed," so the very first rescan pass after that
+  migration re-hashes every existing file once (just confirms the hash
+  still matches; harmless at personal-library scale). Don't try to
+  backfill `mtime` for old rows to "avoid" that pass — it's a one-time,
+  self-correcting cost, not a bug.
+- **Docker Desktop restarting drops all containers, not just pauses them**
+  (confirmed while testing Phase 07 — `docker compose ps` came back
+  completely empty after Docker Desktop was quit/relaunched). `pgdata` and
+  `thumbnails` are named volumes so the actual data survives; `docker
+  compose up -d` recreates the containers from the already-built images
+  (no rebuild needed) and the worker's one-shot backfill on the way back up
+  is a no-op if nothing changed while it was down. Don't assume a `docker
+  compose ps` with no rows means the project was torn down — check for
+  volumes before doing anything destructive.
 - **Applying a migration to a live (non-empty) DB**: confirmed working —
   `docker compose exec postgres psql -U spool -d spool -f /docker-entrypoint-initdb.d/00N_whatever.sql`
   (the migrations folder is bind-mounted into the postgres container at that
@@ -241,17 +277,34 @@ no-browser-tooling workaround — `driver.sh <script.mjs>` runs a Playwright
 script against `http://api:8000` in a throwaway container on the Compose
 network. See `example-flow.mjs` in that directory for the pattern.
 
-## Next: Phase 07 — drift reconciliation
+## Next: Phase 08 — host-helper
 
-Periodic rescan + hash rematching so the index stays honest against the
-real filesystem: detect files removed/moved on disk (currently `files.status`
-only ever gets set to `'active'` — nothing flips it to `'missing'` yet),
-and re-hash on modification so a file edited in place doesn't keep stale
-geometry stats or a content_hash that no longer matches what's on disk.
-Also the natural point to revisit Phase 06's folder-grouping heuristic
-(`services/worker/app/relationship_suggest.py:suggest_folder_project`) —
-it only runs once, at ingest time, comparing a new file against files
-*already* indexed in the same folder; a periodic rescan pass could instead
-re-evaluate folder membership for files that arrived out of order, and is
-also where a moved file's leftover `project_files`/`relationships` rows
-(now pointing at a stale path) would get cleaned up or re-suggested.
+A small native (non-Docker) helper running on the Mac host, since a
+container can't launch a macOS GUI app. Needs to: expose some local
+mechanism the `api` container can reach (a tiny HTTP listener on the host,
+or a launchd agent watching a drop file/queue table) that takes a
+`files.path` (already the real host path, per the host_path-vs-
+container_path gotcha) and opens it in Fusion360 or Bambu Studio via `open
+-a`. The file detail page already has the "Opening directly in Fusion360 /
+Bambu Studio arrives in a later phase" placeholder note and the real host
+path displayed — Phase 08 replaces that note with a working "Open in..."
+button. Since `api` runs inside Docker and has no route to the host GUI
+session, this is the one piece of SPOOL that can't just be another Compose
+service — worth deciding the host↔container communication mechanism first
+(simplest: `api` writes a row to a small `open_requests` table, the host
+helper polls it, similar in spirit to the existing `jobs` table pattern).
+
+## Deliberate scope boundaries (not bugs, revisit only if they start to hurt)
+
+- Phase 06's folder-grouping heuristic matches by folder *name* only, not
+  full path (see gotcha above) — same-named leaf folders in different
+  places merge into one suggested project.
+- Phase 07's rescan doesn't re-run Phase 06's relationship/folder-grouping
+  heuristics when a file's content changes in place, and doesn't handle a
+  file *moved* to a new path as a rename — a move looks like the old path
+  going missing and the new path being a brand-new file (losing tags/
+  relationships on the "new" row). True rename-tracking would need the
+  live watcher's `on_moved` event wired up (evaluated during Phase 07
+  planning, deliberately deferred — periodic rescan was judged sufficient
+  for now since Docker Desktop bind-mount fs events are already known to be
+  unreliable, per the gotcha above).

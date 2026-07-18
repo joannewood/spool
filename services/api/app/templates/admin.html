@@ -17,7 +17,7 @@
 <div class="table-wrap">
   <table class="admin-table">
     <thead>
-      <tr><th>Label</th><th>Host path</th><th>Kind</th><th>Ingest mode</th><th>Active</th><th>Files</th><th></th></tr>
+      <tr><th>Label</th><th>Host path</th><th>Kind</th><th>Ingest mode</th><th>Active</th><th>Files</th><th>Last scanned</th><th></th></tr>
     </thead>
     <tbody>
       {% for r in roots %}
@@ -34,6 +34,7 @@
         </td>
         <td><input type="checkbox" name="active" form="root-form-{{ r.id }}" {% if r.active %}checked{% endif %}></td>
         <td>{{ r.file_count }}</td>
+        <td>{{ r.last_scanned_at if r.last_scanned_at else "—" }}</td>
         <td><button type="submit" form="root-form-{{ r.id }}">Save</button></td>
       </tr>
       {% endfor %}
