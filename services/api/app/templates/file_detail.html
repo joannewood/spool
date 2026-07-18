@@ -72,6 +72,18 @@
 
   <section class="panel">
     <h2>Projects</h2>
+    {% if suggested_projects %}
+    <div class="chips">
+      {% for p in suggested_projects %}
+      <span class="chip suggest-chip" id="sproject-{{ p.id }}">
+        <span class="badge suggest">suggested</span>
+        <a href="/projects/{{ p.id }}">{{ p.name }}</a>
+        <form method="POST" action="/files/{{ file.id }}/projects/{{ p.id }}/confirm" class="chip-inline-form"><button type="submit" class="rel-confirm" title="confirm">✓</button></form>
+        <form method="POST" action="/files/{{ file.id }}/projects/{{ p.id }}/reject" class="chip-inline-form"><button type="submit" class="rel-reject" title="dismiss">×</button></form>
+      </span>
+      {% endfor %}
+    </div>
+    {% endif %}
     <div class="chips">
       {% for p in projects %}
       <span class="chip" id="project-{{ p.id }}">
@@ -120,6 +132,66 @@
         {% if print_metadata and print_metadata.source == 'manual' %}manually set — won't be overwritten by auto-extraction
         {% else %}saving marks these fields as manually set{% endif %}
       </span>
+    </form>
+  </section>
+
+  <section class="panel panel-full">
+    <h2>Related files</h2>
+
+    <div class="rel-list">
+      {% for r in suggested_relationships %}
+      <div class="rel-row" id="rel-{{ r.id }}">
+        <a class="rel-thumb" href="/files/{{ r.other_id }}">
+          {% if r.thumbnail_path %}
+            <img src="/thumbnails/{{ r.thumbnail_path }}" alt="">
+          {% else %}
+            <span class="ext-label">{{ r.ext }}</span>
+          {% endif %}
+        </a>
+        <div class="rel-info">
+          <span class="badge suggest">suggested</span>
+          <span class="rel-label">{{ r.label }}</span>
+          <a href="/files/{{ r.other_id }}">{{ r.filename }}</a>
+        </div>
+        <div class="rel-actions">
+          <form method="POST" action="/files/{{ file.id }}/relationships/{{ r.id }}/confirm"><button type="submit" class="rel-confirm" title="confirm">✓</button></form>
+          <form method="POST" action="/files/{{ file.id }}/relationships/{{ r.id }}/reject"><button type="submit" class="rel-reject" title="dismiss">×</button></form>
+        </div>
+      </div>
+      {% endfor %}
+
+      {% for r in relationships %}
+      <div class="rel-row" id="rel-{{ r.id }}">
+        <a class="rel-thumb" href="/files/{{ r.other_id }}">
+          {% if r.thumbnail_path %}
+            <img src="/thumbnails/{{ r.thumbnail_path }}" alt="">
+          {% else %}
+            <span class="ext-label">{{ r.ext }}</span>
+          {% endif %}
+        </a>
+        <div class="rel-info">
+          <span class="rel-label">{{ r.label }}</span>
+          <a href="/files/{{ r.other_id }}">{{ r.filename }}</a>
+        </div>
+        <button type="button" class="chip-remove" hx-delete="/files/{{ file.id }}/relationships/{{ r.id }}" hx-target="#rel-{{ r.id }}" hx-swap="outerHTML" title="remove relationship">×</button>
+      </div>
+      {% else %}
+      {% if not suggested_relationships %}<span class="empty-inline">no related files yet</span>{% endif %}
+      {% endfor %}
+    </div>
+
+    <form class="rel-add-form" method="POST" action="/files/{{ file.id }}/relationships">
+      <div class="inline-form">
+        <select name="type" required>
+          {% for t in relationship_types %}
+          <option value="{{ t }}">{{ t | replace("_", " ") }}…</option>
+          {% endfor %}
+        </select>
+        <input type="search" name="q" placeholder="search files to link…" autocomplete="off"
+               hx-get="/files/{{ file.id }}/relationships/search" hx-target="#rel-search-results" hx-swap="innerHTML"
+               hx-trigger="input changed delay:250ms">
+      </div>
+      <div id="rel-search-results" class="rel-search-results"></div>
     </form>
   </section>
 </div>

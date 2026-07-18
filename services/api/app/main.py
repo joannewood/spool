@@ -14,6 +14,7 @@ DATABASE_URL = os.environ["DATABASE_URL"]
 THUMBNAILS_DIR = os.environ.get("THUMBNAILS_DIR", "/data/thumbnails")
 ALL_EXTENSIONS = [".stl", ".3mf", ".step", ".stp"]
 INGEST_MODES = ["index_in_place", "relocate_to_dropfolder"]
+RELATIONSHIP_TYPES = ["derived_from", "new_version_of", "variant_of", "duplicate_of"]
 
 APP_DIR = os.path.dirname(__file__)
 os.makedirs(THUMBNAILS_DIR, exist_ok=True)
@@ -85,8 +86,12 @@ def file_detail(request: Request, file_id: int):
             "file": file,
             "tags": queries.get_file_tags(file_id),
             "projects": queries.get_file_projects(file_id),
+            "suggested_projects": queries.get_suggested_file_projects(file_id),
             "all_projects": queries.list_projects(),
             "print_metadata": queries.get_print_metadata(file_id),
+            "relationships": queries.get_file_relationships(file_id),
+            "suggested_relationships": queries.get_suggested_relationships(file_id),
+            "relationship_types": RELATIONSHIP_TYPES,
         },
     )
 
@@ -161,6 +166,54 @@ def add_to_project(file_id: int, project_id: int = Form(...)):
 @app.delete("/files/{file_id}/projects/{project_id}", response_class=HTMLResponse)
 def remove_from_project(file_id: int, project_id: int):
     queries.remove_file_from_project(file_id, project_id)
+    return HTMLResponse("")
+
+
+@app.post("/files/{file_id}/projects/{project_id}/confirm")
+def confirm_suggested_project(file_id: int, project_id: int):
+    queries.confirm_file_project(file_id, project_id)
+    return RedirectResponse(f"/files/{file_id}", status_code=303)
+
+
+@app.post("/files/{file_id}/projects/{project_id}/reject")
+def reject_suggested_project(file_id: int, project_id: int):
+    queries.reject_file_project(file_id, project_id)
+    return RedirectResponse(f"/files/{file_id}", status_code=303)
+
+
+# ---- relationships --------------------------------------------------------------
+
+@app.get("/files/{file_id}/relationships/search", response_class=HTMLResponse)
+def search_relationship_targets(request: Request, file_id: int, q: str = ""):
+    results = queries.search_files_for_relationship(q, file_id) if q.strip() else []
+    return templates.TemplateResponse(
+        request, "_relationship_search_results.html", {"results": results, "q": q}
+    )
+
+
+@app.post("/files/{file_id}/relationships")
+def add_relationship(file_id: int, type: str = Form(...), to_file_id: int = Form(...)):
+    if type not in RELATIONSHIP_TYPES:
+        raise HTTPException(status_code=400, detail="unknown relationship type")
+    queries.add_relationship(file_id, to_file_id, type)
+    return RedirectResponse(f"/files/{file_id}", status_code=303)
+
+
+@app.post("/files/{file_id}/relationships/{rel_id}/confirm")
+def confirm_relationship(file_id: int, rel_id: int):
+    queries.confirm_relationship(rel_id)
+    return RedirectResponse(f"/files/{file_id}", status_code=303)
+
+
+@app.post("/files/{file_id}/relationships/{rel_id}/reject")
+def reject_relationship(file_id: int, rel_id: int):
+    queries.reject_relationship(rel_id)
+    return RedirectResponse(f"/files/{file_id}", status_code=303)
+
+
+@app.delete("/files/{file_id}/relationships/{rel_id}", response_class=HTMLResponse)
+def remove_relationship(file_id: int, rel_id: int):
+    queries.remove_relationship(rel_id)
     return HTMLResponse("")
 
 

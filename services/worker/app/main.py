@@ -9,6 +9,7 @@ from common.roots import fetch_root_by_id
 
 from .backfill import run_backfill
 from .bambu_metadata import extract_bambu_metadata, upsert_extracted_metadata
+from .relationship_suggest import suggest_folder_project, suggest_for_file
 from .render import render_thumbnail
 
 POLL_INTERVAL_SECONDS = 1.0
@@ -59,6 +60,9 @@ def process_ingest_job(conn, file_id):
             "UPDATE files SET content_hash = %s, size_bytes = %s, last_seen_at = now() WHERE id = %s",
             (content_hash, size_bytes, file_id),
         )
+    filename = os.path.basename(host_path)
+    suggest_for_file(conn, file_id, filename, ext)
+    suggest_folder_project(conn, file_id, host_path, root)
     ingest.maybe_enqueue_render(conn, file_id, ext)
 
 

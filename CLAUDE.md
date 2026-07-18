@@ -19,8 +19,8 @@ This file tracks *current build status* — the artifact is the design record.
 - [x] Phase 03 — STEP previews (OCP/OpenCASCADE), own `render_step` job lane
 - [x] Phase 04 — browse & search UI (FastAPI + Jinja2 + htmx)
 - [x] Phase 05 — tags, projects (nestable), print metadata (auto + manual), admin page
-- [ ] Phase 06 — relationships (manual + auto-suggest: filename/version, folder grouping) ← **next**
-- [ ] Phase 07 — drift reconciliation (periodic rescan, hash rematching)
+- [x] Phase 06 — relationships (manual + auto-suggest: filename/version, folder grouping)
+- [ ] Phase 07 — drift reconciliation (periodic rescan, hash rematching) ← **next**
 - [ ] Phase 08 — host-helper (native launchd agent, open-in-Fusion360/Bambu)
 - [ ] Phase 09 — polish & scale
 
@@ -36,14 +36,25 @@ services/
   api/      FastAPI + Jinja2 + htmx. / is a searchable/filterable thumbnail
             grid (search-as-you-type + extension + tag checkboxes, all via
             htmx partial swaps on the same route), /files/{id} is the detail
-            page (geometry stats + tags/projects/print-metadata panels),
-            /projects is a nestable project tree + create form,
+            page (geometry stats + tags/projects/print-metadata/relationships
+            panels), /projects is a nestable project tree + create form,
             /projects/{id} is a project's file grid, /admin lists watched
             roots with live-editable label/ingest_mode/active. Tag and
             project removal use hx-delete swapping the chip to nothing;
             everything else is a plain POST-redirect-GET form (simpler than
-            partials for rare actions). Shares `common/` (build context is
-            ./services) — uses common.db for queries, all in queries.py.
+            partials for rare actions). Relationships (Phase 06) follow the
+            same pattern: the "Related files" panel on the detail page shows
+            confirmed links (hx-delete to remove) and worker-suggested ones
+            (confirm/reject as plain POSTs) separately, plus a manual
+            add-relationship form whose file-picker reuses the same
+            search-as-you-type technique as the main grid (GET
+            /files/{id}/relationships/search returns a partial of clickable
+            `<button type=submit>` results sitting inside the add form, so
+            picking one submits type+to_file_id together — no custom JS).
+            Suggested project membership (from worker folder-grouping) gets
+            the same confirm/reject treatment as a chip in the Projects
+            panel. Shares `common/` (build context is ./services) — uses
+            common.db for queries, all in queries.py.
   watcher/  live filesystem events via watchdog. Lightweight — stages a stub
             file row + queues an 'ingest' job, or relocates (Downloads), then
             gets out of the way. Polls watched_roots every 10s
@@ -51,7 +62,26 @@ services/
             live watchdog schedule against active/ingest_mode — pause/resume/
             edit an already-mounted root takes effect within ~10s, no
             restart. Adding a brand-new root still needs one (see Gotchas).
-  worker/   heavy image (trimesh/pyrender/OCP). Also has bambu_metadata.py —
+  worker/   heavy image (trimesh/pyrender/OCP). Also has
+            relationship_suggest.py (Phase 06) — after a file is hashed
+            (both the live ingest path and backfill call it, since backfill
+            processes files one at a time and each new file is compared
+            against everything already indexed, every real pair gets caught
+            the first time either member is the "new" one), runs three
+            content-only heuristics: identical content_hash -> duplicate_of;
+            same basename, one side a STEP/STP and the other not ->
+            derived_from (assumed export direction: non-STEP derived from
+            STEP); same basename with a trailing `_v<N>`/`-v<N>` and same
+            extension -> new_version_of, newer -> older. Separately,
+            suggest_folder_project groups files that share an immediate
+            parent directory (skipped if that directory *is* the watched
+            root) into a flat, auto-created-if-missing top-level project
+            named after the folder — deliberately not mirroring the whole
+            directory tree, per spec. All suggestions insert with
+            status='suggested' via `ON CONFLICT ... DO NOTHING` against the
+            relationships_from_to_type_uniq constraint (migration 005) /
+            the project_files PK, so a user's manual confirm or reject is
+            never silently overwritten by a later rescan. Also has bambu_metadata.py —
             after rendering a .3mf, checks for Metadata/project_settings.config
             (JSON) and Metadata/slice_info.config (XML) inside the zip; if
             present (a real Bambu Studio project export, not just any 3MF),
@@ -155,6 +185,14 @@ db/migrations/   plain numbered SQL files, NOT a real migration tool (see
   folders — not a bug, just remember to clean up test artifacts from both
   disk AND the `files`/`jobs` tables afterward (happened twice while building
   Phase 03).
+- **Folder-based project auto-grouping matches by folder *name* only**
+  (`suggest_folder_project` in `relationship_suggest.py`) — projects have no
+  folder-path column in the schema, so two same-named leaf folders in
+  unrelated parts of the library (e.g. two different `misc/` dumps) merge
+  into one suggested project. Acceptable for a personal library; would need
+  a schema change (a path or per-root scoping column on `projects`) to fix
+  properly. Since membership is inserted as `status='suggested'`, a wrong
+  auto-grouping is just one reject click away, not a destructive merge.
 - **Applying a migration to a live (non-empty) DB**: confirmed working —
   `docker compose exec postgres psql -U spool -d spool -f /docker-entrypoint-initdb.d/00N_whatever.sql`
   (the migrations folder is bind-mounted into the postgres container at that
@@ -203,15 +241,17 @@ no-browser-tooling workaround — `driver.sh <script.mjs>` runs a Playwright
 script against `http://api:8000` in a throwaway container on the Compose
 network. See `example-flow.mjs` in that directory for the pattern.
 
-## Next: Phase 06 — relationships
+## Next: Phase 07 — drift reconciliation
 
-Manual linking UI first (typed: `derived_from` / `new_version_of` /
-`variant_of` / `duplicate_of`, all in the `relationships` table already),
-then auto-suggestion on top — filename/version heuristics and folder-based
-project grouping (per the spec, flat-per-leaf-folder, not mirroring the
-whole directory tree into nested projects). Also the natural point to build
-the "related files surfaced on a file's page regardless of format" UI the
-spec promised back when Phase 05's print-metadata design deliberately chose
-NOT to copy settings across relationships (Sheet 05) — right now a STEP
-file's detail page has no way to show "here's the STL made from this" at
-all, since relationships aren't wired into the UI yet.
+Periodic rescan + hash rematching so the index stays honest against the
+real filesystem: detect files removed/moved on disk (currently `files.status`
+only ever gets set to `'active'` — nothing flips it to `'missing'` yet),
+and re-hash on modification so a file edited in place doesn't keep stale
+geometry stats or a content_hash that no longer matches what's on disk.
+Also the natural point to revisit Phase 06's folder-grouping heuristic
+(`services/worker/app/relationship_suggest.py:suggest_folder_project`) —
+it only runs once, at ingest time, comparing a new file against files
+*already* indexed in the same folder; a periodic rescan pass could instead
+re-evaluate folder membership for files that arrived out of order, and is
+also where a moved file's leftover `project_files`/`relationships` rows
+(now pointing at a stale path) would get cleaned up or re-suggested.

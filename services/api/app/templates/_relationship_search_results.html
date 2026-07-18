@@ -1,0 +1,7 @@
+{% for f in results %}
+<button type="submit" name="to_file_id" value="{{ f.id }}" class="rel-search-item">
+  <span class="ext-badge">{{ f.ext }}</span> {{ f.filename }}
+</button>
+{% else %}
+{% if q %}<p class="empty-inline">no matches</p>{% endif %}
+{% endfor %}
