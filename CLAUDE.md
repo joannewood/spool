@@ -563,6 +563,44 @@ first), independent of the paused Phase 09:
       tautological) by deliberately breaking the `duplicate_of` hash-match
       query mid-session — exactly the two tests depending on it failed,
       nothing else did.
+- [x] Custom favicon — `services/api/app/static/favicon.svg`, a simple
+      spool/reel glyph in the UI's existing `--accent` blue, wired via a
+      plain `<link rel="icon" type="image/svg+xml">` in `base.html`. SVG
+      favicons need no build step/rasterization and scale cleanly.
+- [x] `README.md` for GitHub (separate from `CLAUDE.md`, which stays the
+      detailed internal build log/gotchas doc) — project pitch, feature
+      list, a real screenshot (`docs/screenshot-library.png`), setup
+      instructions, and a license section. `LICENSE` is the unmodified
+      canonical GPLv3 text fetched directly from `gnu.org` rather than
+      typed out by hand (long verbatim legal text is exactly the kind of
+      output that can trip an LLM content-length filter — fetching the
+      authoritative source sidesteps that and guarantees byte-accuracy
+      either way). Copyright/attribution line lives in the README, not
+      inserted into the LICENSE file itself — GPLv3's canonical text has
+      no name/year placeholder the way MIT's template does; the license
+      says to add short notices to source files instead, which this
+      project hasn't done per-file (a reasonable-for-a-personal-project
+      simplification, not a requirement).
+  - **License is changeable later, with one caveat** (came up mid-decision,
+    worth remembering): as sole author, the user can relicense *future*
+    commits/releases anytime, but can't retroactively change the terms for
+    a copy someone already received under the old license (e.g. Redis Inc.
+    relicensing away from BSD didn't stop the community forking the last
+    BSD-licensed snapshot — that fork became Valkey). Moot for now since
+    the GitHub repo is currently **private** — nobody outside the user has
+    received a copy under any license yet, so there's no lock-in until the
+    repo actually goes public or is shared (task above, still pending).
+- [x] Sort-by filter on the library page (`newest`/`oldest`/`name_asc`/
+      `name_desc`/`size_desc`/`size_asc` — `queries.SORT_CLAUSES`, a fixed
+      whitelist dict mapping each option to a trusted SQL fragment, since
+      `ORDER BY` can't be parameterized the way `WHERE` values can; the
+      lookup itself is what keeps this injection-safe, not string
+      escaping). Wired into the same htmx live-update trigger the
+      extension/tag checkboxes already use.
+- [x] Search also matches `print_log.comments` (the "printed" feature's
+      own notes-to-self field, migration 010) — same `id IN (SELECT
+      file_id FROM ... WHERE ... ILIKE %s)` pattern already used for
+      `print_metadata`, just a second table.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,

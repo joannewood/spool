@@ -7,7 +7,17 @@ PAGE_SIZE = 60
 
 # ---- search / browse ----------------------------------------------------
 
-def search_files(q, extensions, tags, page):
+SORT_CLAUSES = {
+    "newest": "first_seen_at DESC",
+    "oldest": "first_seen_at ASC",
+    "name_asc": "COALESCE(display_name, filename) ASC",
+    "name_desc": "COALESCE(display_name, filename) DESC",
+    "size_desc": "size_bytes DESC",
+    "size_asc": "size_bytes ASC",
+}
+
+
+def search_files(q, extensions, tags, page, sort="newest"):
     offset = (page - 1) * PAGE_SIZE
     conditions = ["status = 'active'"]
     params = []
@@ -18,10 +28,12 @@ def search_files(q, extensions, tags, page):
                     SELECT file_id FROM print_metadata
                     WHERE material ILIKE %s OR printer_profile ILIKE %s
                        OR slicer ILIKE %s OR notes ILIKE %s
+                ) OR id IN (
+                    SELECT file_id FROM print_log WHERE comments ILIKE %s
                 )
             )"""
         )
-        params.extend([f"%{q}%"] * 6)
+        params.extend([f"%{q}%"] * 7)
     if extensions:
         conditions.append("ext = ANY(%s)")
         params.append(list(extensions))
@@ -31,6 +43,7 @@ def search_files(q, extensions, tags, page):
         )
         params.append(list(tags))
     where = " AND ".join(conditions)
+    order_by = SORT_CLAUSES.get(sort, SORT_CLAUSES["newest"])
 
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
@@ -43,7 +56,7 @@ def search_files(q, extensions, tags, page):
                        is_manifold, bbox_x, bbox_y, bbox_z
                 FROM files
                 WHERE {where}
-                ORDER BY first_seen_at DESC
+                ORDER BY {order_by}
                 LIMIT %s OFFSET %s
                 """,
                 params + [PAGE_SIZE, offset],

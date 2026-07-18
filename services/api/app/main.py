@@ -15,6 +15,14 @@ THUMBNAILS_DIR = os.environ.get("THUMBNAILS_DIR", "/data/thumbnails")
 ALL_EXTENSIONS = [".stl", ".3mf", ".step", ".stp", ".svg", ".scad"]
 INGEST_MODES = ["index_in_place", "relocate_to_dropfolder"]
 RELATIONSHIP_TYPES = ["derived_from", "new_version_of", "variant_of", "duplicate_of"]
+SORT_OPTIONS = [
+    ("newest", "Newest first"),
+    ("oldest", "Oldest first"),
+    ("name_asc", "Name (A-Z)"),
+    ("name_desc", "Name (Z-A)"),
+    ("size_desc", "Size (largest)"),
+    ("size_asc", "Size (smallest)"),
+]
 
 APP_DIR = os.path.dirname(__file__)
 os.makedirs(THUMBNAILS_DIR, exist_ok=True)
@@ -48,13 +56,21 @@ def index(
     q: str = "",
     ext: list[str] = Query(default=[]),
     tag: list[str] = Query(default=[]),
+    sort: str = "newest",
     page: int = 1,
 ):
     page = max(page, 1)
-    files, total = queries.search_files(q, ext, tag, page)
+    if sort not in queries.SORT_CLAUSES:
+        sort = "newest"
+    files, total = queries.search_files(q, ext, tag, page, sort)
     total_pages = max(1, -(-total // queries.PAGE_SIZE))  # ceil division
 
-    qs_params = ([("q", q)] if q else []) + [("ext", e) for e in ext] + [("tag", t) for t in tag]
+    qs_params = (
+        ([("q", q)] if q else [])
+        + [("ext", e) for e in ext]
+        + [("tag", t) for t in tag]
+        + ([("sort", sort)] if sort != "newest" else [])
+    )
     base_qs = urlencode(qs_params)
 
     return templates.TemplateResponse(
@@ -68,6 +84,8 @@ def index(
             "selected_extensions": set(ext),
             "all_tags": queries.list_all_tags(),
             "selected_tags": set(tag),
+            "sort": sort,
+            "sort_options": SORT_OPTIONS,
             "page": page,
             "total_pages": total_pages,
             "base_qs": base_qs,

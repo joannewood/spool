@@ -3,8 +3,13 @@
 
 <form class="searchbar" method="GET" action="/"
       hx-get="/" hx-target="#results" hx-select="#results" hx-swap="outerHTML" hx-push-url="true"
-      hx-trigger="input changed delay:250ms from:input[name='q'], change from:input[type='checkbox']">
-  <input type="search" name="q" placeholder="Search filenames…" value="{{ q }}" autocomplete="off" autofocus>
+      hx-trigger="input changed delay:250ms from:input[name='q'], change from:input[type='checkbox'], change from:select[name='sort']">
+  <input type="search" name="q" placeholder="Search filenames, tags, print metadata…" value="{{ q }}" autocomplete="off" autofocus>
+  <select name="sort">
+    {% for value, label in sort_options %}
+    <option value="{{ value }}" {% if value == sort %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
   <div class="ext-filters">
     {% for e in all_extensions %}
     <label class="ext-toggle">
