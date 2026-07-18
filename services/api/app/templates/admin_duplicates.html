@@ -33,7 +33,7 @@
         {% endif %}
       </a>
       <div class="dup-info">
-        <a href="/files/{{ f.id }}">{{ f.display_name or f.filename }}</a>
+        <a href="/files/{{ f.id }}">{{ f.display_name or (f.filename | clean_name) }}</a>
         <span class="note-inline">{{ f.path }}</span>
         <span class="note-inline">{{ f.size_bytes | filesizeformat }} · first seen {{ f.first_seen_at }}</span>
       </div>

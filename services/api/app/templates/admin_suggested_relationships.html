@@ -26,9 +26,9 @@
         {% for r in relationships %}
         <tr>
           <td><input type="checkbox" name="rel_ids" value="{{ r.id }}" class="sr-checkbox"></td>
-          <td><a href="/files/{{ r.from_id }}">{{ r.from_display_name or r.from_filename }}</a></td>
+          <td><a href="/files/{{ r.from_id }}">{{ r.from_display_name or (r.from_filename | clean_name) }}</a></td>
           <td>{{ r.label }}</td>
-          <td><a href="/files/{{ r.to_id }}">{{ r.to_display_name or r.to_filename }}</a></td>
+          <td><a href="/files/{{ r.to_id }}">{{ r.to_display_name or (r.to_filename | clean_name) }}</a></td>
           <td>{% if r.confidence is not none %}{{ "%.0f"|format(r.confidence * 100) }}%{% else %}—{% endif %}</td>
           <td>
             <form method="POST" action="/admin/suggested-relationships/{{ r.id }}/confirm" class="chip-inline-form"><button type="submit">Confirm</button></form>

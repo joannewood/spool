@@ -206,6 +206,34 @@ def test_folder_project_generic_named_folders_dont_collide_across_parents(conn, 
         assert cur.fetchone()[0] == 2
 
 
+def test_folder_project_decodes_plus_for_space_in_name(conn, make_root):
+    root = make_root()
+    file_id, path = _insert_file(conn, root, "widget.stl", ".stl", "hash", subdir="4th+of+July+Hat")
+
+    suggest_folder_project(conn, file_id, path, root)
+
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT p.name FROM projects p JOIN project_files pf ON pf.project_id = p.id WHERE pf.file_id = %s",
+            (file_id,),
+        )
+        assert cur.fetchone()[0] == "4th of July Hat"
+
+
+def test_folder_project_leaves_real_spaces_and_plusses_alone(conn, make_root):
+    root = make_root()
+    file_id, path = _insert_file(conn, root, "widget.stl", ".stl", "hash", subdir="C++ Project")
+
+    suggest_folder_project(conn, file_id, path, root)
+
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT p.name FROM projects p JOIN project_files pf ON pf.project_id = p.id WHERE pf.file_id = %s",
+            (file_id,),
+        )
+        assert cur.fetchone()[0] == "C++ Project"  # already has real spaces — left untouched
+
+
 def test_folder_project_keeps_generic_name_with_no_meaningful_parent(conn, make_root):
     root = make_root()
     file_id, path = _insert_file(conn, root, "widget.stl", ".stl", "hash", subdir="files")

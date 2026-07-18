@@ -3,6 +3,7 @@ import re
 from psycopg.rows import dict_row
 
 from common.db import get_connection
+from common.text import clean_name
 
 PAGE_SIZE = 60
 
@@ -325,7 +326,7 @@ def _fetch_relationships(file_id, status):
                 "confidence": r["confidence"],
                 "other_id": r["other_id"],
                 "label": RELATIONSHIP_LABELS[(r["type"], r["direction"])],
-                "filename": other["display_name"] or other["filename"],
+                "filename": other["display_name"] or clean_name(other["filename"]),
                 "ext": other["ext"],
                 "thumbnail_path": other["thumbnail_path"],
                 "render_status": other["render_status"],

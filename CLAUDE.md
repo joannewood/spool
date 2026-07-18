@@ -837,6 +837,37 @@ first), independent of the paused Phase 09:
       dropdown's pre-selected option. Verified live: clicking the
       BambuStudio icon for a real `.3mf` file actually launched
       BambuStudio with that file, same as the old dropdown+button flow.
+- [x] Fixed `None` literally rendering in the print-metadata form —
+      `{{ print_metadata.material if print_metadata else '' }}` renders
+      the Python `None` as the *text* "None" whenever the row exists but
+      that specific column is NULL (the `if/else` only guards against no
+      row at all). Affected all four fields (material, printer, slicer,
+      notes), not just the one originally reported — same class of bug
+      already fixed once this session for `print_log.comments`. Fixed by
+      wrapping each with `(x or '') if print_metadata else ''`.
+- [x] `common/text.py::clean_name` — strips literal URL encoding from
+      displayed names (a Thingiverse/Printables download convention: a
+      "+" for space from a query-string filename, or literal `%20`-style
+      escapes, both extracted onto disk without decoding). Cosmetic only
+      — applied wherever a name is *displayed* (via a `clean_name` Jinja
+      filter in the api, and directly in Python for names already
+      resolved server-side like `_fetch_relationships`), never touching
+      the real `files.path`/`filename` columns or the file on disk, so
+      search/host-helper/relocate all keep working against the real
+      value. Guarded to only fire when the name has a `%XX` escape or a
+      "+" with no real space already present, so a name that
+      legitimately contains a literal "+" (rare, but e.g. "C++ Project")
+      isn't mangled. Shared between the worker (project names, folded
+      into `suggest_folder_project`, replacing its earlier narrower
+      "+"-only `_cleanup_folder_name` helper) and the api (file/sidecar
+      names) via `common/`, rather than duplicating the heuristic in two
+      places the way `host_helper.py`/`host_helper_client.py`'s `APP_MAP`
+      is (that duplication crosses a container boundary; this one
+      doesn't — both services already import `common`). Applied to the
+      existing real "4th+of+July+Uncle+Sam+Hat" project by hand
+      (renamed via `UPDATE projects SET name = ...`) since the fix only
+      changes behavior for future folder-grouping suggestions, not
+      already-created rows.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,

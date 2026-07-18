@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ file.filename }} — SPOOL{% endblock %}
+{% block title %}{{ file.display_name or (file.filename | clean_name) }} — SPOOL{% endblock %}
 {% block content %}
 
 <a class="back" href="/">← back to library</a>
@@ -17,7 +17,7 @@
   </div>
 
   <div class="detail-meta">
-    <h1>{{ file.display_name or file.filename }}</h1>
+    <h1>{{ file.display_name or (file.filename | clean_name) }}</h1>
     <form class="inline-form" method="POST" action="/files/{{ file.id }}/name">
       <input type="text" name="display_name" placeholder="custom display name…" value="{{ file.display_name or '' }}">
       <button type="submit">Save</button>
@@ -152,10 +152,10 @@
     </dl>
     {% endif %}
     <form class="stack-form" method="POST" action="/files/{{ file.id }}/print-metadata">
-      <label>Material <input type="text" name="material" value="{{ print_metadata.material if print_metadata else '' }}"></label>
-      <label>Printer <input type="text" name="printer_profile" value="{{ print_metadata.printer_profile if print_metadata else '' }}"></label>
-      <label>Slicer <input type="text" name="slicer" value="{{ print_metadata.slicer if print_metadata else '' }}"></label>
-      <label>Notes <textarea name="notes" rows="3">{{ print_metadata.notes if print_metadata else '' }}</textarea></label>
+      <label>Material <input type="text" name="material" value="{{ (print_metadata.material or '') if print_metadata else '' }}"></label>
+      <label>Printer <input type="text" name="printer_profile" value="{{ (print_metadata.printer_profile or '') if print_metadata else '' }}"></label>
+      <label>Slicer <input type="text" name="slicer" value="{{ (print_metadata.slicer or '') if print_metadata else '' }}"></label>
+      <label>Notes <textarea name="notes" rows="3">{{ (print_metadata.notes or '') if print_metadata else '' }}</textarea></label>
       <button type="submit">Save</button>
       <span class="note-inline">
         {% if print_metadata and print_metadata.source == 'manual' %}manually set — won't be overwritten by auto-extraction

@@ -47,7 +47,7 @@
       {% endif %}
     </div>
     <div class="meta">
-      <div class="filename" title="{{ f.filename }}">{{ f.display_name or f.filename }}</div>
+      <div class="filename" title="{{ f.display_name or (f.filename | clean_name) }}">{{ f.display_name or (f.filename | clean_name) }}</div>
       {% if f.bbox_x is not none %}
       <div class="dims">{{ "%.0f"|format(f.bbox_x) }} × {{ "%.0f"|format(f.bbox_y) }} × {{ "%.0f"|format(f.bbox_z) }} mm</div>
       {% endif %}
@@ -78,7 +78,7 @@
         {% endif %}
       </div>
       <div class="meta">
-        <div class="filename" title="{{ s.filename }}">{{ s.filename }}</div>
+        <div class="filename" title="{{ s.filename | clean_name }}">{{ s.filename | clean_name }}</div>
         <div class="dims">{{ s.size_bytes | filesizeformat }}</div>
         <div class="badges">
           <span class="ext-badge {{ s.ext | ext_class }}">{{ s.ext }}</span>

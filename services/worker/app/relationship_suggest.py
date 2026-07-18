@@ -3,6 +3,8 @@ import re
 
 from psycopg.rows import dict_row
 
+from common.text import clean_name
+
 STEP_EXTS = (".step", ".stp")
 
 # "widget_v2", "widget-v12", "widget v3" -> base "widget", version 2/12/3.
@@ -138,6 +140,7 @@ def suggest_folder_project(conn, file_id, host_path, root):
             folder_name = os.path.basename(parent_directory)
         # else: the generic-named folder sits directly in the watched root,
         # so there's no more-meaningful parent to fall back to — keep it.
+    folder_name = clean_name(folder_name)
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             "SELECT id FROM projects WHERE parent_project_id IS NULL AND lower(name) = lower(%s)",

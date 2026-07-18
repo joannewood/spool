@@ -1,3 +1,6 @@
+from common.text import clean_name  # noqa: F401 — re-exported as a Jinja filter, see main.py
+
+
 def ext_class(ext):
     """CSS class for the extension color-coding on grid cards — .step/.stp
     share one class since they're the same format, just spelled two ways."""

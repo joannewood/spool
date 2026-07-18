@@ -26,7 +26,7 @@
         {% for a in assignments %}
         <tr>
           <td><input type="checkbox" name="pairs" value="{{ a.project_id }}:{{ a.file_id }}" class="sp-checkbox"></td>
-          <td><a href="/files/{{ a.file_id }}">{{ a.display_name or a.filename }}</a></td>
+          <td><a href="/files/{{ a.file_id }}">{{ a.display_name or (a.filename | clean_name) }}</a></td>
           <td><span class="ext-badge {{ a.ext | ext_class }}">{{ a.ext }}</span></td>
           <td><a href="/projects/{{ a.project_id }}">{{ a.project_name }}</a></td>
           <td>
