@@ -175,3 +175,46 @@ def test_folder_project_reuses_existing_project_by_name(conn, make_root):
         assert cur.fetchone()[0] == 1  # one project, not two
         cur.execute("SELECT count(*) FROM project_files pf JOIN projects p ON p.id = pf.project_id WHERE p.name = 'Kit'")
         assert cur.fetchone()[0] == 2
+
+
+def test_folder_project_uses_parent_name_when_immediate_folder_is_generic(conn, make_root):
+    root = make_root()
+    file_id, path = _insert_file(conn, root, "widget.stl", ".stl", "hash", subdir="Widget/files")
+
+    suggest_folder_project(conn, file_id, path, root)
+
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT p.name FROM projects p JOIN project_files pf ON pf.project_id = p.id WHERE pf.file_id = %s",
+            (file_id,),
+        )
+        assert cur.fetchone()[0] == "Widget"  # not "files"
+
+
+def test_folder_project_generic_named_folders_dont_collide_across_parents(conn, make_root):
+    root = make_root()
+    id_a, path_a = _insert_file(conn, root, "a.stl", ".stl", "hash-a", subdir="Widget/files")
+    id_b, path_b = _insert_file(conn, root, "b.stl", ".stl", "hash-b", subdir="Gadget/files")
+
+    suggest_folder_project(conn, id_a, path_a, root)
+    suggest_folder_project(conn, id_b, path_b, root)
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM projects WHERE name = 'files'")
+        assert cur.fetchone()[0] == 0  # never grouped under a shared "files" project
+        cur.execute("SELECT count(*) FROM projects WHERE name IN ('Widget', 'Gadget')")
+        assert cur.fetchone()[0] == 2
+
+
+def test_folder_project_keeps_generic_name_with_no_meaningful_parent(conn, make_root):
+    root = make_root()
+    file_id, path = _insert_file(conn, root, "widget.stl", ".stl", "hash", subdir="files")
+
+    suggest_folder_project(conn, file_id, path, root)
+
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT p.name FROM projects p JOIN project_files pf ON pf.project_id = p.id WHERE pf.file_id = %s",
+            (file_id,),
+        )
+        assert cur.fetchone()[0] == "files"  # rare edge case: no better name available

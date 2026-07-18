@@ -727,6 +727,31 @@ first), independent of the paused Phase 09:
       create-project form is now wrapped in its own `.panel` card instead
       of floating loose above the project list. Panel padding/gap and
       project-list row padding all increased for more breathing room.
+- [x] Folder-grouping ignores generic container folder names — a common
+      download/export convention is `<ProjectName>/files/widget.stl`,
+      where `files` is just the model-file container, not the project's
+      actual identity. `suggest_folder_project` (`relationship_suggest.py`)
+      was naming the suggested project after the *immediate* folder
+      (`files`) every time, so unrelated projects using this convention
+      all collided into one shared "files" project — confirmed live: the
+      real library had 53 files from 11+ unrelated kits (a bookshelf kit,
+      several 3DBenchy variants, etc.) merged into one confirmed `files`
+      project. New `_GENERIC_CONTAINER_NAMES = {"files"}` set: when the
+      immediate folder's name matches, the project name/lookup falls back
+      to the *parent* folder's name instead — sibling detection stays
+      scoped to the original folder (so the right files still get
+      grouped), only the identity used for naming/matching changes. Falls
+      back to keeping `files` as-is in the rare case where the generic
+      folder sits directly in the watched root (no more-meaningful parent
+      to use). Cleaned up the existing real `files` project by re-deriving
+      the correct project per file from its actual path and moving each
+      file across (preserving `confirmed` status, since the user had
+      already vetted these as real project members — just wrongly
+      grouped); one-off script initially missed the same watched-root
+      edge case the real code guards against (2 files whose `files`
+      folder sat directly under the watched root got a bogus project
+      named after the watched root itself, `3DPrintFiles`) — caught and
+      corrected by hand before considering the cleanup done.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,

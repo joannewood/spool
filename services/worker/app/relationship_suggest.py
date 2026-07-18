@@ -9,6 +9,12 @@ STEP_EXTS = (".step", ".stp")
 # Same-extension only — a version bump is meaningful within one file format.
 _VERSION_RE = re.compile(r"^(?P<base>.+?)[ _-]v(?P<ver>\d+)$", re.IGNORECASE)
 
+# Folder names too generic to serve as a project's identity on their own —
+# "<ProjectName>/files/widget.stl" is a common download/export convention,
+# and naming the project "files" after that container folder means every
+# unrelated project using the same convention collides into one project.
+_GENERIC_CONTAINER_NAMES = {"files"}
+
 
 def _stem(filename):
     return os.path.splitext(filename)[0]
@@ -103,6 +109,14 @@ def suggest_folder_project(conn, file_id, host_path, root):
     no folder-path column), so two same-named leaf folders in unrelated
     parts of the library merge into one project. Acceptable for a personal
     library; would need a schema change to fix properly.
+
+    Sibling detection stays scoped to the file's actual immediate
+    directory even when that directory's name is too generic to use as
+    the project's identity (see `_GENERIC_CONTAINER_NAMES`) — only the
+    name used for matching/creating the project falls back to the parent
+    folder in that case, so "<ProjectName>/files/widget.stl" still groups
+    with its real siblings in that same `files` folder, just under a
+    project named "ProjectName" instead of "files".
     """
     directory = os.path.dirname(host_path)
     if os.path.normpath(directory) == os.path.normpath(root.host_path):
@@ -118,6 +132,12 @@ def suggest_folder_project(conn, file_id, host_path, root):
         return
 
     folder_name = os.path.basename(directory)
+    if folder_name.lower() in _GENERIC_CONTAINER_NAMES:
+        parent_directory = os.path.dirname(directory)
+        if os.path.normpath(parent_directory) != os.path.normpath(root.host_path):
+            folder_name = os.path.basename(parent_directory)
+        # else: the generic-named folder sits directly in the watched root,
+        # so there's no more-meaningful parent to fall back to — keep it.
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             "SELECT id FROM projects WHERE parent_project_id IS NULL AND lower(name) = lower(%s)",
