@@ -388,10 +388,22 @@ main {
   font-size: var(--fs-xs);
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 999px;
+  /* Matches input/select radius (6px), not a full pill — a pill shape
+     stretched by a long project/tag name reads as a distorted oval. */
+  border-radius: 6px;
   padding: 3px 4px 3px 10px;
+  max-width: 100%;
+  min-width: 0;
 }
-.chip a { color: var(--ink); text-decoration: none; }
+.chip a {
+  color: var(--ink);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
 .chip-remove {
   border: none;
   background: none;
@@ -401,6 +413,7 @@ main {
   line-height: 1;
   padding: 2px 6px;
   border-radius: 999px;
+  flex-shrink: 0;
 }
 .chip-remove:hover { color: var(--warn); background: var(--warn-bg); }
 .empty-inline { color: var(--ink-muted); font-size: var(--fs-xs); }
@@ -521,6 +534,7 @@ main {
   background: var(--accent-bg);
   border-radius: 4px;
   padding: 1px 6px;
+  flex-shrink: 0;
 }
 .suggest-chip { gap: 6px; }
 .chip-inline-form { display: contents; }
@@ -564,6 +578,7 @@ main {
   padding: 4px 7px;
   border-radius: 999px;
   color: var(--ink-muted);
+  flex-shrink: 0;
 }
 .rel-confirm:hover { color: var(--accent); background: var(--accent-bg); }
 .rel-reject:hover { color: var(--warn); background: var(--warn-bg); }

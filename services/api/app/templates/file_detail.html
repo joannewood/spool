@@ -101,7 +101,7 @@
       {% for p in suggested_projects %}
       <span class="chip suggest-chip" id="sproject-{{ p.id }}">
         <span class="badge suggest">suggested</span>
-        <a href="/projects/{{ p.id }}">{{ p.name }}</a>
+        <a href="/projects/{{ p.id }}" title="{{ p.name }}">{{ p.name }}</a>
         <form method="POST" action="/files/{{ file.id }}/projects/{{ p.id }}/confirm" class="chip-inline-form"><button type="submit" class="rel-confirm" title="confirm">✓</button></form>
         <form method="POST" action="/files/{{ file.id }}/projects/{{ p.id }}/reject" class="chip-inline-form"><button type="submit" class="rel-reject" title="dismiss">×</button></form>
       </span>
@@ -111,7 +111,7 @@
     <div class="chips">
       {% for p in projects %}
       <span class="chip" id="project-{{ p.id }}">
-        <a href="/projects/{{ p.id }}">{{ p.name }}</a>
+        <a href="/projects/{{ p.id }}" title="{{ p.name }}">{{ p.name }}</a>
         <button type="button" class="chip-remove" hx-delete="/files/{{ file.id }}/projects/{{ p.id }}" hx-target="#project-{{ p.id }}" hx-swap="outerHTML" title="remove from project">×</button>
       </span>
       {% else %}

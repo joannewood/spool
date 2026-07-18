@@ -795,6 +795,27 @@ first), independent of the paused Phase 09:
       confirmed clicking the card in the browser actually launched
       Preview.app on the Mac for the real file, then cleaned up the test
       file from disk, the sidecar row, and its thumbnail.
+- [x] Chip sizing fix — a long project name in the suggested-project chip
+      (`.suggest-chip`, badge + name + confirm/reject icons all in one
+      pill) stretched the `border-radius: 999px` pill into a distorted
+      oval as the name wrapped across several lines, since the chip has
+      no cap on its own height. First fix attempt (a hardcoded `max-width:
+      180px` on `.chip a`) was wrong for this specific variant — the
+      suggested chip has more sibling content (badge + 2 icon buttons)
+      competing for the same space as the plain confirmed chip, so a
+      static guess that fit one didn't fit the other and just moved the
+      overflow from "too tall" to "too wide." Real fix: `.chip` gets
+      `max-width: 100%; min-width: 0` (so it can actually shrink within
+      its flex container instead of overflowing), the name link becomes
+      `flex: 1 1 auto; min-width: 0` (so *it* absorbs all the shrinking,
+      truncating via ellipsis to however much room is actually left),
+      and the badge/icon-button siblings get `flex-shrink: 0` (so they
+      keep their natural size instead of squeezing). Also dropped
+      `border-radius` from `999px` (full pill) to `6px`, matching the
+      input/select radius elsewhere — a true pill shape reads as broken
+      once it's forced wide/tall by long content; a rounded rectangle
+      doesn't. `title="{{ name }}"` added to both chip variants' project
+      links so the full name is still available on hover once truncated.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,
