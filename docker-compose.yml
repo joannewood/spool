@@ -24,5 +24,33 @@ services:
       postgres:
         condition: service_healthy
 
+  watcher:
+    build:
+      context: ./services
+      dockerfile: watcher/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    volumes:
+      - "${DROPFOLDER_HOST_PATH}:/roots/dropfolder:rw"
+      - "${LIBRARY_HOST_PATH}:/roots/library:ro"
+      - "${DOWNLOADS_HOST_PATH}:/roots/downloads:rw"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ./services
+      dockerfile: worker/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    volumes:
+      - "${DROPFOLDER_HOST_PATH}:/roots/dropfolder:rw"
+      - "${LIBRARY_HOST_PATH}:/roots/library:ro"
+      - "${DOWNLOADS_HOST_PATH}:/roots/downloads:rw"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   pgdata:
