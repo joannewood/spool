@@ -5,6 +5,8 @@ import pyrender
 import trimesh
 from PIL import Image
 
+from .step_loader import load_step_mesh
+
 THUMBNAIL_SIZE = 512
 MARGIN = 1.10  # ~10% margin around the bounding sphere
 ELEVATION_DEG = 30  # above the XY (bed) plane
@@ -45,6 +47,9 @@ def _camera_pose(radius):
 
 
 def load_mesh(container_path):
+    ext = os.path.splitext(container_path)[1].lower()
+    if ext in (".step", ".stp"):
+        return load_step_mesh(container_path)
     return trimesh.load(container_path, force="mesh")
 
 

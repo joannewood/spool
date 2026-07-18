@@ -12,6 +12,13 @@ from .render import render_thumbnail
 
 POLL_INTERVAL_SECONDS = 1.0
 
+# Which job_types this worker instance consumes — lets the slow STEP lane
+# run in a separate container (worker-step) from the fast ingest/mesh lane
+# (worker), so a backlog of CAD renders never blocks quick mesh renders.
+JOB_TYPES = tuple(t.strip() for t in os.environ.get("JOB_TYPES", "ingest,render").split(","))
+
+RUN_BACKFILL = os.environ.get("RUN_BACKFILL", "true").lower() == "true"
+
 
 def claim_next_job(conn):
     with conn.cursor() as cur:
@@ -20,13 +27,14 @@ def claim_next_job(conn):
             UPDATE jobs SET status = 'running'
             WHERE id = (
                 SELECT id FROM jobs
-                WHERE status = 'queued' AND job_type IN ('ingest', 'render')
+                WHERE status = 'queued' AND job_type = ANY(%s)
                 ORDER BY created_at
                 FOR UPDATE SKIP LOCKED
                 LIMIT 1
             )
             RETURNING id, file_id, job_type
-            """
+            """,
+            (list(JOB_TYPES),),
         )
         return cur.fetchone()
 
@@ -107,16 +115,20 @@ def mark_job_failed(conn, job_id, file_id, job_type, error):
             "UPDATE jobs SET status = 'failed', error = %s, completed_at = now() WHERE id = %s",
             (error, job_id),
         )
-        if job_type == "render":
+        if job_type in ("render", "render_step"):
             cur.execute("UPDATE files SET render_status = 'failed' WHERE id = %s", (file_id,))
 
 
 def main():
     conn = get_connection()
+    print(f"[worker] consuming job types: {JOB_TYPES}", flush=True)
 
-    print("[worker] running backfill...", flush=True)
-    run_backfill(conn)
-    print("[worker] backfill complete, entering job loop", flush=True)
+    if RUN_BACKFILL:
+        print("[worker] running backfill...", flush=True)
+        run_backfill(conn)
+        print("[worker] backfill complete, entering job loop", flush=True)
+    else:
+        print("[worker] backfill skipped (RUN_BACKFILL=false), entering job loop", flush=True)
 
     while True:
         job = claim_next_job(conn)
@@ -127,7 +139,7 @@ def main():
         try:
             if job_type == "ingest":
                 process_ingest_job(conn, file_id)
-            elif job_type == "render":
+            elif job_type in ("render", "render_step"):
                 process_render_job(conn, file_id)
             mark_job_done(conn, job_id)
             print(f"[worker] {job_type} done for file {file_id}", flush=True)

@@ -16,8 +16,8 @@ This file tracks *current build status* — the artifact is the design record.
 - [x] Phase 01 — ingestion core: watcher (live fs events), worker (backfill +
       job queue), Downloads relocation
 - [x] Phase 02 — mesh thumbnail rendering for STL/3MF (trimesh + pyrender)
-- [ ] Phase 03 — STEP previews (CAD kernel) ← **next**
-- [ ] Phase 04 — browse & search UI
+- [x] Phase 03 — STEP previews (OCP/OpenCASCADE), own `render_step` job lane
+- [ ] Phase 04 — browse & search UI ← **next**
 - [ ] Phase 05 — tags, projects, print metadata, admin page (watched roots CRUD)
 - [ ] Phase 06 — relationships (manual + auto-suggest: filename/version, folder grouping)
 - [ ] Phase 07 — drift reconciliation (periodic rescan, hash rematching)
@@ -37,10 +37,16 @@ services/
   watcher/  live filesystem events via watchdog. Lightweight — stages a stub
             file row + queues an 'ingest' job, or relocates (Downloads), then
             gets out of the way.
-  worker/   heavy image. Runs a one-shot backfill walk on startup (hashes
-            inline, no self-queuing), then a Postgres-backed job queue
-            consumer (SELECT ... FOR UPDATE SKIP LOCKED, no Redis) that
-            processes 'ingest' and 'render' jobs.
+  worker/   heavy image (trimesh/pyrender/OCP). Runs a one-shot backfill walk
+            on startup (hashes inline, no self-queuing), then a Postgres-
+            backed job queue consumer (SELECT ... FOR UPDATE SKIP LOCKED, no
+            Redis). Image is tagged `spool-worker` and run as TWO Compose
+            services off the SAME image, filtered by JOB_TYPES env var:
+              - worker      JOB_TYPES=ingest,render   (fast lane, runs backfill)
+              - worker-step JOB_TYPES=render_step     (slow CAD lane, RUN_BACKFILL=false)
+            This is the "STEP renders shouldn't block quick mesh renders"
+            requirement from the spec — real process-level lane separation,
+            not just a priority column.
 db/migrations/   plain numbered SQL files, NOT a real migration tool (see
                  Gotchas below) — run once by postgres on a fresh volume.
 ```
@@ -75,10 +81,42 @@ db/migrations/   plain numbered SQL files, NOT a real migration tool (see
   actually used. All of this is already in `services/worker/Dockerfile`;
   don't strip those packages out.
 - **trimesh's 3MF loader needs `lxml`** (not in trimesh's own dependency list).
+- **STEP tessellation via OCP (`services/worker/app/step_loader.py`)** — the
+  `cadquery-ocp` PyPI wheel (not `pythonocc-core`, which has poor aarch64 pip
+  support) has real prebuilt wheels for linux/aarch64 and Just Worked once
+  system libs were right: needs `libgl1` (already there for Phase 02) +
+  `libgomp1` (OpenCASCADE uses OpenMP). API surface that works: read via
+  `STEPControl_Reader`, tessellate via `BRepMesh_IncrementalMesh` with
+  deflection scaled to the part's bounding diagonal (a fixed deflection is
+  either too coarse for large parts or overkill for small ones), then pull
+  triangles per-face via `TopoDS.Face_s` / `BRep_Tool.Triangulation_s`.
+  Two non-obvious cleanup steps are required before `is_watertight`/`volume`
+  are trustworthy on a genuinely closed solid — **don't remove these**:
+  - `mesh.merge_vertices()` — each B-rep face tessellates independently, so
+    vertices along a shared edge between two faces aren't bit-identical.
+    Without merging, trimesh sees phantom boundary edges everywhere.
+  - `mesh.update_faces(mesh.nondegenerate_faces())` +
+    `remove_unreferenced_vertices()` — surfaces with a pole singularity
+    (spheres, filleted corners) tessellate with a couple of zero-area
+    triangles right at the pole. Real geometry, not a defect, but reads as
+    a boundary edge to the watertight check just like the seam issue above.
+  Verified against a sphere and a box-with-hole-and-fillets: both correctly
+  watertight with volume within ~0.6% of the analytic value after these two
+  steps; before them, both false-negatived on `is_manifold`.
 - **Docker Desktop bind-mount fs events can duplicate.** The watcher's
   `stage_stub` is idempotent (`ON CONFLICT (path) DO NOTHING`) specifically
   because a single file copy can fire multiple watchdog events. This is
   expected, not a bug — don't "fix" it by adding dedup logic elsewhere.
+- **Testing note**: any file written into the real bind-mounted watched
+  folders (even via a throwaway `docker compose run` script) gets picked up
+  by the live watcher/backfill for real, since they're the actual host
+  folders — not a bug, just remember to clean up test artifacts from both
+  disk AND the `files`/`jobs` tables afterward (happened twice while building
+  Phase 03).
+- **Applying a migration to a live (non-empty) DB**: confirmed working —
+  `docker compose exec postgres psql -U spool -d spool -f /docker-entrypoint-initdb.d/00N_whatever.sql`
+  (the migrations folder is bind-mounted into the postgres container at that
+  path already, so the file's already there — no need to copy it in).
 - **Real watched roots are hardcoded** in `db/migrations/003_seed_watched_roots.sql`
   for this machine (`/Users/jo/...`) — this is a personal local tool, not
   meant to be portable. Current roots:
@@ -104,13 +142,12 @@ docker compose down -v              # stop AND wipe volumes (only if no data wor
 `.env` (gitignored) holds real local paths/credentials — copy from `.env.example`
 if it's ever missing.
 
-## Next: Phase 03 — STEP previews
+## Next: Phase 04 — browse & search UI
 
-STEP is a CAD/B-rep format, not a mesh — needs a CAD kernel (`pythonocc-core`
-or the lighter `OCP` wheel from the CadQuery/build123d ecosystem) to tessellate
-geometry into a mesh before it can reuse `render.py`'s camera/lighting
-pipeline from Phase 02. Per the spec, STEP jobs should get their own queue
-lane so a slow STEP render doesn't block quick STL/3MF renders behind it —
-not yet implemented (Phase 02 only has one job type dispatch, no lane
-priority). Worth deciding during Phase 03 whether that's a separate
-`job_type` value, a priority column, or two consumer loops.
+First real `api` endpoints beyond `/health`: a searchable/filterable grid of
+thumbnails, per the spec ("the first genuinely useful version of SPOOL").
+Needs `api` to actually query `files`/`watched_roots`/etc — will want to
+mount the `thumbnails` volume into `api` (read-only) for the first time,
+per the docker-compose plan in the spec (Sheet 07 said `api` gets `thumbnails
+(ro)` — not wired up yet, only `worker`/`worker-step` have it). FastAPI +
+Jinja2 + htmx per the spec's tech-stack decision, no separate JS build step.

@@ -8,6 +8,7 @@ WORKDIR /app
 # so EGL is the backend that actually works here. libx11/libxext/libxrender
 # are only there because pyrender unconditionally imports its interactive
 # Viewer (pyglet) at package import time, even though we never use it.
+# libgomp1 is needed by cadquery-ocp (OpenCASCADE uses OpenMP internally).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglx-mesa0 \
@@ -16,6 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libx11-6 \
     libxext6 \
     libxrender1 \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PYOPENGL_PLATFORM=egl

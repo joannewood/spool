@@ -39,12 +39,37 @@ services:
         condition: service_healthy
 
   worker:
+    image: spool-worker
     build:
       context: ./services
       dockerfile: worker/Dockerfile
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       THUMBNAILS_DIR: /data/thumbnails
+      JOB_TYPES: ingest,render
+    volumes:
+      - "${DROPFOLDER_HOST_PATH}:/roots/dropfolder:rw"
+      - "${LIBRARY_HOST_PATH}:/roots/library:ro"
+      - "${DOWNLOADS_HOST_PATH}:/roots/downloads:rw"
+      - thumbnails:/data/thumbnails:rw
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Separate lane for STEP renders (CAD tessellation is much slower than
+  # reading a mesh file) so a backlog of STEP jobs never blocks quick
+  # ingest/mesh-render work in `worker`. Same image, different job filter.
+  # RUN_BACKFILL=false since `worker` already does the one-shot backfill walk.
+  worker-step:
+    image: spool-worker
+    build:
+      context: ./services
+      dockerfile: worker/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      THUMBNAILS_DIR: /data/thumbnails
+      JOB_TYPES: render_step
+      RUN_BACKFILL: "false"
     volumes:
       - "${DROPFOLDER_HOST_PATH}:/roots/dropfolder:rw"
       - "${LIBRARY_HOST_PATH}:/roots/library:ro"

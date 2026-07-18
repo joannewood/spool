@@ -1,7 +1,7 @@
 import os
 import shutil
 
-from .config import MESH_EXTENSIONS
+from .config import MESH_EXTENSIONS, STEP_EXTENSIONS
 from .hashing import sha256_file
 from .paths import to_host_path
 
@@ -65,14 +65,20 @@ def stage_and_hash(conn, root, container_path):
 
 
 def maybe_enqueue_render(conn, file_id, ext):
-    """Queue a render job for extensions Phase 02 knows how to render.
-    STEP stays render_status='pending' until Phase 03 adds a CAD kernel."""
-    if ext.lower() not in MESH_EXTENSIONS:
+    """Queue a render job for a renderable extension — 'render' for mesh
+    formats, 'render_step' for CAD formats (its own queue lane, since CAD
+    tessellation is much slower than reading a mesh file directly)."""
+    ext = ext.lower()
+    if ext in MESH_EXTENSIONS:
+        job_type = "render"
+    elif ext in STEP_EXTENSIONS:
+        job_type = "render_step"
+    else:
         return
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'render', 'queued')",
-            (file_id,),
+            "INSERT INTO jobs (file_id, job_type, status) VALUES (%s, %s, 'queued')",
+            (file_id, job_type),
         )
 
 
