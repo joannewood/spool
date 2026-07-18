@@ -4,19 +4,22 @@
 
 <h1>Projects</h1>
 
-<form class="stack-form" method="POST" action="/projects">
-  <label>Name <input type="text" name="name" required></label>
-  <label>Description <input type="text" name="description"></label>
-  <label>Parent project
-    <select name="parent_project_id">
-      <option value="">(none — top level)</option>
-      {% for p in projects %}
-      <option value="{{ p.id }}">{{ p.name }}</option>
-      {% endfor %}
-    </select>
-  </label>
-  <button type="submit">Create project</button>
-</form>
+<section class="panel">
+  <h2>Create a new project</h2>
+  <form class="stack-form" method="POST" action="/projects">
+    <label>Name <input type="text" name="name" required></label>
+    <label>Description <input type="text" name="description"></label>
+    <label>Parent project
+      <select name="parent_project_id">
+        <option value="">(none — top level)</option>
+        {% for p in projects %}
+        <option value="{{ p.id }}">{{ p.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit">Create project</button>
+  </form>
+</section>
 
 <div class="project-tree">
   {% for item in tree recursive %}

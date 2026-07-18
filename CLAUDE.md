@@ -692,6 +692,41 @@ first), independent of the paused Phase 09:
       print_log rows via existing `ON DELETE CASCADE`) — confirmed none had
       thumbnails generated, and confirmed a fresh backfill doesn't re-stage
       them now that the filter runs earlier.
+- [x] UI polish pass (font-size scale, custom `<select>` styling, spacing) —
+      requested after the user flagged the library page's sort dropdown as
+      "not very nice" next to the styled search input, plus general
+      cramped vertical space and inconsistent font sizes across the app.
+      `style.css` gained a 7-step type scale (`--fs-2xs` through `--fs-2xl`,
+      11–22px) that every font-size declaration now resolves to instead of
+      the ~13 ad hoc decimal values that had accumulated feature-by-feature
+      (two deliberate off-scale exceptions stay literal: the 32px empty-
+      state extension glyph and the 22px star-rating icon, since those are
+      UI elements sized as icons, not body text). Every `<select>` in the
+      app (sort, ingest-mode, parent-project, app-picker, relationship-type)
+      gets `appearance: none` + a CSS-only chevron (inline SVG data-URI,
+      separate light/dark stroke colors) instead of relying on OS chrome —
+      **gotcha**: the per-context rules that also set a plain `background:`
+      shorthand (`.inline-form select`, `.admin-table select`, `.stack-form
+      select`) had to switch to the `background-color` longhand, since the
+      shorthand resets `background-image` to `none` and would silently
+      kill the chevron. The library page's extension checkboxes became
+      pill-style toggles reusing the same per-extension accent colors as
+      the grid's ext-badges (CSS `:has(input:checked)`, same checkbox-
+      hiding technique as the existing star-rating widget — no JS). Added
+      a global `button {}` base rule so the several admin buttons that had
+      no class at all (zip Confirm/Reject, Un-reject, Delete/Accept
+      selected) stop rendering as raw unstyled OS buttons; a two-tier size
+      system distinguishes primary-CTA buttons (`.searchbar`/`.stack-form`/
+      `.printed-log-form button`, 10px/20px) from compact inline ones
+      (`.inline-form`/`.admin-table button`, 6px/12px) rather than making
+      every button identical, which would have flattened the UI's visual
+      hierarchy. `admin.html` was restructured from four bare `<h1>`
+      sections running directly into each other into a single page title
+      plus four `.panel` cards (new `.admin-sections` wrapper) — same
+      treatment already used on the file detail page. `projects.html`'s
+      create-project form is now wrapped in its own `.panel` card instead
+      of floating loose above the project list. Panel padding/gap and
+      project-list row padding all increased for more breathing room.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,

@@ -2,89 +2,103 @@
 {% block title %}Admin — SPOOL{% endblock %}
 {% block content %}
 
-<h1>Watched roots</h1>
-<p class="note">
-  Editing or pausing a root below takes effect live within a few seconds, no restart needed.
-  Adding a brand-new root isn't supported here — Docker can't attach a new bind mount to an
-  already-running container, so that still needs a <code>docker-compose.yml</code> change and
-  <code>docker compose up -d --build</code>.
-</p>
+<h1>Admin</h1>
 
-{% for r in roots %}
-<form id="root-form-{{ r.id }}" method="POST" action="/admin/roots/{{ r.id }}"></form>
-{% endfor %}
+<div class="admin-sections">
 
-<div class="table-wrap">
-  <table class="admin-table">
-    <thead>
-      <tr><th>Label</th><th>Host path</th><th>Kind</th><th>Ingest mode</th><th>Active</th><th>Files</th><th>Last scanned</th><th></th></tr>
-    </thead>
-    <tbody>
-      {% for r in roots %}
-      <tr>
-        <td><input type="text" name="label" form="root-form-{{ r.id }}" value="{{ r.label }}"></td>
-        <td><code>{{ r.host_path }}</code></td>
-        <td>{{ r.kind }}</td>
-        <td>
-          <select name="ingest_mode" form="root-form-{{ r.id }}">
-            {% for m in ingest_modes %}
-            <option value="{{ m }}" {% if m == r.ingest_mode %}selected{% endif %}>{{ m }}</option>
-            {% endfor %}
-          </select>
-        </td>
-        <td><input type="checkbox" name="active" form="root-form-{{ r.id }}" {% if r.active %}checked{% endif %}></td>
-        <td>{{ r.file_count }}</td>
-        <td>{{ r.last_scanned_at if r.last_scanned_at else "—" }}</td>
-        <td><button type="submit" form="root-form-{{ r.id }}">Save</button></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<section class="panel">
+  <h2>Watched roots</h2>
+  <p class="note">
+    Editing or pausing a root below takes effect live within a few seconds, no restart needed.
+    Adding a brand-new root isn't supported here — Docker can't attach a new bind mount to an
+    already-running container, so that still needs a <code>docker-compose.yml</code> change and
+    <code>docker compose up -d --build</code>.
+  </p>
+
+  {% for r in roots %}
+  <form id="root-form-{{ r.id }}" method="POST" action="/admin/roots/{{ r.id }}"></form>
+  {% endfor %}
+
+  <div class="table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr><th>Label</th><th>Host path</th><th>Kind</th><th>Ingest mode</th><th>Active</th><th>Files</th><th>Last scanned</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for r in roots %}
+        <tr>
+          <td><input type="text" name="label" form="root-form-{{ r.id }}" value="{{ r.label }}"></td>
+          <td><code>{{ r.host_path }}</code></td>
+          <td>{{ r.kind }}</td>
+          <td>
+            <select name="ingest_mode" form="root-form-{{ r.id }}">
+              {% for m in ingest_modes %}
+              <option value="{{ m }}" {% if m == r.ingest_mode %}selected{% endif %}>{{ m }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td><input type="checkbox" name="active" form="root-form-{{ r.id }}" {% if r.active %}checked{% endif %}></td>
+          <td>{{ r.file_count }}</td>
+          <td>{{ r.last_scanned_at if r.last_scanned_at else "—" }}</td>
+          <td><button type="submit" form="root-form-{{ r.id }}">Save</button></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Pending archives</h2>
+  <p class="note">
+    Zip files found in watched roots that contain a recognized model file inside — nothing is
+    extracted until you confirm. Rejecting one means it's never asked about again on later scans.
+  </p>
+
+  {% if pending_zips %}
+  <div class="table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr><th>Filename</th><th>Path</th><th>Size</th><th>Error</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for z in pending_zips %}
+        <tr>
+          <td>{{ z.filename }}</td>
+          <td><code>{{ z.path }}</code></td>
+          <td>{{ z.size_bytes | filesizeformat }}</td>
+          <td>{% if z.error %}<span class="badge warn">⚠ {{ z.error }}</span>{% endif %}</td>
+          <td>
+            <form method="POST" action="/admin/zips/{{ z.id }}/confirm" class="chip-inline-form"><button type="submit">Confirm</button></form>
+            <form method="POST" action="/admin/zips/{{ z.id }}/reject" class="chip-inline-form"><button type="submit" class="rel-reject">Reject</button></form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty-inline">no pending archives</p>
+  {% endif %}
+  <a href="/admin/rejected-archives">View rejected archives →</a>
+</section>
+
+<section class="panel">
+  <h2>Duplicate files</h2>
+  <p class="note">Files with byte-identical content, ready to review and clean up.</p>
+  <a href="/admin/duplicates">Review duplicate files →</a>
+</section>
+
+<section class="panel">
+  <h2>Suggestions</h2>
+  <p class="note">
+    Heuristic proposals from the worker — folder-based project groupings and
+    filename/hash-based relationships — waiting for you to confirm or reject.
+  </p>
+  <p><a href="/admin/suggested-projects">Review suggested project assignments →</a></p>
+  <p><a href="/admin/suggested-relationships">Review suggested relationships →</a></p>
+</section>
+
 </div>
-
-<h1>Pending archives</h1>
-<p class="note">
-  Zip files found in watched roots that contain a recognized model file inside — nothing is
-  extracted until you confirm. Rejecting one means it's never asked about again on later scans.
-</p>
-
-{% if pending_zips %}
-<div class="table-wrap">
-  <table class="admin-table">
-    <thead>
-      <tr><th>Filename</th><th>Path</th><th>Size</th><th>Error</th><th></th></tr>
-    </thead>
-    <tbody>
-      {% for z in pending_zips %}
-      <tr>
-        <td>{{ z.filename }}</td>
-        <td><code>{{ z.path }}</code></td>
-        <td>{{ z.size_bytes | filesizeformat }}</td>
-        <td>{% if z.error %}<span class="badge warn">⚠ {{ z.error }}</span>{% endif %}</td>
-        <td>
-          <form method="POST" action="/admin/zips/{{ z.id }}/confirm" class="chip-inline-form"><button type="submit">Confirm</button></form>
-          <form method="POST" action="/admin/zips/{{ z.id }}/reject" class="chip-inline-form"><button type="submit" class="rel-reject">Reject</button></form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% else %}
-<p class="empty-inline">no pending archives</p>
-{% endif %}
-<a href="/admin/rejected-archives">View rejected archives →</a>
-
-<h1>Duplicate files</h1>
-<p class="note">Files with byte-identical content, ready to review and clean up.</p>
-<a href="/admin/duplicates">Review duplicate files →</a>
-
-<h1>Suggestions</h1>
-<p class="note">
-  Heuristic proposals from the worker — folder-based project groupings and
-  filename/hash-based relationships — waiting for you to confirm or reject.
-</p>
-<p><a href="/admin/suggested-projects">Review suggested project assignments →</a></p>
-<p><a href="/admin/suggested-relationships">Review suggested relationships →</a></p>
 
 {% endblock %}

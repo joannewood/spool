@@ -12,7 +12,7 @@
   </select>
   <div class="ext-filters">
     {% for e in all_extensions %}
-    <label class="ext-toggle">
+    <label class="ext-toggle {{ e | ext_class }}">
       <input type="checkbox" name="ext" value="{{ e }}" {% if e in selected_extensions %}checked{% endif %}>
       {{ e }}
     </label>
