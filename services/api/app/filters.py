@@ -1,3 +1,12 @@
+def ext_class(ext):
+    """CSS class for the extension color-coding on grid cards — .step/.stp
+    share one class since they're the same format, just spelled two ways."""
+    ext = (ext or "").lower()
+    if ext in (".step", ".stp"):
+        return "ext-step"
+    return "ext-" + ext.lstrip(".")
+
+
 def format_size(num_bytes):
     if num_bytes is None:
         return "—"

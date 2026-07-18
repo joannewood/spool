@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from . import host_helper_client, queries
-from .filters import format_size
+from .filters import ext_class, format_size
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 THUMBNAILS_DIR = os.environ.get("THUMBNAILS_DIR", "/data/thumbnails")
@@ -25,6 +25,7 @@ app.mount("/thumbnails", StaticFiles(directory=THUMBNAILS_DIR), name="thumbnails
 
 templates = Jinja2Templates(directory=os.path.join(APP_DIR, "templates"))
 templates.env.filters["filesizeformat"] = format_size
+templates.env.filters["ext_class"] = ext_class
 
 
 @app.get("/health")
@@ -97,6 +98,14 @@ def file_detail(request: Request, file_id: int):
             "open_status": request.query_params.get("open_status", ""),
         },
     )
+
+
+# ---- display name -----------------------------------------------------------
+
+@app.post("/files/{file_id}/name")
+def update_display_name(file_id: int, display_name: str = Form("")):
+    queries.set_display_name(file_id, display_name.strip())
+    return RedirectResponse(f"/files/{file_id}", status_code=303)
 
 
 # ---- tags -------------------------------------------------------------------

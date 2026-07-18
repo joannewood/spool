@@ -15,9 +15,12 @@
         {% endif %}
       </div>
       <div class="meta">
-        <div class="filename" title="{{ f.filename }}">{{ f.filename }}</div>
+        <div class="filename" title="{{ f.filename }}">{{ f.display_name or f.filename }}</div>
+        {% if f.bbox_x is not none %}
+        <div class="dims">{{ "%.0f"|format(f.bbox_x) }} × {{ "%.0f"|format(f.bbox_y) }} × {{ "%.0f"|format(f.bbox_z) }} mm</div>
+        {% endif %}
         <div class="badges">
-          <span class="ext-badge">{{ f.ext }}</span>
+          <span class="ext-badge {{ f.ext | ext_class }}">{{ f.ext }}</span>
           {% if f.is_manifold == false %}
           <span class="badge warn" title="Not watertight — may not slice cleanly">⚠ non-manifold</span>
           {% endif %}

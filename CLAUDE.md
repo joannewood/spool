@@ -416,6 +416,41 @@ work): the folder-grouping threshold, sidecar-file indexing, and
 zip review/extraction — all described in the worker/ section above and
 their own gotchas below. Resume Phase 09 proper whenever ready.
 
+## Ad hoc feature backlog (post-Phase-08, outside the phase structure)
+
+User-requested additions being worked through in size order (small batches
+first), independent of the paused Phase 09:
+
+- [x] Grid cards show dimensions (`_results.html`/`project_detail.html`,
+      needs `bbox_x/y/z` in the query SELECT).
+- [x] Search matches `print_metadata` (material/printer/slicer/notes), not
+      just filename — `queries.search_files`'s `q` condition grew an
+      `id IN (SELECT file_id FROM print_metadata WHERE ...)` branch.
+- [x] Ext badges are color-coded per format (migration-free — `--ext-stl`/
+      `--ext-3mf`/`--ext-step` CSS vars, first 3 slots of the dataviz
+      skill's fixed categorical order; `.step`/`.stp` share one class/color
+      since they're the same format. Hue is accent-only — background tint
+      + border, never the label's own text color — the skill's default
+      palette flags slot 3 as failing light-mode text contrast on its own,
+      and "text wears text tokens" is a hard rule regardless). Reused via
+      a Jinja filter (`filters.py::ext_class`), not repeated template logic.
+- [x] Per-file editable `display_name` (migration 009) — `NULL` means "just
+      show `filename`," resolved via `display_name or filename` wherever a
+      name is rendered (grid cards, file detail `<h1>`, relationship
+      labels, the relationship link-picker). Edited via a plain form on the
+      file detail page, `POST /files/{id}/name`.
+- [ ] "Printed" toggle + 1-5 star rating + comments per file.
+- [ ] `.svg` and `.scad` file support (indexing, and a rendering/preview
+      approach still to be decided for each).
+- [ ] Duplicate-file review/deletion admin UI (same hash + same render →
+      flag one of a pair, bulk accept/reject with a select-all).
+- [ ] Test coverage for major components — deliberately last, once the
+      surface area above has settled.
+- [ ] Package for sharing with friends — deferred by the user until the
+      tool is feature-complete and they're happy with it; will need to
+      address the hardcoded-personal-paths gotcha above (seed migration,
+      `.env`) for portability to someone else's machine.
+
 ## Deliberate scope boundaries (not bugs, revisit only if they start to hurt)
 
 - Phase 06's folder-grouping heuristic matches by folder *name* only, not

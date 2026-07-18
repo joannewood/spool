@@ -12,8 +12,16 @@ def search_files(q, extensions, tags, page):
     conditions = ["status = 'active'"]
     params = []
     if q:
-        conditions.append("filename ILIKE %s")
-        params.append(f"%{q}%")
+        conditions.append(
+            """(
+                filename ILIKE %s OR display_name ILIKE %s OR id IN (
+                    SELECT file_id FROM print_metadata
+                    WHERE material ILIKE %s OR printer_profile ILIKE %s
+                       OR slicer ILIKE %s OR notes ILIKE %s
+                )
+            )"""
+        )
+        params.extend([f"%{q}%"] * 6)
     if extensions:
         conditions.append("ext = ANY(%s)")
         params.append(list(extensions))
@@ -31,7 +39,8 @@ def search_files(q, extensions, tags, page):
 
             cur.execute(
                 f"""
-                SELECT id, filename, ext, thumbnail_path, render_status, is_manifold
+                SELECT id, filename, display_name, ext, thumbnail_path, render_status,
+                       is_manifold, bbox_x, bbox_y, bbox_z
                 FROM files
                 WHERE {where}
                 ORDER BY first_seen_at DESC
@@ -48,6 +57,15 @@ def get_file(file_id):
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute("SELECT * FROM files WHERE id = %s", (file_id,))
             return cur.fetchone()
+
+
+def set_display_name(file_id, display_name):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE files SET display_name = %s WHERE id = %s",
+                (display_name or None, file_id),
+            )
 
 
 # ---- tags -----------------------------------------------------------------
@@ -136,7 +154,8 @@ def get_project_files(project_id):
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
                 """
-                SELECT f.id, f.filename, f.ext, f.thumbnail_path, f.render_status, f.is_manifold
+                SELECT f.id, f.filename, f.display_name, f.ext, f.thumbnail_path,
+                       f.render_status, f.is_manifold, f.bbox_x, f.bbox_y, f.bbox_z
                 FROM files f
                 JOIN project_files pf ON pf.file_id = f.id
                 WHERE pf.project_id = %s AND pf.status = 'confirmed'
@@ -225,7 +244,7 @@ def _fetch_relationships(file_id, status):
             if not rels:
                 return []
             cur.execute(
-                "SELECT id, filename, ext, thumbnail_path, render_status FROM files WHERE id = ANY(%s)",
+                "SELECT id, filename, display_name, ext, thumbnail_path, render_status FROM files WHERE id = ANY(%s)",
                 ([r["other_id"] for r in rels],),
             )
             files_by_id = {f["id"]: f for f in cur.fetchall()}
@@ -242,7 +261,7 @@ def _fetch_relationships(file_id, status):
                 "confidence": r["confidence"],
                 "other_id": r["other_id"],
                 "label": RELATIONSHIP_LABELS[(r["type"], r["direction"])],
-                "filename": other["filename"],
+                "filename": other["display_name"] or other["filename"],
                 "ext": other["ext"],
                 "thumbnail_path": other["thumbnail_path"],
                 "render_status": other["render_status"],
@@ -264,11 +283,11 @@ def search_files_for_relationship(q, exclude_file_id):
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
                 """
-                SELECT id, filename, ext FROM files
-                WHERE status = 'active' AND id != %s AND filename ILIKE %s
+                SELECT id, filename, display_name, ext FROM files
+                WHERE status = 'active' AND id != %s AND (filename ILIKE %s OR display_name ILIKE %s)
                 ORDER BY filename LIMIT 10
                 """,
-                (exclude_file_id, f"%{q}%"),
+                (exclude_file_id, f"%{q}%", f"%{q}%"),
             )
             return cur.fetchall()
 

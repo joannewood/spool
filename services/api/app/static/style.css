@@ -10,6 +10,13 @@
   --warn-bg: #fdf1e6;
   --ok: #1a7a4c;
   --ok-bg: #e9f7ef;
+  /* Categorical, fixed order (dataviz skill's default palette, slots 1-3) —
+     text stays --ink-muted always; these are accent-only (border + tint),
+     never the label's own text color, since slot 3 fails light-mode text
+     contrast on its own. Room left for slots 4/5 (svg/scad) later. */
+  --ext-stl: #2a78d6;
+  --ext-3mf: #008300;
+  --ext-step: #e87ba4;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -25,6 +32,9 @@
     --warn-bg: #2c2418;
     --ok: #4cd08a;
     --ok-bg: #123524;
+    --ext-stl: #3987e5;
+    --ext-3mf: #008300;
+    --ext-step: #d55181;
   }
 }
 
@@ -179,6 +189,7 @@ main {
   text-overflow: ellipsis;
   margin-bottom: 6px;
 }
+.dims { font-size: 11.5px; color: var(--ink-muted); margin-bottom: 6px; }
 .badges { display: flex; gap: 6px; flex-wrap: wrap; }
 .ext-badge {
   font-size: 11px;
@@ -189,6 +200,11 @@ main {
   border-radius: 4px;
   padding: 1px 6px;
 }
+/* Per-extension accent — border + tint only, text stays --ink-muted above
+   (never the series color itself — see the --ext-* comment near :root). */
+.ext-badge.ext-stl { border-color: var(--ext-stl); background: color-mix(in oklab, var(--ext-stl) 14%, transparent); }
+.ext-badge.ext-3mf { border-color: var(--ext-3mf); background: color-mix(in oklab, var(--ext-3mf) 14%, transparent); }
+.ext-badge.ext-step { border-color: var(--ext-step); background: color-mix(in oklab, var(--ext-step) 14%, transparent); }
 .badge.warn {
   font-size: 11px;
   color: var(--warn);
