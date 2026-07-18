@@ -2,6 +2,24 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# Mesa's software EGL backend (llvmpipe) gives pyrender a headless OpenGL
+# context — no GPU or X server needed to rasterize thumbnails. Debian's
+# packaged OSMesa doesn't support the core-profile context pyrender needs,
+# so EGL is the backend that actually works here. libx11/libxext/libxrender
+# are only there because pyrender unconditionally imports its interactive
+# Viewer (pyglet) at package import time, even though we never use it.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglx-mesa0 \
+    libgl1-mesa-dri \
+    libegl1 \
+    libx11-6 \
+    libxext6 \
+    libxrender1 \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV PYOPENGL_PLATFORM=egl
+
 COPY worker/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

@@ -1,6 +1,7 @@
 import os
 import shutil
 
+from .config import MESH_EXTENSIONS
 from .hashing import sha256_file
 from .paths import to_host_path
 
@@ -61,6 +62,18 @@ def stage_and_hash(conn, root, container_path):
         )
         row = cur.fetchone()
     return row[0] if row else None
+
+
+def maybe_enqueue_render(conn, file_id, ext):
+    """Queue a render job for extensions Phase 02 knows how to render.
+    STEP stays render_status='pending' until Phase 03 adds a CAD kernel."""
+    if ext.lower() not in MESH_EXTENSIONS:
+        return
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'render', 'queued')",
+            (file_id,),
+        )
 
 
 def relocate(root, dropfolder_root, container_path):

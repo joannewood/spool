@@ -23,10 +23,15 @@ def run_backfill(conn):
         new_count = 0
         for container_path in _walk_matching(root.container_path):
             if root.ingest_mode == "relocate_to_dropfolder":
-                new_path = ingest.relocate(root, dropfolder_root, container_path)
-                if ingest.stage_and_hash(conn, dropfolder_root, new_path) is not None:
-                    new_count += 1
+                target_root = dropfolder_root
+                target_path = ingest.relocate(root, dropfolder_root, container_path)
             else:
-                if ingest.stage_and_hash(conn, root, container_path) is not None:
-                    new_count += 1
+                target_root = root
+                target_path = container_path
+
+            file_id = ingest.stage_and_hash(conn, target_root, target_path)
+            if file_id is not None:
+                new_count += 1
+                ext = os.path.splitext(target_path)[1].lower()
+                ingest.maybe_enqueue_render(conn, file_id, ext)
         print(f"[worker] backfill — {root.label}: {new_count} new file(s)", flush=True)
