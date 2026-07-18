@@ -114,6 +114,7 @@ def file_detail(request: Request, file_id: int):
             "relationship_types": RELATIONSHIP_TYPES,
             "all_apps": host_helper_client.ALL_APPS,
             "default_app": host_helper_client.default_app_for_ext(file["ext"]),
+            "app_icons": host_helper_client.APP_ICONS,
             "open_status": request.query_params.get("open_status", ""),
         },
     )

@@ -63,14 +63,19 @@
     {% endif %}
 
     {% if all_apps %}
-    <form class="inline-form" method="POST" action="/files/{{ file.id }}/open">
-      <select name="app">
-        {% for a in all_apps %}
-        <option value="{{ a }}" {% if a == default_app %}selected{% endif %}>{{ a }}</option>
-        {% endfor %}
-      </select>
-      <button type="submit">Open</button>
-    </form>
+    <div class="app-icons">
+      {% for a in all_apps %}
+      <form method="POST" action="/files/{{ file.id }}/open" class="card-form">
+        <button type="submit" name="app" value="{{ a }}" class="app-icon-btn {{ 'app-icon-default' if a == default_app }}" title="Open in {{ a }}">
+          {% if a in app_icons %}
+          <img src="/static/icons/{{ app_icons[a] }}" alt="{{ a }}">
+          {% else %}
+          <span class="ext-label">{{ a[:2] }}</span>
+          {% endif %}
+        </button>
+      </form>
+      {% endfor %}
+    </div>
     {% endif %}
   </div>
 </div>

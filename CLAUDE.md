@@ -816,6 +816,27 @@ first), independent of the paused Phase 09:
       once it's forced wide/tall by long content; a rounded rectangle
       doesn't. `title="{{ name }}"` added to both chip variants' project
       links so the full name is still available on hover once truncated.
+- [x] "Open in..." replaced with real per-app icon buttons — the file
+      detail page's dropdown + separate "Open" button became one icon
+      button per app (`.app-icons`), each a direct click-to-open (no
+      selection step). Icons are the actual macOS app icons, extracted
+      **once** as a manual step, not via a live host-helper endpoint:
+      `sips -s format png <bundle>/Contents/Resources/<icon>.icns --out
+      services/api/app/static/icons/<name>.png` (`sips` is a built-in
+      macOS CLI, no new dependency) — found each icon's filename via
+      `/usr/libexec/PlistBuddy -c "Print :CFBundleIconFile" <bundle>/
+      Contents/Info.plist` rather than guessing (`Icon.icns` for
+      BambuStudio, `Fusion_Launch.icns` for Autodesk Fusion). These never
+      change short of a reinstall, so they're checked-in static assets
+      like `favicon.svg`, not something worth a dynamic extraction/
+      caching feature. `host_helper_client.APP_ICONS` maps app name ->
+      icon filename (alongside the existing `APP_MAP`/`ALL_APPS`); the
+      default app for the file's extension gets an accent border
+      (`.app-icon-default`) so it's still visually distinguished even
+      though every icon is now an equally-real click target, not just the
+      dropdown's pre-selected option. Verified live: clicking the
+      BambuStudio icon for a real `.3mf` file actually launched
+      BambuStudio with that file, same as the old dropdown+button flow.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,

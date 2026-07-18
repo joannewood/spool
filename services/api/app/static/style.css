@@ -362,6 +362,27 @@ main {
   color: var(--ink-muted);
 }
 
+/* "Open in..." app icons — real icons extracted from each .app bundle
+   (host_helper_client.APP_ICONS), clicking opens directly rather than a
+   dropdown + separate submit step. */
+.app-icons { display: flex; gap: 8px; }
+button.app-icon-btn {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.app-icon-btn img { width: 100%; height: 100%; object-fit: contain; }
+.app-icon-btn:hover { border-color: var(--accent); transform: translateY(-1px); }
+.app-icon-btn.app-icon-default { border-color: var(--accent); }
+
 /* panels: tags / projects / print metadata on the detail page */
 .panels {
   display: grid;

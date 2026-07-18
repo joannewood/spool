@@ -23,6 +23,17 @@ APP_MAP = {
 
 ALL_APPS = sorted(set(APP_MAP.values()))
 
+# Real app icons extracted once from each .app bundle's own .icns
+# (services/api/app/static/icons/ — `sips -s format png <bundle>/Contents/
+# Resources/<icon>.icns --out <name>.png`), not a live host-helper endpoint:
+# these never change short of a reinstall, so there's nothing to gain from
+# re-extracting them per request over just checking the PNGs in like
+# favicon.svg.
+APP_ICONS = {
+    "BambuStudio": "bambustudio.png",
+    "Autodesk Fusion": "autodesk-fusion.png",
+}
+
 
 def default_app_for_ext(ext):
     return APP_MAP.get(ext.lower())
