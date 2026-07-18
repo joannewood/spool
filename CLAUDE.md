@@ -1,0 +1,116 @@
+# SPOOL
+
+A local, searchable library for 3D printing files (.stl, .3mf, .step) — watches
+folders, hashes and indexes files into Postgres, renders preview thumbnails, and
+serves a localhost web UI so files can be found and previewed before opening in
+Fusion360 or Bambu Studio. Runs entirely in Docker except a small native host
+helper (Phase 08) that launches those GUI apps.
+
+Full design spec (architecture, data model, all decisions made while speccing
+this out): https://claude.ai/code/artifact/a0d3f281-fa08-4666-a93c-7942c7a785bc
+This file tracks *current build status* — the artifact is the design record.
+
+## Status
+
+- [x] Phase 00 — Postgres schema, FastAPI health check, Compose skeleton
+- [x] Phase 01 — ingestion core: watcher (live fs events), worker (backfill +
+      job queue), Downloads relocation
+- [x] Phase 02 — mesh thumbnail rendering for STL/3MF (trimesh + pyrender)
+- [ ] Phase 03 — STEP previews (CAD kernel) ← **next**
+- [ ] Phase 04 — browse & search UI
+- [ ] Phase 05 — tags, projects, print metadata, admin page (watched roots CRUD)
+- [ ] Phase 06 — relationships (manual + auto-suggest: filename/version, folder grouping)
+- [ ] Phase 07 — drift reconciliation (periodic rescan, hash rematching)
+- [ ] Phase 08 — host-helper (native launchd agent, open-in-Fusion360/Bambu)
+- [ ] Phase 09 — polish & scale
+
+The stack (postgres, api, watcher, worker) runs continuously — it's not a
+one-shot build, it's meant to be up and watching folders in the background.
+
+## Architecture
+
+```
+services/
+  common/   shared lib used by watcher + worker — db, host<->container path
+            mapping, hashing, ingest primitives (stage/relocate/enqueue)
+  api/      FastAPI. Currently just /health. Gets real endpoints in Phase 04+.
+  watcher/  live filesystem events via watchdog. Lightweight — stages a stub
+            file row + queues an 'ingest' job, or relocates (Downloads), then
+            gets out of the way.
+  worker/   heavy image. Runs a one-shot backfill walk on startup (hashes
+            inline, no self-queuing), then a Postgres-backed job queue
+            consumer (SELECT ... FOR UPDATE SKIP LOCKED, no Redis) that
+            processes 'ingest' and 'render' jobs.
+db/migrations/   plain numbered SQL files, NOT a real migration tool (see
+                 Gotchas below) — run once by postgres on a fresh volume.
+```
+
+## Key decisions & gotchas (read before touching schema or rendering)
+
+- **host_path vs container_path**: `files.path` always stores the real macOS
+  path (host-helper needs this later). Watcher/worker only ever see container
+  paths (`/roots/dropfolder`, `/roots/library`, `/roots/downloads`). Convert
+  with `common/paths.py:to_host_path`/`to_container_path`, keyed off each
+  `watched_roots` row's `host_path` + `container_path` pair.
+- **Migrations only run once.** `docker-entrypoint-initdb.d` scripts execute
+  only on a truly empty `pgdata` volume. Once there's real indexed data, a new
+  `.sql` file in `db/migrations/` will NOT get applied automatically — need to
+  either apply it by hand (`docker compose exec postgres psql ...`) or wipe
+  the volume (`docker compose down -v`, safe only while there's no data worth
+  keeping). **We don't have real migration tooling yet** — worth adding
+  (Alembic or similar) before Phase 05, once the DB holds data we can't just
+  regenerate by re-running backfill.
+- **content_hash is nullable.** A file is discovered (path/size) before it's
+  hashed — live-ingested files sit with `content_hash IS NULL` until the
+  worker's 'ingest' job runs. Backfill hashes inline instead (no self-queuing).
+- **Job queue is a plain `jobs` table**, not Redis/Celery — `claim_next_job()`
+  in `worker/app/main.py` does the `FOR UPDATE SKIP LOCKED` claim.
+- **Headless rendering needs EGL, not OSMesa.** Debian's packaged `libosmesa6`
+  doesn't support the core-profile GL context pyrender needs
+  (`OSMesaCreateContextAttribs` isn't available) — use
+  `PYOPENGL_PLATFORM=egl` with Mesa's software `llvmpipe` driver instead. Also:
+  `import pyrender` unconditionally imports its pyglet-based interactive
+  `Viewer` even though we only use `OffscreenRenderer` — needs `libx11-6`,
+  `libxext6`, `libxrender1` installed just to satisfy that import, never
+  actually used. All of this is already in `services/worker/Dockerfile`;
+  don't strip those packages out.
+- **trimesh's 3MF loader needs `lxml`** (not in trimesh's own dependency list).
+- **Docker Desktop bind-mount fs events can duplicate.** The watcher's
+  `stage_stub` is idempotent (`ON CONFLICT (path) DO NOTHING`) specifically
+  because a single file copy can fire multiple watchdog events. This is
+  expected, not a bug — don't "fix" it by adding dedup logic elsewhere.
+- **Real watched roots are hardcoded** in `db/migrations/003_seed_watched_roots.sql`
+  for this machine (`/Users/jo/...`) — this is a personal local tool, not
+  meant to be portable. Current roots:
+  - Drop folder: `~/Documents/3DPrintFiles` (created fresh, empty until used)
+  - Library: `~/Documents/3D Printing` — **PLACEHOLDER**, doesn't point at
+    your real existing library yet. Update the seed migration (and re-apply
+    by hand per the migrations gotcha above) once you know the real path.
+  - Downloads: `~/Downloads`, `ingest_mode = relocate_to_dropfolder`
+
+## Running it
+
+```
+docker compose up -d --build        # bring up postgres, api, watcher, worker
+docker compose ps                   # check health
+curl localhost:8000/health          # confirm api <-> postgres
+docker compose logs worker -f       # watch backfill/render/ingest activity
+docker compose logs watcher -f      # watch live fs events
+docker compose exec postgres psql -U spool -d spool   # inspect data directly
+docker compose down                 # stop (keeps pgdata + thumbnails volumes)
+docker compose down -v              # stop AND wipe volumes (only if no data worth keeping)
+```
+
+`.env` (gitignored) holds real local paths/credentials — copy from `.env.example`
+if it's ever missing.
+
+## Next: Phase 03 — STEP previews
+
+STEP is a CAD/B-rep format, not a mesh — needs a CAD kernel (`pythonocc-core`
+or the lighter `OCP` wheel from the CadQuery/build123d ecosystem) to tessellate
+geometry into a mesh before it can reuse `render.py`'s camera/lighting
+pipeline from Phase 02. Per the spec, STEP jobs should get their own queue
+lane so a slow STEP render doesn't block quick STL/3MF renders behind it —
+not yet implemented (Phase 02 only has one job type dispatch, no lane
+priority). Worth deciding during Phase 03 whether that's a separate
+`job_type` value, a priority column, or two consumer loops.
