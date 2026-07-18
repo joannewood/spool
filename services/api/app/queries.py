@@ -1,3 +1,5 @@
+import re
+
 from psycopg.rows import dict_row
 
 from common.db import get_connection
@@ -16,13 +18,49 @@ SORT_CLAUSES = {
     "size_asc": "size_bytes ASC",
 }
 
+_NUMBER_RE = re.compile(r"(\d+(?:\.\d+)?)")
+
+# Keyword -> (settings_json key, match tolerance). Bambu's auto-extraction
+# (worker/app/bambu_metadata.py) writes these as plain numbers inside
+# print_metadata.settings_json — "0.2mm nozzle" or "20% infill" can't match
+# via a text ILIKE, since the JSON just holds e.g. "nozzle_diameter_mm": 0.2,
+# no "mm"/"nozzle" text anywhere near it. Keyword-presence + nearest-number
+# (not strict phrase order) so both "0.2mm nozzle" and "nozzle 0.2mm" work —
+# deliberately loose, this is a convenience heuristic, not a full parser.
+_STRUCTURED_METADATA_FIELDS = {
+    "nozzle": ("nozzle_diameter_mm", 0.005),
+    "layer": ("layer_height_mm", 0.005),
+    "infill": ("infill_density_pct", 0.5),
+}
+
+
+def _structured_metadata_clauses(q):
+    q_lower = q.lower()
+    clauses, params = [], []
+    for keyword, (json_key, tolerance) in _STRUCTURED_METADATA_FIELDS.items():
+        if keyword not in q_lower:
+            continue
+        match = _NUMBER_RE.search(q_lower)
+        if not match:
+            continue
+        value = float(match.group(1))
+        clauses.append(
+            f"""id IN (
+                SELECT file_id FROM print_metadata
+                WHERE settings_json->>'{json_key}' ~ '^\\d+\\.?\\d*$'
+                  AND (settings_json->>'{json_key}')::float BETWEEN %s AND %s
+            )"""
+        )
+        params.extend([value - tolerance, value + tolerance])
+    return clauses, params
+
 
 def search_files(q, extensions, tags, page, sort="newest"):
     offset = (page - 1) * PAGE_SIZE
     conditions = ["status = 'active'"]
     params = []
     if q:
-        conditions.append(
+        q_conditions = [
             """(
                 filename ILIKE %s OR display_name ILIKE %s OR id IN (
                     SELECT file_id FROM print_metadata
@@ -32,8 +70,15 @@ def search_files(q, extensions, tags, page, sort="newest"):
                     SELECT file_id FROM print_log WHERE comments ILIKE %s
                 )
             )"""
-        )
-        params.extend([f"%{q}%"] * 7)
+        ]
+        q_params = [f"%{q}%"] * 7
+
+        structured_clauses, structured_params = _structured_metadata_clauses(q)
+        q_conditions.extend(structured_clauses)
+        q_params.extend(structured_params)
+
+        conditions.append("(" + " OR ".join(q_conditions) + ")")
+        params.extend(q_params)
     if extensions:
         conditions.append("ext = ANY(%s)")
         params.append(list(extensions))

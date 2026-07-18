@@ -601,6 +601,23 @@ first), independent of the paused Phase 09:
       own notes-to-self field, migration 010) — same `id IN (SELECT
       file_id FROM ... WHERE ... ILIKE %s)` pattern already used for
       `print_metadata`, just a second table.
+- [x] Search understands a few structured print-settings phrasings —
+      "0.2mm nozzle", "20% infill", "0.12mm layer height" — that plain
+      `ILIKE` can't reach, since Bambu's auto-extraction
+      (`worker/app/bambu_metadata.py`) writes these as plain numbers
+      inside `print_metadata.settings_json` (e.g. `"nozzle_diameter_mm":
+      0.4`), not as text containing "mm"/"nozzle" anywhere.
+      `queries._structured_metadata_clauses` is a keyword-presence +
+      nearest-number heuristic (not a real parser — "nozzle" or "layer"
+      or "infill" anywhere in `q`, plus the first number found anywhere in
+      `q`), so both "0.2mm nozzle" and "nozzle 0.2mm" work; matches with a
+      small tolerance (`BETWEEN value±0.005` for mm fields, `±0.5` for the
+      percent field) rather than exact float equality, and the JSONB
+      value is regex-validated as numeric-looking before the `::float`
+      cast so a future non-numeric value in that key can't raise a
+      runtime cast error. Purely additive — ORed alongside the existing
+      filename/print_metadata/print_log text search, so a query matching
+      no structured pattern behaves exactly as before.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,
