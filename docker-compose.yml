@@ -15,11 +15,16 @@ services:
       retries: 5
 
   api:
-    build: ./services/api
+    build:
+      context: ./services
+      dockerfile: api/Dockerfile
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      THUMBNAILS_DIR: /data/thumbnails
     ports:
       - "8000:8000"
+    volumes:
+      - thumbnails:/data/thumbnails:ro
     depends_on:
       postgres:
         condition: service_healthy

@@ -17,8 +17,8 @@ This file tracks *current build status* — the artifact is the design record.
       job queue), Downloads relocation
 - [x] Phase 02 — mesh thumbnail rendering for STL/3MF (trimesh + pyrender)
 - [x] Phase 03 — STEP previews (OCP/OpenCASCADE), own `render_step` job lane
-- [ ] Phase 04 — browse & search UI ← **next**
-- [ ] Phase 05 — tags, projects, print metadata, admin page (watched roots CRUD)
+- [x] Phase 04 — browse & search UI (FastAPI + Jinja2 + htmx)
+- [ ] Phase 05 — tags, projects, print metadata, admin page (watched roots CRUD) ← **next**
 - [ ] Phase 06 — relationships (manual + auto-suggest: filename/version, folder grouping)
 - [ ] Phase 07 — drift reconciliation (periodic rescan, hash rematching)
 - [ ] Phase 08 — host-helper (native launchd agent, open-in-Fusion360/Bambu)
@@ -33,7 +33,11 @@ one-shot build, it's meant to be up and watching folders in the background.
 services/
   common/   shared lib used by watcher + worker — db, host<->container path
             mapping, hashing, ingest primitives (stage/relocate/enqueue)
-  api/      FastAPI. Currently just /health. Gets real endpoints in Phase 04+.
+  api/      FastAPI + Jinja2 + htmx. / is a searchable/filterable thumbnail
+            grid (search-as-you-type + extension checkboxes, both via htmx
+            partial swaps on the same route), /files/{id} is the detail page.
+            Shares `common/` too now (build context is ./services, same
+            pattern as watcher/worker) — uses common.db for queries.
   watcher/  live filesystem events via watchdog. Lightweight — stages a stub
             file row + queues an 'ingest' job, or relocates (Downloads), then
             gets out of the way.
@@ -117,6 +121,19 @@ db/migrations/   plain numbered SQL files, NOT a real migration tool (see
   `docker compose exec postgres psql -U spool -d spool -f /docker-entrypoint-initdb.d/00N_whatever.sql`
   (the migrations folder is bind-mounted into the postgres container at that
   path already, so the file's already there — no need to copy it in).
+- **htmx is vendored at build time**, not loaded from a CDN — `api/Dockerfile`
+  fetches it via `ADD https://unpkg.com/...` during the image build (network
+  access at build time is already normal, same as pip/apt), so the running
+  app never needs network access at runtime. Keep it this way — matches the
+  "all local" design; don't switch to a `<script src="https://...">` CDN tag.
+- **No browser automation tooling on this host** — no Node, no Playwright, no
+  chromium-cli. To visually verify the UI, ran a throwaway
+  `mcr.microsoft.com/playwright:v1.48.0-jammy` container on the same Compose
+  network (`--network data-platform_default`), `npm install playwright`
+  inside it, and drove `http://api:8000` directly (Compose's internal DNS —
+  no need to go through the host port mapping). Worked well; consider
+  `/run-skill-generator` to capture this as a reusable project skill if UI
+  verification keeps coming up.
 - **Real watched roots are hardcoded** in `db/migrations/003_seed_watched_roots.sql`
   for this machine (`/Users/jo/...`) — this is a personal local tool, not
   meant to be portable. Current roots:
@@ -142,12 +159,12 @@ docker compose down -v              # stop AND wipe volumes (only if no data wor
 `.env` (gitignored) holds real local paths/credentials — copy from `.env.example`
 if it's ever missing.
 
-## Next: Phase 04 — browse & search UI
+## Next: Phase 05 — tags, projects, print metadata, admin page
 
-First real `api` endpoints beyond `/health`: a searchable/filterable grid of
-thumbnails, per the spec ("the first genuinely useful version of SPOOL").
-Needs `api` to actually query `files`/`watched_roots`/etc — will want to
-mount the `thumbnails` volume into `api` (read-only) for the first time,
-per the docker-compose plan in the spec (Sheet 07 said `api` gets `thumbnails
-(ro)` — not wired up yet, only `worker`/`worker-step` have it). FastAPI +
-Jinja2 + htmx per the spec's tech-stack decision, no separate JS build step.
+Manual organization on top of what's auto-indexed: tags, nestable projects
+(`parent_project_id` already exists on the `projects` table — schema's ready,
+no UI yet), print metadata editing, and the admin page for managing
+`watched_roots` (add/edit/pause a root, trigger a rescan — the whole reason
+that table has an `active` column and isn't just env vars). This is also
+the natural point to fix the "library root is still an empty placeholder"
+gap noted below, if the real path is known by then.

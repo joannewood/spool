@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}{{ file.filename }} — SPOOL{% endblock %}
+{% block content %}
+
+<a class="back" href="/">← back to library</a>
+
+<div class="detail">
+  <div class="detail-thumb">
+    {% if file.thumbnail_path %}
+      <img src="/thumbnails/{{ file.thumbnail_path }}" alt="{{ file.filename }}">
+    {% else %}
+      <div class="thumb-placeholder large status-{{ file.render_status }}">
+        <span class="ext-label">{{ file.ext }}</span>
+        <span class="status-label">{{ file.render_status }}</span>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="detail-meta">
+    <h1>{{ file.filename }}</h1>
+
+    {% if file.is_manifold == false %}
+    <p class="badge warn">⚠ not watertight — may not slice cleanly</p>
+    {% endif %}
+
+    <dl>
+      <dt>Path</dt><dd><code>{{ file.path }}</code></dd>
+      <dt>Size</dt><dd>{{ file.size_bytes | filesizeformat }}</dd>
+      <dt>Dimensions</dt>
+      <dd>
+        {% if file.bbox_x is not none %}
+          {{ "%.1f"|format(file.bbox_x) }} × {{ "%.1f"|format(file.bbox_y) }} × {{ "%.1f"|format(file.bbox_z) }} mm
+        {% else %}—{% endif %}
+      </dd>
+      <dt>Volume</dt>
+      <dd>{% if file.volume_mm3 is not none %}{{ "%.1f"|format(file.volume_mm3) }} mm³{% else %}—{% endif %}</dd>
+      <dt>Triangles</dt><dd>{{ file.tri_count if file.tri_count is not none else "—" }}</dd>
+      <dt>Manifold</dt>
+      <dd>
+        {% if file.is_manifold is none %}—
+        {% elif file.is_manifold %}✓ watertight
+        {% else %}⚠ not watertight
+        {% endif %}
+      </dd>
+      <dt>Render status</dt><dd>{{ file.render_status }}</dd>
+      <dt>Hash</dt><dd><code>{{ file.content_hash[:16] ~ "…" if file.content_hash else "—" }}</code></dd>
+      <dt>First seen</dt><dd>{{ file.first_seen_at }}</dd>
+    </dl>
+
+    <p class="note">Opening directly in Fusion360 / Bambu Studio arrives in a later phase — for now, the path above can be copied and opened manually.</p>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,43 @@
+<div id="results">
+  <p class="result-count">{{ total }} file{{ "s" if total != 1 else "" }}</p>
+
+  <div class="grid">
+    {% for f in files %}
+    <a class="card" href="/files/{{ f.id }}">
+      <div class="thumb">
+        {% if f.thumbnail_path %}
+          <img src="/thumbnails/{{ f.thumbnail_path }}" alt="{{ f.filename }}" loading="lazy">
+        {% else %}
+          <div class="thumb-placeholder status-{{ f.render_status }}">
+            <span class="ext-label">{{ f.ext }}</span>
+            <span class="status-label">{{ f.render_status }}</span>
+          </div>
+        {% endif %}
+      </div>
+      <div class="meta">
+        <div class="filename" title="{{ f.filename }}">{{ f.filename }}</div>
+        <div class="badges">
+          <span class="ext-badge">{{ f.ext }}</span>
+          {% if f.is_manifold == false %}
+          <span class="badge warn" title="Not watertight — may not slice cleanly">⚠ non-manifold</span>
+          {% endif %}
+        </div>
+      </div>
+    </a>
+    {% else %}
+    <p class="empty">No files match.</p>
+    {% endfor %}
+  </div>
+
+  {% if total_pages > 1 %}
+  <nav class="pagination">
+    {% if page > 1 %}
+    <a href="/?{{ base_qs }}&page={{ page - 1 }}" hx-get="/?{{ base_qs }}&page={{ page - 1 }}" hx-target="#results" hx-select="#results" hx-swap="outerHTML" hx-push-url="true">← Prev</a>
+    {% endif %}
+    <span>Page {{ page }} of {{ total_pages }}</span>
+    {% if page < total_pages %}
+    <a href="/?{{ base_qs }}&page={{ page + 1 }}" hx-get="/?{{ base_qs }}&page={{ page + 1 }}" hx-target="#results" hx-select="#results" hx-swap="outerHTML" hx-push-url="true">Next →</a>
+    {% endif %}
+  </nav>
+  {% endif %}
+</div>

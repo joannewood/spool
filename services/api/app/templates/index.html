@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+
+<form class="searchbar" method="GET" action="/"
+      hx-get="/" hx-target="#results" hx-select="#results" hx-swap="outerHTML" hx-push-url="true"
+      hx-trigger="input changed delay:250ms from:input[name='q'], change from:input[type='checkbox']">
+  <input type="search" name="q" placeholder="Search filenames…" value="{{ q }}" autocomplete="off" autofocus>
+  <div class="ext-filters">
+    {% for e in all_extensions %}
+    <label class="ext-toggle">
+      <input type="checkbox" name="ext" value="{{ e }}" {% if e in selected_extensions %}checked{% endif %}>
+      {{ e }}
+    </label>
+    {% endfor %}
+  </div>
+  <button type="submit">Search</button>
+</form>
+
+{% include "_results.html" %}
+
+{% endblock %}
