@@ -90,6 +90,7 @@ def file_detail(request: Request, file_id: int):
             "suggested_projects": queries.get_suggested_file_projects(file_id),
             "all_projects": queries.list_projects(),
             "print_metadata": queries.get_print_metadata(file_id),
+            "print_log": queries.get_print_log(file_id),
             "relationships": queries.get_file_relationships(file_id),
             "suggested_relationships": queries.get_suggested_relationships(file_id),
             "relationship_types": RELATIONSHIP_TYPES,
@@ -241,6 +242,12 @@ def update_print_metadata(
     notes: str = Form(""),
 ):
     queries.set_manual_print_metadata(file_id, material, printer_profile, slicer, notes)
+    return RedirectResponse(f"/files/{file_id}", status_code=303)
+
+
+@app.post("/files/{file_id}/print-log")
+def update_print_log(file_id: int, printed: str = Form(""), rating: str = Form(""), comments: str = Form("")):
+    queries.set_print_log(file_id, printed == "on", int(rating) if rating else None, comments.strip())
     return RedirectResponse(f"/files/{file_id}", status_code=303)
 
 

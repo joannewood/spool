@@ -439,7 +439,21 @@ first), independent of the paused Phase 09:
       name is rendered (grid cards, file detail `<h1>`, relationship
       labels, the relationship link-picker). Edited via a plain form on the
       file detail page, `POST /files/{id}/name`.
-- [ ] "Printed" toggle + 1-5 star rating + comments per file.
+- [x] "Printed" toggle + 1-5 star rating + comments per file — new
+      `print_log` table (migration 010), deliberately separate from
+      `print_metadata` so marking a file printed never touches that
+      table's `source` column (which gates auto-extraction overwrites —
+      folding this into `print_metadata` would have silently blocked
+      future Bambu re-extraction for any file someone just marked
+      printed). Field is named `comments`, not `notes`, specifically
+      to avoid colliding with `print_metadata.notes` as a form field
+      name on the same page (caught during testing — same name on two
+      different `<textarea>`s on one page is a real footgun, e.g. a
+      Playwright `page.fill('textarea[name="notes"]')` silently filled
+      the wrong one). Star rating is a CSS-only radio/label trick
+      (`.star-rating`, reverse DOM order + `flex-direction: row-reverse`
+      + `~` sibling selectors); the rating/comments fields are revealed
+      only once "printed" is checked, via `:has()` — no JS.
 - [ ] `.svg` and `.scad` file support (indexing, and a rendering/preview
       approach still to be decided for each).
 - [ ] Duplicate-file review/deletion admin UI (same hash + same render →

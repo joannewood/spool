@@ -394,6 +394,48 @@ main {
 }
 .note-inline { font-size: 11.5px; color: var(--ink-muted); }
 
+/* printed toggle / rating */
+.printed-log-form { display: flex; flex-direction: column; gap: 8px; max-width: 420px; }
+.printed-log-form button {
+  align-self: flex-start;
+  padding: 7px 16px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: white;
+  font-size: 13.5px;
+  cursor: pointer;
+  margin-top: 4px;
+}
+.printed-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.printed-details { display: none; margin-top: 10px; max-width: 420px; }
+.printed-toggle:has(input:checked) ~ .printed-details { display: flex; flex-direction: column; gap: 8px; }
+.printed-details textarea {
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 13.5px;
+  font-family: inherit;
+}
+.star-rating { display: flex; flex-direction: row-reverse; justify-content: flex-end; gap: 2px; }
+.star-rating input { position: absolute; opacity: 0; width: 0; height: 0; }
+.star-rating label { font-size: 22px; line-height: 1; color: var(--border); cursor: pointer; }
+.star-rating input:checked ~ label,
+.star-rating input:hover ~ label,
+.star-rating label:hover,
+.star-rating label:hover ~ label {
+  color: var(--warn);
+}
+
 /* relationships */
 .panel-full { grid-column: 1 / -1; }
 .badge.suggest {

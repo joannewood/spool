@@ -385,6 +385,29 @@ def set_manual_print_metadata(file_id, material, printer_profile, slicer, notes)
             )
 
 
+# ---- print log (printed / rating / notes) ------------------------------------
+
+def get_print_log(file_id):
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("SELECT * FROM print_log WHERE file_id = %s", (file_id,))
+            return cur.fetchone()
+
+
+def set_print_log(file_id, printed, rating, comments):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO print_log (file_id, printed, rating, comments)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (file_id) DO UPDATE SET
+                    printed = EXCLUDED.printed, rating = EXCLUDED.rating, comments = EXCLUDED.comments
+                """,
+                (file_id, printed, rating, comments or None),
+            )
+
+
 # ---- admin: watched roots -----------------------------------------------
 
 def list_watched_roots():

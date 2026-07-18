@@ -159,6 +159,26 @@
     </form>
   </section>
 
+  <section class="panel">
+    <h2>Printed</h2>
+    <form class="printed-log-form" method="POST" action="/files/{{ file.id }}/print-log">
+      <label class="printed-toggle">
+        <input type="checkbox" name="printed" {% if print_log and print_log.printed %}checked{% endif %}>
+        I've printed this
+      </label>
+      <div class="printed-details">
+        <div class="star-rating">
+          {% for i in range(5, 0, -1) %}
+          <input type="radio" id="star{{ i }}" name="rating" value="{{ i }}" {% if print_log and print_log.rating == i %}checked{% endif %}>
+          <label for="star{{ i }}" title="{{ i }} star{{ 's' if i != 1 else '' }}">★</label>
+          {% endfor %}
+        </div>
+        <textarea name="comments" rows="3" placeholder="How did it turn out?">{{ (print_log.comments or '') if print_log else '' }}</textarea>
+      </div>
+      <button type="submit">Save</button>
+    </form>
+  </section>
+
   <section class="panel panel-full">
     <h2>Related files</h2>
 
