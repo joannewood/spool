@@ -391,3 +391,63 @@ def update_watched_root(root_id, label, ingest_mode, active):
                 "UPDATE watched_roots SET label = %s, ingest_mode = %s, active = %s WHERE id = %s",
                 (label.strip(), ingest_mode, active, root_id),
             )
+
+
+# ---- pending zip archives -----------------------------------------------
+
+def list_pending_zips():
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                "SELECT id, filename, path, size_bytes, error FROM zip_files "
+                "WHERE status = 'suggested' ORDER BY created_at"
+            )
+            return cur.fetchall()
+
+
+def enqueue_zip_extraction(zip_id):
+    with get_connection() as conn:
+        with conn.transaction():
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE zip_files SET status = 'confirmed', error = NULL WHERE id = %s",
+                    (zip_id,),
+                )
+                cur.execute(
+                    "INSERT INTO jobs (zip_file_id, job_type, status) VALUES (%s, 'extract_zip', 'queued')",
+                    (zip_id,),
+                )
+
+
+def reject_zip(zip_id):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE zip_files SET status = 'rejected' WHERE id = %s", (zip_id,))
+
+
+# ---- sidecar files --------------------------------------------------------
+
+def get_project_sidecars(project_id):
+    """Sidecar files (README, preview images, etc.) that live in the same
+    folder as this project's confirmed member files — projects have no
+    stored folder-path column (Phase 06's known name-matching limitation),
+    so this derives folder membership from the paths of files already
+    linked to the project."""
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                WITH project_dirs AS (
+                    SELECT DISTINCT regexp_replace(f.path, '/[^/]+$', '') AS dir
+                    FROM files f
+                    JOIN project_files pf ON pf.file_id = f.id
+                    WHERE pf.project_id = %s AND pf.status = 'confirmed'
+                )
+                SELECT s.id, s.filename, s.ext, s.size_bytes
+                FROM sidecar_files s
+                JOIN project_dirs d ON regexp_replace(s.path, '/[^/]+$', '') = d.dir
+                ORDER BY s.filename
+                """,
+                (project_id,),
+            )
+            return cur.fetchall()

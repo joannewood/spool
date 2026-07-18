@@ -52,7 +52,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       THUMBNAILS_DIR: /data/thumbnails
-      JOB_TYPES: ingest,render
+      JOB_TYPES: ingest,render,extract_zip
       RESCAN_INTERVAL_SECONDS: ${RESCAN_INTERVAL_SECONDS:-300}
     volumes:
       - "${DROPFOLDER_HOST_PATH}:/roots/dropfolder:rw"

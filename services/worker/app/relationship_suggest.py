@@ -92,10 +92,10 @@ def suggest_for_file(conn, file_id, filename, ext):
 
 
 def suggest_folder_project(conn, file_id, host_path, root):
-    """Flat, per-leaf-folder grouping: if this file shares its immediate
-    parent directory with at least one other indexed file, suggest all of
-    them as members of a (name-matched, auto-created if needed) top-level
-    project named after that folder. Deliberately does NOT mirror the whole
+    """Flat, per-leaf-folder grouping: any indexed file sitting in a
+    meaningful subfolder (even alone) gets a suggested project named after
+    that folder — a lone file today just means a project of one, ready to
+    pick up siblings later. Deliberately does NOT mirror the whole
     directory tree — a folder two levels deep still becomes one flat
     project, not a chain of nested ones.
 
@@ -114,7 +114,7 @@ def suggest_folder_project(conn, file_id, host_path, root):
             (directory + os.sep + "%",),
         )
         siblings = [r for r in cur.fetchall() if os.path.dirname(r["path"]) == directory]
-    if len(siblings) < 2:
+    if not siblings:
         return
 
     folder_name = os.path.basename(directory)

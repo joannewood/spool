@@ -45,4 +45,13 @@
   {% endfor %}
 </div>
 
+{% if sidecars %}
+<h2>Files in this folder</h2>
+<ul class="sidecar-list">
+  {% for s in sidecars %}
+  <li>{{ s.filename }} <span class="note-inline">{{ s.size_bytes | filesizeformat }}</span></li>
+  {% endfor %}
+</ul>
+{% endif %}
+
 {% endblock %}

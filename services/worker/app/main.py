@@ -13,6 +13,7 @@ from .bambu_metadata import extract_bambu_metadata, upsert_extracted_metadata
 from .relationship_suggest import suggest_folder_project, suggest_for_file
 from .render import render_thumbnail
 from .rescan import RESCAN_INTERVAL_SECONDS, run_rescan
+from .zip_extract import process_extract_zip_job
 
 POLL_INTERVAL_SECONDS = 1.0
 
@@ -36,7 +37,7 @@ def claim_next_job(conn):
                 FOR UPDATE SKIP LOCKED
                 LIMIT 1
             )
-            RETURNING id, file_id, job_type
+            RETURNING id, file_id, zip_file_id, job_type
             """,
             (list(JOB_TYPES),),
         )
@@ -162,12 +163,14 @@ def main():
         if job is None:
             time.sleep(POLL_INTERVAL_SECONDS)
             continue
-        job_id, file_id, job_type = job
+        job_id, file_id, zip_file_id, job_type = job
         try:
             if job_type == "ingest":
                 process_ingest_job(conn, file_id)
             elif job_type in ("render", "render_step"):
                 process_render_job(conn, file_id)
+            elif job_type == "extract_zip":
+                process_extract_zip_job(conn, zip_file_id)
             mark_job_done(conn, job_id)
             print(f"[worker] {job_type} done for file {file_id}", flush=True)
         except Exception as exc:

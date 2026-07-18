@@ -156,6 +156,7 @@ def project_detail(request: Request, project_id: int):
             "children": queries.get_project_children(project_id),
             "files": queries.get_project_files(project_id),
             "parent": queries.get_project(project["parent_project_id"]) if project["parent_project_id"] else None,
+            "sidecars": queries.get_project_sidecars(project_id),
         },
     )
 
@@ -258,7 +259,13 @@ def open_file(file_id: int, app: str = Form("")):
 @app.get("/admin", response_class=HTMLResponse)
 def admin(request: Request):
     return templates.TemplateResponse(
-        request, "admin.html", {"roots": queries.list_watched_roots(), "ingest_modes": INGEST_MODES}
+        request,
+        "admin.html",
+        {
+            "roots": queries.list_watched_roots(),
+            "ingest_modes": INGEST_MODES,
+            "pending_zips": queries.list_pending_zips(),
+        },
     )
 
 
@@ -270,4 +277,16 @@ def admin_update_root(
     active: str = Form(""),
 ):
     queries.update_watched_root(root_id, label, ingest_mode, active == "on")
+    return RedirectResponse("/admin", status_code=303)
+
+
+@app.post("/admin/zips/{zip_id}/confirm")
+def confirm_zip(zip_id: int):
+    queries.enqueue_zip_extraction(zip_id)
+    return RedirectResponse("/admin", status_code=303)
+
+
+@app.post("/admin/zips/{zip_id}/reject")
+def reject_zip(zip_id: int):
+    queries.reject_zip(zip_id)
     return RedirectResponse("/admin", status_code=303)

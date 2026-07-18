@@ -53,8 +53,13 @@ services/
             picking one submits type+to_file_id together — no custom JS).
             Suggested project membership (from worker folder-grouping) gets
             the same confirm/reject treatment as a chip in the Projects
-            panel. Shares `common/` (build context is ./services) — uses
-            common.db for queries, all in queries.py.
+            panel. `/admin` also has a "Pending archives" panel (zip files
+            worth reviewing — see zip_ingest below) and a project's page
+            lists its folder's sidecar files (non-model files — README,
+            preview images — that live alongside model files; no thumbnail,
+            nothing to click, just filename + size). Shares `common/`
+            (build context is ./services) — uses common.db for queries,
+            all in queries.py.
   watcher/  live filesystem events via watchdog. Lightweight — stages a stub
             file row + queues an 'ingest' job, or relocates (Downloads), then
             gets out of the way. Polls watched_roots every 10s
@@ -73,11 +78,13 @@ services/
             derived_from (assumed export direction: non-STEP derived from
             STEP); same basename with a trailing `_v<N>`/`-v<N>` and same
             extension -> new_version_of, newer -> older. Separately,
-            suggest_folder_project groups files that share an immediate
-            parent directory (skipped if that directory *is* the watched
-            root) into a flat, auto-created-if-missing top-level project
-            named after the folder — deliberately not mirroring the whole
-            directory tree, per spec. All suggestions insert with
+            suggest_folder_project suggests a project for *any* indexed
+            file sitting in a meaningful subfolder (skipped if that
+            directory *is* the watched root) — even a lone file, a project
+            of one, ready to pick up siblings later — into a flat,
+            auto-created-if-missing top-level project named after the
+            folder, deliberately not mirroring the whole directory tree,
+            per spec. All suggestions insert with
             status='suggested' via `ON CONFLICT ... DO NOTHING` against the
             relationships_from_to_type_uniq constraint (migration 005) /
             the project_files PK, so a user's manual confirm or reject is
@@ -95,13 +102,53 @@ services/
             does *not* re-run Phase 06's relationship/folder-grouping
             heuristics on a content change, to avoid suggestion-noise on
             every in-place slicer re-save. Shares `backfill.py`'s
-            `_ingest_new_path`/`_walk_matching` rather than duplicating
-            "how a brand-new file gets indexed." Gated on the same
+            `_ingest_new_path`/`_walk_project_folders` rather than
+            duplicating "how a brand-new file gets indexed." Gated on the same
             `RUN_BACKFILL` flag as backfill (only the fast `worker` lane
             runs it, not `worker-step` — otherwise both lanes would
             double-hash and race on the same rows) and checked once per
             iteration of the existing job-poll loop, no separate
-            thread/scheduler. Also has bambu_metadata.py —
+            thread/scheduler.
+
+            **Sidecar files, folder-preserving relocate, and zip
+            extraction** (added after the folder-grouping/rescan work
+            above, while populating the real library): both
+            `run_backfill` and `run_rescan` walk directories via
+            `_walk_project_folders` (yields model/sidecar/zip paths per
+            directory, not a flat file list) instead of the old
+            `_walk_matching`. A directory with ≥1 model file gets its
+            non-model, non-zip files indexed into `sidecar_files`
+            (`common/ingest.py::stage_sidecar` — no hash, no render, just
+            presence, surfaced on that folder's project page only, never
+            the main grid — a directory with zero model files gets no
+            sidecar indexing at all). OS clutter (`.DS_Store`, `Thumbs.db`,
+            `desktop.ini` — `common/paths.py::is_ignorable_junk`) is
+            filtered out before it ever becomes a sidecar row; without
+            this, every folder on a Mac gets a `.DS_Store` sidecar, which
+            is exactly what happened the first time this ran against the
+            real library. `common/ingest.py::relocate` (used for Downloads)
+            now moves a file's **whole containing folder** as a unit
+            (collision-suffix-renamed, e.g. `Widget` → `Widget (2)`,
+            never merged) when that folder is a genuine leaf (no
+            subdirectories of its own) — carries sidecars along and stops
+            a downloaded kit's grouping from being destroyed by the old
+            per-file flatten. `.zip` files get peeked (`common/
+            zip_ingest.py` — `zipfile.namelist()`, no decompression) and
+            only tracked in `zip_files` if they contain a recognized model
+            extension; Admin's "Pending archives" panel confirms/rejects
+            them (rejected rows are kept forever — `ON CONFLICT (path) DO
+            NOTHING` on rediscovery means never asked about again).
+            Confirming enqueues an `extract_zip` job
+            (`services/worker/app/zip_extract.py`) — extracts, deletes the
+            original zip, and (for `relocate_to_dropfolder` roots) moves
+            the extracted folder into the drop folder the same way `relocate`
+            does. Both `run_backfill` and `run_rescan` **materialize their
+            walk into a list before doing any relocation** — moving a
+            whole folder mid-walk can otherwise disrupt `os.walk`'s
+            still-in-progress traversal of that same tree, a hazard the
+            old per-file-only relocate never had.
+
+            Also has bambu_metadata.py —
             after rendering a .3mf, checks for Metadata/project_settings.config
             (JSON) and Metadata/slice_info.config (XML) inside the zip; if
             present (a real Bambu Studio project export, not just any 3MF),
@@ -225,7 +272,14 @@ copies the script out of this repo rather than running it in place).
   by the live watcher/backfill for real, since they're the actual host
   folders — not a bug, just remember to clean up test artifacts from both
   disk AND the `files`/`jobs` tables afterward (happened twice while building
-  Phase 03).
+  Phase 03; also now touches `sidecar_files`/`zip_files`/`projects` since
+  the folder/sidecar/zip work). A bulk `cp -r` (creating a whole directory
+  tree in one shot) is *not* reliably caught by the live watcher — confirmed
+  while testing folder-preserving relocate, a bind-mount fs-event quirk
+  consistent with the existing "Docker Desktop bind-mount fs events can
+  duplicate" gotcha below (here it under-delivers instead). Individual
+  `mkdir` + `cp` calls into an already-existing watched directory fire
+  normally; Phase 07's periodic rescan is the reliable fallback either way.
 - **Folder-based project auto-grouping matches by folder *name* only**
   (`suggest_folder_project` in `relationship_suggest.py`) — projects have no
   folder-path column in the schema, so two same-named leaf folders in
@@ -234,6 +288,22 @@ copies the script out of this repo rather than running it in place).
   a schema change (a path or per-root scoping column on `projects`) to fix
   properly. Since membership is inserted as `status='suggested'`, a wrong
   auto-grouping is just one reject click away, not a destructive merge.
+- **Whole-folder relocate only preserves structure for true leaf folders**
+  (`common/ingest.py::relocate` — checks `os.scandir(parent_dir)` for any
+  subdirectory) — a folder containing *another* folder with its own model
+  files falls back to flattening the individual file instead of moving the
+  whole tree. Deliberate: moving a folder with nested subdirectories mid-walk
+  could invalidate `os.walk` entries `run_backfill`/`run_rescan` already
+  materialized for that nested folder. Matches the existing "flat per leaf
+  folder" rule already accepted for folder-grouping.
+- **Zip extraction into a read-only-mounted root fails loudly, by design**
+  — the `Library` root is mounted `:ro` in `docker-compose.yml` (per Sheet 07
+  of the spec, since `index_in_place` roots are never supposed to be
+  written to); if a zip found there is confirmed, `process_extract_zip_job`
+  hits a permissions error, which surfaces as `zip_files.error` in Admin
+  rather than crashing the worker. Not a bug — extraction genuinely can't
+  happen on a read-only mount; reject those or extract them manually
+  outside SPOOL instead.
 - **`files.mtime` starts `NULL` on rows from before migration 006** — the
   rescan drift check (`services/worker/app/rescan.py`) deliberately treats a
   `NULL` mtime as "changed," so the very first rescan pass after that
@@ -293,9 +363,11 @@ copies the script out of this repo rather than running it in place).
   for this machine (`/Users/jo/...`) — this is a personal local tool, not
   meant to be portable. Current roots:
   - Drop folder: `~/Documents/3DPrintFiles` (created fresh, empty until used)
-  - Library: `~/Documents/3D Printing` — **PLACEHOLDER**, doesn't point at
-    your real existing library yet. Update the seed migration (and re-apply
-    by hand per the migrations gotcha above) once you know the real path.
+  - Library: `~/Documents/3D Printing` — no longer a placeholder, actively
+    being populated with the real library (hundreds of real files as of
+    this writing). The DB label still reads "Library (placeholder)" in
+    the admin page — cosmetic only, harmless to leave or rename via the
+    admin page whenever convenient.
   - Downloads: `~/Downloads`, `ingest_mode = relocate_to_dropfolder`
 
 ## Running it
@@ -332,11 +404,17 @@ network. See `example-flow.mjs` in that directory for the pattern.
 ## Next: Phase 09 — polish & scale
 
 Search relevance, thumbnail cache tuning, and a performance pass for a
-genuinely large library — per the original spec's closing phase. No
-concrete plan yet; revisit once the library actually holds real content
-(the seed migration's `Library` root is still a placeholder path — see the
-watched-roots gotcha below), since scale/perf work is hard to prioritize
-against synthetic data.
+genuinely large library — per the original spec's closing phase. Paused
+(at the user's request) while the real library gets populated — it's
+actively filling in now (hundreds of real files under `Library` already,
+well past the old placeholder-path state), so there's finally real scale
+to work against once this resumes.
+
+While populating the library, three ingestion-pipeline gaps surfaced
+outside the Phase 09 pause (not part of it, just concurrent unplanned
+work): the folder-grouping threshold, sidecar-file indexing, and
+zip review/extraction — all described in the worker/ section above and
+their own gotchas below. Resume Phase 09 proper whenever ready.
 
 ## Deliberate scope boundaries (not bugs, revisit only if they start to hurt)
 
@@ -352,3 +430,11 @@ against synthetic data.
   planning, deliberately deferred — periodic rescan was judged sufficient
   for now since Docker Desktop bind-mount fs events are already known to be
   unreliable, per the gotcha above).
+- `sidecar_files` has no `status`/drift-tracking column — a sidecar whose
+  file disappears just stays listed forever (no `missing` state like
+  `files` gets from Phase 07). Low-value to fix until it's actually
+  annoying in practice.
+- Nested multi-level kits (a Downloads folder containing another folder
+  that itself has model files) don't get full structure preservation on
+  relocate — only the innermost leaf folders move as units, per the
+  leaf-folder-only gotcha above.

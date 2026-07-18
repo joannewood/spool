@@ -42,4 +42,36 @@
   </table>
 </div>
 
+<h1>Pending archives</h1>
+<p class="note">
+  Zip files found in watched roots that contain a recognized model file inside — nothing is
+  extracted until you confirm. Rejecting one means it's never asked about again on later scans.
+</p>
+
+{% if pending_zips %}
+<div class="table-wrap">
+  <table class="admin-table">
+    <thead>
+      <tr><th>Filename</th><th>Path</th><th>Size</th><th>Error</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for z in pending_zips %}
+      <tr>
+        <td>{{ z.filename }}</td>
+        <td><code>{{ z.path }}</code></td>
+        <td>{{ z.size_bytes | filesizeformat }}</td>
+        <td>{% if z.error %}<span class="badge warn">⚠ {{ z.error }}</span>{% endif %}</td>
+        <td>
+          <form method="POST" action="/admin/zips/{{ z.id }}/confirm" class="chip-inline-form"><button type="submit">Confirm</button></form>
+          <form method="POST" action="/admin/zips/{{ z.id }}/reject" class="chip-inline-form"><button type="submit" class="rel-reject">Reject</button></form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="empty-inline">no pending archives</p>
+{% endif %}
+
 {% endblock %}

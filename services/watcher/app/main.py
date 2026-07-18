@@ -6,8 +6,9 @@ from watchdog.observers import Observer
 
 from common import ingest
 from common.db import get_connection
-from common.paths import is_model_file
+from common.paths import is_model_file, is_zip_file
 from common.roots import fetch_active_roots, fetch_dropfolder_root
+from common.zip_ingest import stage_zip_if_relevant
 
 
 def wait_until_stable(path, checks=3, interval=0.4, timeout=30):
@@ -40,6 +41,16 @@ class RootEventHandler(FileSystemEventHandler):
         self.dropfolder_root = dropfolder_root
 
     def _handle(self, path):
+        if is_zip_file(path):
+            if not wait_until_stable(path):
+                print(f"[watcher] gave up waiting for {path} to settle", flush=True)
+                return
+            with get_connection() as conn:
+                zip_id = stage_zip_if_relevant(conn, self.root, path)
+            if zip_id is not None:
+                print(f"[watcher] found reviewable zip {zip_id}: {path}", flush=True)
+            return
+
         if not is_model_file(path):
             return
         if not wait_until_stable(path):
@@ -48,6 +59,10 @@ class RootEventHandler(FileSystemEventHandler):
 
         if self.root.ingest_mode == "relocate_to_dropfolder":
             new_path = ingest.relocate(self.root, self.dropfolder_root, path)
+            if new_path is None:
+                # a sibling file's event already relocated the whole folder
+                # this one lived in — nothing left for us to do
+                return
             print(f"[watcher] relocated {path} -> {new_path}", flush=True)
             # landing in the drop folder fires its own create event, which
             # that root's watch picks up and ingests normally.

@@ -474,6 +474,7 @@ main {
   margin-top: 6px;
 }
 .project-list { padding-left: 20px; font-size: 14px; }
+.sidecar-list { padding-left: 20px; font-size: 14px; color: var(--ink-muted); }
 
 /* admin */
 .admin-table {
