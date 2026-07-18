@@ -8,6 +8,8 @@
   --accent-bg: #ecf1fc;
   --warn: #b5590a;
   --warn-bg: #fdf1e6;
+  --ok: #1a7a4c;
+  --ok-bg: #e9f7ef;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -21,6 +23,8 @@
     --accent-bg: #1c2740;
     --warn: #e0a458;
     --warn-bg: #2c2418;
+    --ok: #4cd08a;
+    --ok-bg: #123524;
   }
 }
 
@@ -189,6 +193,13 @@ main {
   font-size: 11px;
   color: var(--warn);
   background: var(--warn-bg);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+.badge.ok {
+  font-size: 11px;
+  color: var(--ok);
+  background: var(--ok-bg);
   border-radius: 4px;
   padding: 1px 6px;
 }

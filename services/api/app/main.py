@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import queries
+from . import host_helper_client, queries
 from .filters import format_size
 
 DATABASE_URL = os.environ["DATABASE_URL"]
@@ -92,6 +92,9 @@ def file_detail(request: Request, file_id: int):
             "relationships": queries.get_file_relationships(file_id),
             "suggested_relationships": queries.get_suggested_relationships(file_id),
             "relationship_types": RELATIONSHIP_TYPES,
+            "all_apps": host_helper_client.ALL_APPS,
+            "default_app": host_helper_client.default_app_for_ext(file["ext"]),
+            "open_status": request.query_params.get("open_status", ""),
         },
     )
 
@@ -229,6 +232,25 @@ def update_print_metadata(
 ):
     queries.set_manual_print_metadata(file_id, material, printer_profile, slicer, notes)
     return RedirectResponse(f"/files/{file_id}", status_code=303)
+
+
+# ---- open in app (host-helper) ---------------------------------------------
+
+@app.post("/files/{file_id}/open")
+def open_file(file_id: int, app: str = Form("")):
+    file = queries.get_file(file_id)
+    if file is None:
+        raise HTTPException(status_code=404, detail="file not found")
+
+    chosen_app = app or host_helper_client.default_app_for_ext(file["ext"])
+    if not chosen_app:
+        status = f"error:no app mapped for {file['ext']}"
+    else:
+        ok, error = host_helper_client.request_open(file["path"], chosen_app)
+        status = "ok" if ok else f"error:{error}"
+
+    qs = urlencode({"open_status": status})
+    return RedirectResponse(f"/files/{file_id}?{qs}", status_code=303)
 
 
 # ---- admin: watched roots -------------------------------------------------

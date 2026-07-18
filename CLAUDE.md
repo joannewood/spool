@@ -21,8 +21,8 @@ This file tracks *current build status* — the artifact is the design record.
 - [x] Phase 05 — tags, projects (nestable), print metadata (auto + manual), admin page
 - [x] Phase 06 — relationships (manual + auto-suggest: filename/version, folder grouping)
 - [x] Phase 07 — drift reconciliation (periodic rescan, hash rematching)
-- [ ] Phase 08 — host-helper (native launchd agent, open-in-Fusion360/Bambu) ← **next**
-- [ ] Phase 09 — polish & scale
+- [x] Phase 08 — host-helper (native launchd agent, open-in-Fusion/Bambu)
+- [ ] Phase 09 — polish & scale ← **next**
 
 The stack (postgres, api, watcher, worker) runs continuously — it's not a
 one-shot build, it's meant to be up and watching folders in the background.
@@ -119,7 +119,28 @@ services/
             not just a priority column.
 db/migrations/   plain numbered SQL files, NOT a real migration tool (see
                  Gotchas below) — run once by postgres on a fresh volume.
+host-helper/     Phase 08 — the one piece NOT in Docker Compose (see below).
 ```
+
+**host-helper** (native macOS, not a Compose service) — a Linux container
+can't launch a macOS GUI app, so `host_helper.py` runs directly on the Mac
+as a launchd agent, stdlib-only (`http.server` + `subprocess`, deliberately
+no FastAPI/venv to maintain natively — matches the project's "plain jobs
+table instead of Redis" minimalism). Listens on `127.0.0.1:8100`; the `api`
+container reaches it at `http://host.docker.internal:8100` (Docker Desktop
+for Mac resolves that DNS name to the host automatically — no compose
+networking config needed). One route, `POST /open` with `{"path", "app"}`:
+validates the path exists and the app name is in a server-side allowlist
+(`ALLOWED_APPS` — never trust the caller's app name into `subprocess`, even
+though the list-form call isn't shell-injectable), then `open -a <app>
+<path>`. `services/api/app/host_helper_client.py` mirrors the ext→app
+`APP_MAP` (kept in sync by hand — five lines, not worth a shared package
+between a Docker image and a native process) and is what
+`POST /files/{id}/open` (in `main.py`) calls; the file detail page's
+"Open in..." form defaults the app dropdown from the file's extension but
+lets you override it per click. Install/manage with
+`host-helper/install.sh` / `uninstall.sh` (see Gotchas for why install.sh
+copies the script out of this repo rather than running it in place).
 
 ## Key decisions & gotchas (read before touching schema or rendering)
 
@@ -229,6 +250,28 @@ db/migrations/   plain numbered SQL files, NOT a real migration tool (see
   is a no-op if nothing changed while it was down. Don't assume a `docker
   compose ps` with no rows means the project was torn down — check for
   volumes before doing anything destructive.
+- **macOS TCC blocks a launchd-spawned `python3` from reading a script
+  under `~/Documents`** (confirmed while building Phase 08 — launchd's
+  `python3 host_helper.py` failed with "Operation not permitted" reading
+  the script straight out of this repo, even though running the exact same
+  script manually from a Terminal shell works fine). Terminal has already
+  been granted Files-and-Folders access; a freshly-launchd-spawned process
+  hasn't, and there's no way to pre-grant it without a manual System
+  Settings → Privacy & Security click-through. `host-helper/install.sh`
+  works around this by **copying** `host_helper.py` to
+  `~/Library/Application Support/spool-host-helper/` (not one of the
+  TCC-protected folders) and pointing the plist at that copy instead of the
+  repo path — re-run `install.sh` after editing `host_helper.py` to pick up
+  changes, editing the repo copy alone does nothing.
+- **The real installed app bundle names differ from both the spec's casual
+  wording and marketing names** — checked via `ls /Applications` /
+  `~/Applications` rather than assuming: it's `Autodesk Fusion.app` (in
+  `~/Applications`, not `/Applications` — Autodesk's installer put it in
+  the per-user location, and Autodesk dropped "360" from the name at some
+  point) and `BambuStudio.app` (no space), not "Fusion 360.app" / "Bambu
+  Studio.app". `open -a` matches on the real bundle name, so
+  `host_helper.py`'s `APP_MAP` uses these exact strings — if either app is
+  ever reinstalled/renamed, re-check with `ls` rather than guessing.
 - **Applying a migration to a live (non-empty) DB**: confirmed working —
   `docker compose exec postgres psql -U spool -d spool -f /docker-entrypoint-initdb.d/00N_whatever.sql`
   (the migrations folder is bind-mounted into the postgres container at that
@@ -271,28 +314,29 @@ docker compose down -v              # stop AND wipe volumes (only if no data wor
 `.env` (gitignored) holds real local paths/credentials — copy from `.env.example`
 if it's ever missing.
 
+host-helper is native, not Compose — install once (and re-run after editing
+`host_helper.py`):
+```
+host-helper/install.sh                        # copies + starts the launchd agent
+launchctl print gui/$(id -u)/com.spool.hosthelper   # confirm it's running
+tail -f ~/Library/Logs/spool/host-helper.log        # watch open requests
+host-helper/uninstall.sh                      # stop + remove it
+```
+
 **To verify a UI change**, use the `run-spool` skill
 (`.claude/skills/run-spool/SKILL.md`) rather than re-deriving the
 no-browser-tooling workaround — `driver.sh <script.mjs>` runs a Playwright
 script against `http://api:8000` in a throwaway container on the Compose
 network. See `example-flow.mjs` in that directory for the pattern.
 
-## Next: Phase 08 — host-helper
+## Next: Phase 09 — polish & scale
 
-A small native (non-Docker) helper running on the Mac host, since a
-container can't launch a macOS GUI app. Needs to: expose some local
-mechanism the `api` container can reach (a tiny HTTP listener on the host,
-or a launchd agent watching a drop file/queue table) that takes a
-`files.path` (already the real host path, per the host_path-vs-
-container_path gotcha) and opens it in Fusion360 or Bambu Studio via `open
--a`. The file detail page already has the "Opening directly in Fusion360 /
-Bambu Studio arrives in a later phase" placeholder note and the real host
-path displayed — Phase 08 replaces that note with a working "Open in..."
-button. Since `api` runs inside Docker and has no route to the host GUI
-session, this is the one piece of SPOOL that can't just be another Compose
-service — worth deciding the host↔container communication mechanism first
-(simplest: `api` writes a row to a small `open_requests` table, the host
-helper polls it, similar in spirit to the existing `jobs` table pattern).
+Search relevance, thumbnail cache tuning, and a performance pass for a
+genuinely large library — per the original spec's closing phase. No
+concrete plan yet; revisit once the library actually holds real content
+(the seed migration's `Library` root is still a placeholder path — see the
+watched-roots gotcha below), since scale/perf work is hard to prioritize
+against synthetic data.
 
 ## Deliberate scope boundaries (not bugs, revisit only if they start to hurt)
 

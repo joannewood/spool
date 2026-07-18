@@ -51,7 +51,22 @@
       <dt>First seen</dt><dd>{{ file.first_seen_at }}</dd>
     </dl>
 
-    <p class="note">Opening directly in Fusion360 / Bambu Studio arrives in a later phase — for now, the path above can be copied and opened manually.</p>
+    {% if open_status == "ok" %}
+    <p class="badge ok">✓ opened</p>
+    {% elif open_status.startswith("error:") %}
+    <p class="badge warn">⚠ {{ open_status[6:] }}</p>
+    {% endif %}
+
+    {% if all_apps %}
+    <form class="inline-form" method="POST" action="/files/{{ file.id }}/open">
+      <select name="app">
+        {% for a in all_apps %}
+        <option value="{{ a }}" {% if a == default_app %}selected{% endif %}>{{ a }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit">Open</button>
+    </form>
+    {% endif %}
   </div>
 </div>
 
