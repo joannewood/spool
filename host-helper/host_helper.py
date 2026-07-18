@@ -34,6 +34,25 @@ APP_MAP = {
 }
 ALLOWED_APPS = set(APP_MAP.values())
 
+# Real deletion requires real OS-level filesystem access, which is exactly
+# what the api/worker containers don't reliably have (Library is mounted
+# :ro in Docker regardless of the real OS permissions) — host-helper runs
+# natively, so it can. Deletion is irreversible, so — unlike /open, which
+# only ever launches a GUI app — this endpoint independently re-validates
+# that the path falls under a known watched root rather than trusting the
+# caller entirely, even though the api container only ever sources paths
+# from real `files.path` DB rows. Hardcoded to match this machine, same as
+# the seed migration's watched roots (personal tool, not portable).
+ALLOWED_DELETE_ROOTS = [
+    "/Users/jo/Documents/3DPrintFiles",
+    "/Users/jo/Documents/3D Printing",
+    "/Users/jo/Downloads",
+]
+
+
+def _under_allowed_root(path):
+    return any(os.path.commonpath([path, root]) == root for root in ALLOWED_DELETE_ROOTS)
+
 
 class Handler(BaseHTTPRequestHandler):
     def _send(self, status, body):
@@ -44,14 +63,21 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
-    def do_POST(self):
-        if self.path != "/open":
-            self._send(404, {"error": "not found"})
-            return
-
+    def _read_json(self):
         length = int(self.headers.get("Content-Length", 0))
+        return json.loads(self.rfile.read(length))
+
+    def do_POST(self):
+        if self.path == "/open":
+            self._handle_open()
+        elif self.path == "/delete":
+            self._handle_delete()
+        else:
+            self._send(404, {"error": "not found"})
+
+    def _handle_open(self):
         try:
-            data = json.loads(self.rfile.read(length))
+            data = self._read_json()
         except json.JSONDecodeError:
             self._send(400, {"error": "invalid json"})
             return
@@ -73,6 +99,31 @@ class Handler(BaseHTTPRequestHandler):
         try:
             subprocess.run(["open", "-a", app, path], check=True)
         except subprocess.CalledProcessError as exc:
+            self._send(500, {"error": str(exc)})
+            return
+
+        self._send(200, {"status": "ok"})
+
+    def _handle_delete(self):
+        try:
+            data = self._read_json()
+        except json.JSONDecodeError:
+            self._send(400, {"error": "invalid json"})
+            return
+
+        path = data.get("path")
+
+        if not path or not os.path.isfile(path):
+            self._send(404, {"error": "file not found on disk"})
+            return
+
+        if not _under_allowed_root(path):
+            self._send(400, {"error": "path is outside known watched roots"})
+            return
+
+        try:
+            os.remove(path)
+        except OSError as exc:
             self._send(500, {"error": str(exc)})
             return
 

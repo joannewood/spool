@@ -582,3 +582,39 @@ main {
   cursor: pointer;
 }
 .table-wrap { overflow-x: auto; }
+
+/* duplicate files */
+.dup-select-all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  color: var(--ink);
+  margin: 12px 0;
+  cursor: pointer;
+}
+.dup-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.dup-row { display: flex; align-items: center; gap: 10px; }
+.dup-thumb {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dup-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.dup-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.dup-info a { color: var(--ink); text-decoration: none; font-size: 13px; }
+.dup-info a:hover { color: var(--accent); }

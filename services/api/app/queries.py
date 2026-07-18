@@ -493,3 +493,50 @@ def get_project_sidecars(project_id):
                 (project_id,),
             )
             return cur.fetchall()
+
+
+# ---- duplicate files (identical content_hash) --------------------------------
+
+def list_duplicate_groups():
+    """Files sharing an identical content_hash — same hash always means
+    same render (rendering is a deterministic function of file bytes), so
+    there's no separate 'render similarity' check to make."""
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                SELECT content_hash, array_agg(id ORDER BY first_seen_at) AS file_ids
+                FROM files
+                WHERE status = 'active' AND content_hash IS NOT NULL
+                GROUP BY content_hash
+                HAVING count(*) > 1
+                ORDER BY min(first_seen_at) DESC
+                """
+            )
+            groups_raw = cur.fetchall()
+            if not groups_raw:
+                return []
+
+            all_ids = [fid for g in groups_raw for fid in g["file_ids"]]
+            cur.execute(
+                """
+                SELECT id, filename, display_name, path, size_bytes, thumbnail_path,
+                       render_status, first_seen_at
+                FROM files WHERE id = ANY(%s)
+                """,
+                (all_ids,),
+            )
+            files_by_id = {f["id"]: f for f in cur.fetchall()}
+
+    groups = []
+    for g in groups_raw:
+        files = [files_by_id[fid] for fid in g["file_ids"] if fid in files_by_id]
+        if len(files) > 1:
+            groups.append({"content_hash": g["content_hash"], "files": files})
+    return groups
+
+
+def delete_file_record(file_id):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM files WHERE id = %s", (file_id,))

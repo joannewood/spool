@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Duplicate files — SPOOL{% endblock %}
+{% block content %}
+
+<a class="back" href="/admin">← admin</a>
+<h1>Duplicate files</h1>
+<p class="note">
+  Files with byte-identical content (same hash always means the same render — thumbnail
+  rendering is a deterministic function of file bytes). Pick which copies to remove — the
+  file is deleted from disk (via the host-helper) and untracked; the copy you keep is
+  otherwise untouched.
+</p>
+
+{% if delete_errors %}<p class="badge warn">⚠ {{ delete_errors }}</p>{% endif %}
+
+{% if groups %}
+<form method="POST" action="/admin/duplicates/delete">
+  <label class="dup-select-all">
+    <input type="checkbox" id="dup-select-all">
+    Select all duplicates (keeps the first/oldest copy in each group)
+  </label>
+
+  {% for group in groups %}
+  <div class="dup-group">
+    {% for f in group.files %}
+    <div class="dup-row">
+      <input type="checkbox" name="file_ids" value="{{ f.id }}" class="dup-checkbox {{ 'dup-keep-default' if loop.first else 'dup-remove-default' }}">
+      <a class="dup-thumb" href="/files/{{ f.id }}">
+        {% if f.thumbnail_path %}
+          <img src="/thumbnails/{{ f.thumbnail_path }}" alt="">
+        {% else %}
+          <span class="ext-label">?</span>
+        {% endif %}
+      </a>
+      <div class="dup-info">
+        <a href="/files/{{ f.id }}">{{ f.display_name or f.filename }}</a>
+        <span class="note-inline">{{ f.path }}</span>
+        <span class="note-inline">{{ f.size_bytes | filesizeformat }} · first seen {{ f.first_seen_at }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+
+  <button type="submit">Delete selected</button>
+</form>
+{% else %}
+<p class="empty-inline">no duplicate files found</p>
+{% endif %}
+
+<script>
+  document.getElementById("dup-select-all")?.addEventListener("change", (e) => {
+    document.querySelectorAll(".dup-remove-default").forEach((cb) => { cb.checked = e.target.checked; });
+  });
+</script>
+
+{% endblock %}

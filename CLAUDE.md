@@ -333,6 +333,19 @@ copies the script out of this repo rather than running it in place).
   TCC-protected folders) and pointing the plist at that copy instead of the
   repo path — re-run `install.sh` after editing `host_helper.py` to pick up
   changes, editing the repo copy alone does nothing.
+- **A second, separate TCC wall for actually deleting files** (not just
+  reading the host-helper script) — confirmed while building the
+  duplicate-file admin UI: `os.remove()` on a real file under
+  `~/Documents/3DPrintFiles` failed with the same "Operation not
+  permitted" until Full Disk Access was granted to `/usr/bin/python3` in
+  System Settings → Privacy & Security (one-time manual grant, same as
+  the read-side issue above but a *different* permission — moving the
+  script out of `~/Documents` doesn't help here, since the target being
+  written to is the protected folder, not the script's own location).
+  `open -a` (used by `/open`) never hit this, since it just hands off to
+  LaunchServices rather than touching the file itself — any *new*
+  host-helper endpoint that directly reads/writes/deletes a file under a
+  watched root should expect to need this same grant.
 - **The real installed app bundle names differ from both the spec's casual
   wording and marketing names** — checked via `ls /Applications` /
   `~/Applications` rather than assuming: it's `Autodesk Fusion.app` (in
@@ -475,8 +488,36 @@ first), independent of the paused Phase 09:
       just adjacent-in-sequence) through its first four slots; `.scad`
       (no preview anyway) stays the neutral default badge style rather
       than reach for an unvalidated 5th hue.
-- [ ] Duplicate-file review/deletion admin UI (same hash + same render →
-      flag one of a pair, bulk accept/reject with a select-all).
+- [x] Duplicate-file review/deletion admin UI (`/admin/duplicates`) —
+      groups files by identical `content_hash` directly (`queries.
+      list_duplicate_groups`), not by walking `duplicate_of` relationship
+      rows — same hash always means the same render (rendering is a
+      deterministic function of file bytes), so a `GROUP BY content_hash
+      HAVING count(*) > 1` answers the whole question without needing a
+      relationship row to exist for every pair. Actual deletion required a
+      **new host-helper endpoint** (`POST /delete`) — the `api` container
+      has no filesystem access at all (only `thumbnails` is mounted), and
+      even `worker`/`watcher` can't write to the `:ro`-mounted `Library`
+      root, so deletion has to go through host-helper the same way "Open"
+      does. Confirmed live while building this: deleting (unlike
+      launching an app via `open -a`, which just hands off to
+      LaunchServices) needs the process itself to hold real filesystem
+      permission — macOS blocked host-helper's `os.remove()` with
+      "Operation not permitted" until Full Disk Access was granted to
+      `/usr/bin/python3` in System Settings → Privacy & Security (can't be
+      done from a script — one-time manual grant). Unlike `/open`,
+      `/delete` independently re-validates the path falls under a
+      hardcoded allowlist of the known watched-root host paths before
+      touching disk (`ALLOWED_DELETE_ROOTS` in `host_helper.py`) — a
+      deliberately stronger check than `/open` gets, since deletion is
+      irreversible. The DB row is only deleted after the disk delete
+      actually succeeds (never the reverse), so a failed/denied delete
+      never leaves a "phantom" untracked-but-still-present file. "Select
+      all" (checks every non-oldest copy per group, leaving the first/
+      earliest `first_seen_at` file unchecked) is the one place in the
+      whole UI with real inline JS — no CSS-only trick makes one checkbox
+      toggle a set of unrelated others, and the feature was explicitly
+      requested as a bulk action.
 - [ ] Test coverage for major components — deliberately last, once the
       surface area above has settled.
 - [ ] Package for sharing with friends — deferred by the user until the

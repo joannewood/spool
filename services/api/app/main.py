@@ -306,3 +306,34 @@ def confirm_zip(zip_id: int):
 def reject_zip(zip_id: int):
     queries.reject_zip(zip_id)
     return RedirectResponse("/admin", status_code=303)
+
+
+# ---- admin: duplicate files ------------------------------------------------
+
+@app.get("/admin/duplicates", response_class=HTMLResponse)
+def admin_duplicates(request: Request):
+    return templates.TemplateResponse(
+        request,
+        "admin_duplicates.html",
+        {
+            "groups": queries.list_duplicate_groups(),
+            "delete_errors": request.query_params.get("delete_errors", ""),
+        },
+    )
+
+
+@app.post("/admin/duplicates/delete")
+def delete_duplicates(file_ids: list[int] = Form([])):
+    errors = []
+    for file_id in file_ids:
+        file = queries.get_file(file_id)
+        if file is None:
+            continue
+        ok, error = host_helper_client.request_delete(file["path"])
+        if ok:
+            queries.delete_file_record(file_id)
+        else:
+            errors.append(f"{file['filename']}: {error}")
+
+    qs = urlencode({"delete_errors": "; ".join(errors)}) if errors else ""
+    return RedirectResponse(f"/admin/duplicates{'?' + qs if qs else ''}", status_code=303)

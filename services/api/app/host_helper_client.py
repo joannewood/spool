@@ -28,12 +28,12 @@ def default_app_for_ext(ext):
     return APP_MAP.get(ext.lower())
 
 
-def request_open(path, app):
+def _post(route, body):
     """Returns (ok, error_message)."""
-    body = json.dumps({"path": path, "app": app}).encode()
+    data = json.dumps(body).encode()
     req = urllib.request.Request(
-        f"{HOST_HELPER_URL}/open",
-        data=body,
+        f"{HOST_HELPER_URL}{route}",
+        data=data,
         headers={"Content-Type": "application/json"},
         method="POST",
     )
@@ -48,3 +48,11 @@ def request_open(path, app):
         return False, error
     except urllib.error.URLError as exc:
         return False, f"could not reach host-helper: {exc.reason}"
+
+
+def request_open(path, app):
+    return _post("/open", {"path": path, "app": app})
+
+
+def request_delete(path):
+    return _post("/delete", {"path": path})
