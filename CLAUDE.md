@@ -408,6 +408,14 @@ tail -f ~/Library/Logs/spool/host-helper.log        # watch open requests
 host-helper/uninstall.sh                      # stop + remove it
 ```
 
+Automated tests (`tests/`) run as plain `pytest` on the host against a real
+Postgres — `docker compose up -d postgres` must be running (exposes
+`localhost:55432`), then:
+```
+python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+.venv/bin/pytest
+```
+
 **To verify a UI change**, use the `run-spool` skill
 (`.claude/skills/run-spool/SKILL.md`) rather than re-deriving the
 no-browser-tooling workaround — `driver.sh <script.mjs>` runs a Playwright
@@ -518,8 +526,43 @@ first), independent of the paused Phase 09:
       whole UI with real inline JS — no CSS-only trick makes one checkbox
       toggle a set of unrelated others, and the feature was explicitly
       requested as a bulk action.
-- [ ] Test coverage for major components — deliberately last, once the
-      surface area above has settled.
+- [x] Test coverage — worker ingestion/heuristics first (`tests/common/`,
+      `tests/worker/`; 51 tests). Plain `pytest` against a **real** Postgres
+      (`spool_test`, a separate database on the same `postgres` container —
+      needed its own host port mapping, `55432:5432` in `docker-compose.yml`,
+      since `postgres` was previously internal-only) rather than mocking the
+      DB, since most of this codebase's real complexity lives in SQL/schema
+      interactions. `tests/conftest.py`'s session-scoped fixture
+      (re)creates `spool_test` and applies every migration **except**
+      `003_seed_watched_roots.sql` (personal hardcoded paths — applying it
+      would make `run_backfill`/`run_rescan` walk the *real* filesystem
+      during tests, since tests run on the host, not in a container) via
+      the exact already-documented manual-apply mechanism (`docker compose
+      exec postgres psql -f /docker-entrypoint-initdb.d/00N_x.sql`), not a
+      new migration-runner. Per-test isolation is a rollback, not
+      re-migration: `common/db.py:get_connection()` always uses
+      `autocommit=True` (the real app never rolls anything back), but every
+      function under test takes `conn` as an explicit parameter rather than
+      opening its own connection — so the `conn` fixture just opens its
+      own connection with autocommit **off** and calls `conn.rollback()` at
+      teardown, with no monkeypatching needed. `pyproject.toml`'s
+      `pythonpath = ["services", "services/worker"]` makes `common` and
+      `worker`'s `app` package importable directly; **`services/api` is
+      deliberately not added yet** — it also has a top-level package
+      literally named `app`, and two different `app` packages can't
+      coexist on `sys.path` in one pytest session, so API route tests will
+      need a different approach (e.g. installing api as a properly-named
+      package, or per-test `sys.path` isolation) when that's built.
+      Run with `docker compose up -d postgres` (already the normal dev
+      state) then `python3 -m venv .venv && .venv/bin/pip install -r
+      requirements-dev.txt && .venv/bin/pytest` from the repo root — the
+      venv deliberately doesn't include `services/worker/requirements.txt`'s
+      heavy geometry deps (trimesh/pyrender/cadquery-ocp), since none of
+      the worker-first target modules import `render.py`/`step_loader.py`.
+      Confirmed the suite actually exercises the real code (not
+      tautological) by deliberately breaking the `duplicate_of` hash-match
+      query mid-session — exactly the two tests depending on it failed,
+      nothing else did.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,

@@ -1,0 +1,8 @@
+[tool.pytest.ini_options]
+# Worker-first: services/ makes `common` importable, services/worker makes
+# `app` importable as the worker's package. Deliberately not adding
+# services/api here too — it also has a top-level package named `app`, and
+# two different `app` packages can't coexist on sys.path in one session.
+# See CLAUDE.md's testing section for how API tests will need to handle this.
+pythonpath = ["services", "services/worker"]
+testpaths = ["tests"]

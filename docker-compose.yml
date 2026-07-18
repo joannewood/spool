@@ -5,6 +5,13 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      # Host-reachable only for running the test suite (pytest connects
+      # directly, no Docker required for the test run itself) — a
+      # non-standard host port so it doesn't collide with a developer's own
+      # local Postgres. Nothing else needs this; api/worker/watcher reach
+      # postgres over the compose network, not this port.
+      - "55432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./db/migrations:/docker-entrypoint-initdb.d:ro
