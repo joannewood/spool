@@ -20,6 +20,7 @@ def test_walk_project_folders_classifies_model_sidecar_zip(tmp_path):
     _touch(folder / "README.txt")
     _touch(folder / "archive.zip")
     _touch(folder / ".DS_Store")  # junk — excluded entirely, not even a sidecar
+    _touch(folder / "._widget.stl")  # AppleDouble shadow — junk despite the model extension
 
     results = {dirpath: (m, s, z) for dirpath, m, s, z in _walk_project_folders(str(tmp_path))}
     model_paths, sidecar_paths, zip_paths = results[str(folder)]

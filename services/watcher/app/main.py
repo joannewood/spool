@@ -6,7 +6,7 @@ from watchdog.observers import Observer
 
 from common import ingest
 from common.db import get_connection
-from common.paths import is_model_file, is_zip_file
+from common.paths import is_ignorable_junk, is_model_file, is_zip_file
 from common.roots import fetch_active_roots, fetch_dropfolder_root
 from common.zip_ingest import stage_zip_if_relevant
 
@@ -41,6 +41,9 @@ class RootEventHandler(FileSystemEventHandler):
         self.dropfolder_root = dropfolder_root
 
     def _handle(self, path):
+        if is_ignorable_junk(path):
+            return
+
         if is_zip_file(path):
             if not wait_until_stable(path):
                 print(f"[watcher] gave up waiting for {path} to settle", flush=True)

@@ -14,12 +14,10 @@ def _walk_project_folders(container_root_path):
     sidecars can be indexed alongside whatever model files justify
     treating that folder as a project."""
     for dirpath, _dirnames, filenames in os.walk(container_root_path):
-        full_paths = [os.path.join(dirpath, f) for f in filenames]
+        full_paths = [os.path.join(dirpath, f) for f in filenames if not is_ignorable_junk(f)]
         model_paths = [p for p in full_paths if is_model_file(p)]
         zip_paths = [p for p in full_paths if is_zip_file(p)]
-        sidecar_paths = [
-            p for p in full_paths if p not in model_paths and p not in zip_paths and not is_ignorable_junk(p)
-        ]
+        sidecar_paths = [p for p in full_paths if p not in model_paths and p not in zip_paths]
         yield dirpath, model_paths, sidecar_paths, zip_paths
 
 

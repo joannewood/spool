@@ -27,4 +27,10 @@ _IGNORED_FILENAMES = {".DS_Store", "Thumbs.db", "desktop.ini"}
 
 
 def is_ignorable_junk(path):
-    return os.path.basename(path) in _IGNORED_FILENAMES
+    basename = os.path.basename(path)
+    # AppleDouble resource-fork shadow files (e.g. "._Hammer handle.stl") —
+    # created by macOS when copying from drives/shares that don't support
+    # native resource forks, one per real file, never worth indexing.
+    if basename.startswith("._"):
+        return True
+    return basename in _IGNORED_FILENAMES

@@ -36,6 +36,12 @@ def test_is_ignorable_junk():
     assert not is_ignorable_junk("/some/dir/widget.stl")
 
 
+def test_is_ignorable_junk_appledouble():
+    assert is_ignorable_junk("/some/dir/._widget.stl")
+    assert is_ignorable_junk("/some/dir/._.DS_Store")
+    assert not is_ignorable_junk("/some/dir/widget.stl")
+
+
 def test_to_container_path_maps_host_path_under_root():
     root = _root()
     host_path = "/Users/jo/Documents/3DPrintFiles/sub/widget.stl"

@@ -675,6 +675,23 @@ first), independent of the paused Phase 09:
       clicking real suggestions on the live library, since confirming a
       real suggestion as a "test" would permanently alter actual project/
       relationship data.
+- [x] Filter out macOS AppleDouble shadow files (`._<name>`) — noticed
+      live in the new suggested-projects page (`._Hammer handle.stl` sitting
+      right next to the real `Hammer handle.stl`, both grouped into the same
+      suggested project). These carry a real model extension, so
+      `is_model_file` alone can't exclude them — `is_ignorable_junk`
+      (`common/paths.py`) now also matches any `._`-prefixed basename, and
+      the check moved earlier in `_walk_project_folders`
+      (`worker/app/backfill.py`, shared by rescan) so a `._*` path is
+      dropped from `full_paths` before it's ever classified as model/
+      sidecar/zip — same fix applies to the live watcher
+      (`watcher/app/main.py::RootEventHandler._handle`), which previously
+      didn't call `is_ignorable_junk` at all. Cleaned up the 142 already-
+      indexed `._*` rows from the real library (`files` + `sidecar_files`,
+      cascade-deletes their tags/relationships/project_files/print_metadata/
+      print_log rows via existing `ON DELETE CASCADE`) — confirmed none had
+      thumbnails generated, and confirmed a fresh backfill doesn't re-stage
+      them now that the filter runs earlier.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,
