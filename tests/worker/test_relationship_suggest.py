@@ -246,3 +246,67 @@ def test_folder_project_keeps_generic_name_with_no_meaningful_parent(conn, make_
             (file_id,),
         )
         assert cur.fetchone()[0] == "files"  # rare edge case: no better name available
+
+
+def test_folder_project_same_name_different_paths_dont_collide(conn, make_root):
+    # Two unrelated roots, each with a leaf folder named "misc" — same name,
+    # genuinely different real folders. Matching by path (not name) means
+    # these must NOT be merged into one shared "misc" project.
+    root_a = make_root()
+    root_b = make_root()
+    id_a, path_a = _insert_file(conn, root_a, "a.stl", ".stl", "hash-a", subdir="misc")
+    id_b, path_b = _insert_file(conn, root_b, "b.stl", ".stl", "hash-b", subdir="misc")
+
+    suggest_folder_project(conn, id_a, path_a, root_a)
+    suggest_folder_project(conn, id_b, path_b, root_b)
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM projects WHERE name = 'misc'")
+        assert cur.fetchone()[0] == 2  # two distinct projects, not one shared one
+        cur.execute(
+            "SELECT count(DISTINCT project_id) FROM project_files WHERE file_id IN (%s, %s)",
+            (id_a, id_b),
+        )
+        assert cur.fetchone()[0] == 2
+
+
+def test_folder_project_renaming_still_matches_by_path(conn, make_root):
+    # Renaming an auto-created project (the pencil-edit UI) must not break
+    # future matching for that same folder — the lookup key is the path,
+    # not whatever the name currently is.
+    root = make_root()
+    id_a, path_a = _insert_file(conn, root, "a.stl", ".stl", "hash-a", subdir="Kit")
+    suggest_folder_project(conn, id_a, path_a, root)
+
+    with conn.cursor() as cur:
+        cur.execute("UPDATE projects SET name = 'Renamed Kit' WHERE name = 'Kit' RETURNING id")
+        project_id = cur.fetchone()[0]
+
+    id_b, path_b = _insert_file(conn, root, "b.stl", ".stl", "hash-b", subdir="Kit")
+    suggest_folder_project(conn, id_b, path_b, root)
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM projects WHERE source_folder_path IS NOT NULL")
+        assert cur.fetchone()[0] == 1  # still just the one project, not a new duplicate
+        cur.execute("SELECT project_id FROM project_files WHERE file_id = %s", (id_b,))
+        assert cur.fetchone()[0] == project_id  # new sibling joined the renamed project
+
+
+def test_folder_project_never_matches_a_manually_created_project(conn, make_root):
+    # A manually-created project (NULL source_folder_path) that happens to
+    # share a name with a real folder must never be treated as a match —
+    # only projects this function itself created (a real source_folder_path)
+    # are candidates for reuse.
+    with conn.cursor() as cur:
+        cur.execute("INSERT INTO projects (name) VALUES ('Kit') RETURNING id")
+        manual_project_id = cur.fetchone()[0]
+
+    root = make_root()
+    file_id, path = _insert_file(conn, root, "widget.stl", ".stl", "hash", subdir="Kit")
+    suggest_folder_project(conn, file_id, path, root)
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT project_id FROM project_files WHERE file_id = %s", (file_id,))
+        assert cur.fetchone()[0] != manual_project_id
+        cur.execute("SELECT count(*) FROM projects WHERE name = 'Kit'")
+        assert cur.fetchone()[0] == 2  # the manual one, plus a new auto-created one

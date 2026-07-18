@@ -107,18 +107,25 @@ def suggest_folder_project(conn, file_id, host_path, root):
     directory tree — a folder two levels deep still becomes one flat
     project, not a chain of nested ones.
 
-    Known simplification: matching is by folder *name* only (projects have
-    no folder-path column), so two same-named leaf folders in unrelated
-    parts of the library merge into one project. Acceptable for a personal
-    library; would need a schema change to fix properly.
+    Matching is by the folder's real, absolute path (`projects.
+    source_folder_path`), not by name — two unrelated leaf folders that
+    happen to share a name (e.g. two different "misc" dumps) each get
+    their own project instead of silently merging into one. A project
+    created any other way (the manual "+ new project" form) has a NULL
+    `source_folder_path`, so it's never a candidate for this matching —
+    only projects this function itself created can be reused by it. This
+    also means renaming an auto-created project later (the pencil-edit
+    UI) doesn't break future matching for that folder, since the lookup
+    key is the path, not whatever the name currently is.
 
     Sibling detection stays scoped to the file's actual immediate
     directory even when that directory's name is too generic to use as
-    the project's identity (see `_GENERIC_CONTAINER_NAMES`) — only the
-    name used for matching/creating the project falls back to the parent
-    folder in that case, so "<ProjectName>/files/widget.stl" still groups
-    with its real siblings in that same `files` folder, just under a
-    project named "ProjectName" instead of "files".
+    the project's identity (see `_GENERIC_CONTAINER_NAMES`) — the path
+    used for matching/creating the project falls back to the parent
+    folder in that case too, so "<ProjectName>/files/widget.stl" still
+    groups with its real siblings in that same `files` folder, just under
+    a project keyed to the "<ProjectName>" folder and named after it
+    instead of "files".
     """
     directory = os.path.dirname(host_path)
     if os.path.normpath(directory) == os.path.normpath(root.host_path):
@@ -133,23 +140,29 @@ def suggest_folder_project(conn, file_id, host_path, root):
     if not siblings:
         return
 
+    match_directory = directory
     folder_name = os.path.basename(directory)
     if folder_name.lower() in _GENERIC_CONTAINER_NAMES:
         parent_directory = os.path.dirname(directory)
         if os.path.normpath(parent_directory) != os.path.normpath(root.host_path):
+            match_directory = parent_directory
             folder_name = os.path.basename(parent_directory)
         # else: the generic-named folder sits directly in the watched root,
         # so there's no more-meaningful parent to fall back to — keep it.
+    match_directory = os.path.normpath(match_directory)
     folder_name = clean_name(folder_name)
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
-            "SELECT id FROM projects WHERE parent_project_id IS NULL AND lower(name) = lower(%s)",
-            (folder_name,),
+            "SELECT id FROM projects WHERE source_folder_path = %s",
+            (match_directory,),
         )
         row = cur.fetchone()
         project_id = row["id"] if row else None
         if project_id is None:
-            cur.execute("INSERT INTO projects (name) VALUES (%s) RETURNING id", (folder_name,))
+            cur.execute(
+                "INSERT INTO projects (name, source_folder_path) VALUES (%s, %s) RETURNING id",
+                (folder_name, match_directory),
+            )
             project_id = cur.fetchone()["id"]
 
         for sibling in siblings:

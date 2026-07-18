@@ -280,14 +280,6 @@ copies the script out of this repo rather than running it in place).
   duplicate" gotcha below (here it under-delivers instead). Individual
   `mkdir` + `cp` calls into an already-existing watched directory fire
   normally; Phase 07's periodic rescan is the reliable fallback either way.
-- **Folder-based project auto-grouping matches by folder *name* only**
-  (`suggest_folder_project` in `relationship_suggest.py`) — projects have no
-  folder-path column in the schema, so two same-named leaf folders in
-  unrelated parts of the library (e.g. two different `misc/` dumps) merge
-  into one suggested project. Acceptable for a personal library; would need
-  a schema change (a path or per-root scoping column on `projects`) to fix
-  properly. Since membership is inserted as `status='suggested'`, a wrong
-  auto-grouping is just one reject click away, not a destructive merge.
 - **Whole-folder relocate only preserves structure for true leaf folders**
   (`common/ingest.py::relocate` — checks `os.scandir(parent_dir)` for any
   subdirectory) — a folder containing *another* folder with its own model
@@ -868,6 +860,37 @@ first), independent of the paused Phase 09:
       (renamed via `UPDATE projects SET name = ...`) since the fix only
       changes behavior for future folder-grouping suggestions, not
       already-created rows.
+- [x] Folder-grouping now matches by real folder *path*, not name —
+      closes the long-standing "Deliberate scope boundary" that same-
+      named leaf folders in unrelated parts of the library (two different
+      "misc" dumps, say) merged into one shared suggested project.
+      Migration 013 adds `projects.source_folder_path` (nullable,
+      `UNIQUE`); `suggest_folder_project` looks up/creates projects by
+      this column instead of `lower(name) = lower(folder_name)`. A
+      project created any other way (the manual "+ new project" form)
+      has a NULL `source_folder_path`, so it's never a match candidate —
+      only projects this function itself created can be reused by it,
+      which also fixes a smaller latent bug: a manually-created project
+      that happened to share a name with a real folder could previously
+      have suggestions silently glued onto it. Renaming an auto-created
+      project (the pencil-edit UI) no longer breaks future matching for
+      that folder either, since the lookup key is the path, not whatever
+      the name currently is — previously a rename would have caused the
+      *next* new file in that folder to spawn a duplicate project under
+      the old auto-generated name. The generic-container-name fallback
+      (`_GENERIC_CONTAINER_NAMES`, e.g. `.../ProjectName/files/x.stl`)
+      now resolves the *same* parent folder for both the match path and
+      the display name, rather than just the name as before.
+      Backfilled `source_folder_path` for the 23 existing real projects
+      by deriving each one's folder from its member files' actual paths
+      (only when all members agreed on one directory — none were
+      ambiguous). **Caught one edge case the backfill script initially
+      missed**: a project whose only member file sat directly in the
+      watched root itself got backfilled to the root's own path, which
+      `suggest_folder_project` would never actually produce (it returns
+      early before ever reaching the matching logic for that case) —
+      corrected that one row back to NULL by hand after noticing it in a
+      spot-check, rather than leaving stale/impossible data in place.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,
@@ -875,9 +898,6 @@ first), independent of the paused Phase 09:
 
 ## Deliberate scope boundaries (not bugs, revisit only if they start to hurt)
 
-- Phase 06's folder-grouping heuristic matches by folder *name* only, not
-  full path (see gotcha above) — same-named leaf folders in different
-  places merge into one suggested project.
 - Phase 07's rescan doesn't re-run Phase 06's relationship/folder-grouping
   heuristics when a file's content changes in place, and doesn't handle a
   file *moved* to a new path as a rename — a move looks like the old path
