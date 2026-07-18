@@ -89,15 +89,24 @@ class Handler(BaseHTTPRequestHandler):
             self._send(404, {"error": "file not found on disk"})
             return
 
-        # Never trust the caller's app name into subprocess, even though
-        # subprocess.run's list form isn't shell-injectable — constrain to
-        # known installed apps regardless of what the api container sends.
-        if app not in ALLOWED_APPS:
-            self._send(400, {"error": f"app not allowed: {app}"})
-            return
+        if app:
+            # Never trust the caller's app name into subprocess, even though
+            # subprocess.run's list form isn't shell-injectable — constrain
+            # to known installed apps regardless of what the api container
+            # sends.
+            if app not in ALLOWED_APPS:
+                self._send(400, {"error": f"app not allowed: {app}"})
+                return
+            command = ["open", "-a", app, path]
+        else:
+            # No app specified — hand off to macOS/LaunchServices' own
+            # default handler (used for sidecar files like README/PDF/
+            # preview images, which aren't in APP_MAP since they're not
+            # CAD files with one obvious app to open them in).
+            command = ["open", path]
 
         try:
-            subprocess.run(["open", "-a", app, path], check=True)
+            subprocess.run(command, check=True)
         except subprocess.CalledProcessError as exc:
             self._send(500, {"error": str(exc)})
             return

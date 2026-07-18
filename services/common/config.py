@@ -17,3 +17,8 @@ SVG_EXTENSIONS = {".svg"}
 # at 'pending' forever, which would look like a stuck job rather than by
 # design.
 SCAD_EXTENSIONS = {".scad"}
+
+# Sidecar image files (kit preview photos, etc.) get a thumbnail the same
+# lightweight way SVG model files do — a plain copy into the thumbnails
+# dir, no rasterization dependency needed since these are already raster.
+SIDECAR_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}

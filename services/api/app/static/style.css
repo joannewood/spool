@@ -611,7 +611,35 @@ main {
   margin-top: 6px;
 }
 .project-list { padding-left: 20px; font-size: var(--fs-base); }
-.sidecar-list { padding-left: 20px; font-size: var(--fs-base); color: var(--ink-muted); }
+
+/* accessory/sidecar files rendered as grid cards, same as model files —
+   the .card-form wrapper (display: contents, same trick as chip-inline-
+   form) keeps the <form> out of the grid's box model so its <button>
+   becomes the actual grid item. A button standing in for a card needs
+   its own reset since the global button{} base rule otherwise wins on
+   padding/width — .card's own background/border/color already beat it
+   on those properties since a class selector outranks a type selector
+   regardless of source order. */
+.card-form { display: contents; }
+button.card {
+  width: 100%;
+  display: block;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+/* Distinguishes "just a file that lives alongside the models" from an
+   actual 3D-printable file — a flat neutral tint (not one of the ext-
+   badge hues, which encode format identity, not this accessory/model
+   distinction) applied to every non-model card regardless of its own
+   extension. */
+.sidecar-card {
+  background: color-mix(in oklab, var(--ink-muted) 24%, var(--surface));
+  border-color: color-mix(in oklab, var(--ink-muted) 45%, var(--border));
+}
+.sidecar-card:hover { border-color: var(--ink-muted); }
+.sidecar-card .thumb { background: none; }
 
 /* project name edit — <details>/<summary>, no JS needed for the toggle */
 .project-title-row { display: flex; align-items: center; gap: 10px; }

@@ -752,6 +752,49 @@ first), independent of the paused Phase 09:
       folder sat directly under the watched root got a bogus project
       named after the watched root itself, `3DPrintFiles`) — caught and
       corrected by hand before considering the cleanup done.
+- [x] Sidecar files render as grid cards, merged into the project's own
+      "Files" grid (appended after the model-file cards, no separate
+      section) — image sidecars (a kit's preview photo, etc.) get a real
+      thumbnail; everything else gets the same ext-label placeholder
+      treatment as an unrendered model file. A muted gray tint
+      (`color-mix(in oklab, var(--ink-muted) 24%, var(--surface))` on
+      both background and border, checkerboard removed since it's not a
+      "possible transparency" cue here) visually separates "just a file
+      that lives alongside the models" from an actual 3D-printable file,
+      applied uniformly regardless of the sidecar's own extension — this
+      is an accessory/model distinction, not a format one, so it
+      deliberately doesn't reuse the ext-badge hues. Clicking a sidecar
+      card opens the real file on the host (via host-helper) instead of
+      navigating to a detail page it doesn't have — the card is a
+      `<button>` inside a `<form>` (`POST /projects/{id}/sidecars/{id}
+      /open`), the `<form>` wrapper is `display: contents` (same trick as
+      `chip-inline-form`) so it disappears from the grid's box model and
+      the button is the effective grid item; `button.card` resets the
+      width/padding/text-align the global `button{}` base rule would
+      otherwise impose (background/border/color don't need resetting —
+      `.card`'s class selector already outranks the bare `button` type
+      selector regardless of source order). Sidecars aren't CAD files
+      with one obvious app to open them in (a README, a PDF, a preview
+      photo), so this needed a new host-helper code path: `POST /open`
+      with no `app` field now hands off to `open <path>` (no `-a` flag),
+      letting macOS/LaunchServices pick the file's own default handler,
+      rather than extending `APP_MAP`/`ALLOWED_APPS` to guess apps for
+      formats with no natural CAD-app mapping. New `sidecar_files.
+      thumbnail_path` column (migration 012); `stage_sidecar` copies an
+      image sidecar into the thumbnails dir the same lightweight way SVG
+      model files get their preview (plain `shutil.copyfile`, no
+      rasterization needed since it's already a raster image) —
+      `common/ingest.py` reads `THUMBNAILS_DIR` the same
+      `os.environ.get`-with-fallback way `render.py` does, safe to import
+      from the watcher (which never calls `stage_sidecar`) since nothing
+      requires the env var at import time. Verified live end-to-end
+      against a real project folder: staged a throwaway `preview.jpg`
+      sidecar (bypassing the ~5min rescan wait via a one-off script
+      calling `stage_sidecar` directly in the worker container), confirmed
+      the thumbnail copy landed in the shared `thumbnails` volume,
+      confirmed clicking the card in the browser actually launched
+      Preview.app on the Mac for the real file, then cleaned up the test
+      file from disk, the sidecar row, and its thumbnail.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,

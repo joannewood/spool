@@ -50,7 +50,11 @@ def _post(route, body):
         return False, f"could not reach host-helper: {exc.reason}"
 
 
-def request_open(path, app):
+def request_open(path, app=None):
+    """app=None lets host-helper hand off to macOS/LaunchServices' own
+    default handler for the file — used for sidecar files (README/PDF/
+    preview images) that aren't in APP_MAP, since those aren't CAD files
+    with one obvious app to open them in."""
     return _post("/open", {"path": path, "app": app})
 
 

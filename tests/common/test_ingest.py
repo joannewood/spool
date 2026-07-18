@@ -109,6 +109,43 @@ def test_maybe_enqueue_render_unrecognized_ext_gets_no_job(conn, make_root):
     assert _job_types_for(conn, file_id) == []
 
 
+# ---- stage_sidecar -----------------------------------------------------------
+
+def _sidecar_row(conn, sidecar_id):
+    with conn.cursor() as cur:
+        cur.execute("SELECT filename, ext, thumbnail_path FROM sidecar_files WHERE id = %s", (sidecar_id,))
+        return cur.fetchone()
+
+
+def test_stage_sidecar_non_image_gets_no_thumbnail(conn, make_root):
+    root = make_root()
+    sidecar_id = ingest.stage_sidecar(conn, root, _touch(root, "README.txt"))
+    assert sidecar_id is not None
+    filename, ext, thumbnail_path = _sidecar_row(conn, sidecar_id)
+    assert filename == "README.txt"
+    assert ext == ".txt"
+    assert thumbnail_path is None
+
+
+def test_stage_sidecar_image_gets_copied_as_thumbnail(conn, make_root, tmp_path, monkeypatch):
+    monkeypatch.setattr(ingest, "THUMBNAILS_DIR", str(tmp_path))
+    root = make_root()
+    sidecar_id = ingest.stage_sidecar(conn, root, _touch(root, "preview.jpg", b"fake-jpeg-bytes"))
+    assert sidecar_id is not None
+    filename, ext, thumbnail_path = _sidecar_row(conn, sidecar_id)
+    assert filename == "preview.jpg"
+    assert thumbnail_path == f"sidecar-{sidecar_id}.jpg"
+    with open(tmp_path / thumbnail_path, "rb") as f:
+        assert f.read() == b"fake-jpeg-bytes"
+
+
+def test_stage_sidecar_is_idempotent_on_same_path(conn, make_root):
+    root = make_root()
+    file_path = _touch(root, "README.txt")
+    assert ingest.stage_sidecar(conn, root, file_path) is not None
+    assert ingest.stage_sidecar(conn, root, file_path) is None
+
+
 # ---- relocate ---------------------------------------------------------------
 
 def test_relocate_root_level_file_flattens_into_dropfolder(make_root):

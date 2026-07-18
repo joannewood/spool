@@ -2,9 +2,11 @@ import os
 import shutil
 from datetime import datetime, timezone
 
-from .config import MESH_EXTENSIONS, SCAD_EXTENSIONS, STEP_EXTENSIONS, SVG_EXTENSIONS
+from .config import MESH_EXTENSIONS, SCAD_EXTENSIONS, SIDECAR_IMAGE_EXTENSIONS, STEP_EXTENSIONS, SVG_EXTENSIONS
 from .hashing import sha256_file
 from .paths import to_host_path
+
+THUMBNAILS_DIR = os.environ.get("THUMBNAILS_DIR", "/data/thumbnails")
 
 
 def stage_stub(conn, root, container_path):
@@ -69,7 +71,10 @@ def stage_and_hash(conn, root, container_path):
 def stage_sidecar(conn, root, container_path):
     """Records a non-model file that lives alongside model files in a
     project folder — no hash, no render job, just presence (filename/size)
-    for that folder's project page "Files in this folder" list.
+    for that folder's project page "Files in this folder" list. An image
+    sidecar (a kit's preview photo, etc.) gets a thumbnail the same
+    lightweight way SVG model files do — a plain copy, no rasterization
+    needed since it's already a raster image.
 
     Returns the new sidecar_files id, or None if this path was already known.
     """
@@ -88,7 +93,19 @@ def stage_sidecar(conn, root, container_path):
             (root.id, host_path, filename, ext, size_bytes),
         )
         row = cur.fetchone()
-    return row[0] if row else None
+        if row is None:
+            return None
+        sidecar_id = row[0]
+
+        if ext in SIDECAR_IMAGE_EXTENSIONS:
+            os.makedirs(THUMBNAILS_DIR, exist_ok=True)
+            thumbnail_filename = f"sidecar-{sidecar_id}{ext}"
+            shutil.copyfile(container_path, os.path.join(THUMBNAILS_DIR, thumbnail_filename))
+            cur.execute(
+                "UPDATE sidecar_files SET thumbnail_path = %s WHERE id = %s",
+                (thumbnail_filename, sidecar_id),
+            )
+    return sidecar_id
 
 
 def maybe_enqueue_render(conn, file_id, ext):

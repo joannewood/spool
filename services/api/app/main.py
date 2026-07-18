@@ -172,7 +172,7 @@ def create_project(name: str = Form(...), description: str = Form(""), parent_pr
 
 
 @app.get("/projects/{project_id}", response_class=HTMLResponse)
-def project_detail(request: Request, project_id: int):
+def project_detail(request: Request, project_id: int, open_status: str = ""):
     project = queries.get_project(project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="project not found")
@@ -185,6 +185,7 @@ def project_detail(request: Request, project_id: int):
             "files": queries.get_project_files(project_id),
             "parent": queries.get_project(project["parent_project_id"]) if project["parent_project_id"] else None,
             "sidecars": queries.get_project_sidecars(project_id),
+            "open_status": open_status,
         },
     )
 
@@ -292,6 +293,22 @@ def open_file(file_id: int, app: str = Form("")):
 
     qs = urlencode({"open_status": status})
     return RedirectResponse(f"/files/{file_id}?{qs}", status_code=303)
+
+
+@app.post("/projects/{project_id}/sidecars/{sidecar_id}/open")
+def open_sidecar(project_id: int, sidecar_id: int):
+    sidecar = queries.get_sidecar(sidecar_id)
+    if sidecar is None:
+        raise HTTPException(status_code=404, detail="sidecar file not found")
+
+    # No app argument — sidecars (README/PDF/preview images) aren't CAD
+    # files with one obvious app, so host-helper hands off to macOS's own
+    # default handler for whatever this file type is.
+    ok, error = host_helper_client.request_open(sidecar["path"])
+    status = "ok" if ok else f"error:{error}"
+
+    qs = urlencode({"open_status": status})
+    return RedirectResponse(f"/projects/{project_id}?{qs}", status_code=303)
 
 
 # ---- admin: watched roots -------------------------------------------------

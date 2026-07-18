@@ -26,6 +26,13 @@
 {% endif %}
 
 <h2>Files</h2>
+
+{% if open_status == "ok" %}
+<p class="badge ok">✓ opened</p>
+{% elif open_status.startswith("error:") %}
+<p class="badge warn">⚠ {{ open_status[6:] }}</p>
+{% endif %}
+
 <div class="grid">
   {% for f in files %}
   <a class="card" href="/files/{{ f.id }}">
@@ -53,17 +60,33 @@
     </div>
   </a>
   {% else %}
+  {% if not sidecars %}
   <p class="empty">No files in this project yet — add one from a file's detail page.</p>
+  {% endif %}
+  {% endfor %}
+
+  {% for s in sidecars %}
+  <form method="POST" action="/projects/{{ project.id }}/sidecars/{{ s.id }}/open" class="card-form">
+    <button type="submit" class="card sidecar-card">
+      <div class="thumb">
+        {% if s.thumbnail_path %}
+          <img src="/thumbnails/{{ s.thumbnail_path }}" alt="{{ s.filename }}" loading="lazy">
+        {% else %}
+          <div class="thumb-placeholder">
+            <span class="ext-label">{{ s.ext }}</span>
+          </div>
+        {% endif %}
+      </div>
+      <div class="meta">
+        <div class="filename" title="{{ s.filename }}">{{ s.filename }}</div>
+        <div class="dims">{{ s.size_bytes | filesizeformat }}</div>
+        <div class="badges">
+          <span class="ext-badge {{ s.ext | ext_class }}">{{ s.ext }}</span>
+        </div>
+      </div>
+    </button>
+  </form>
   {% endfor %}
 </div>
-
-{% if sidecars %}
-<h2>Files in this folder</h2>
-<ul class="sidecar-list">
-  {% for s in sidecars %}
-  <li>{{ s.filename }} <span class="note-inline">{{ s.size_bytes | filesizeformat }}</span></li>
-  {% endfor %}
-</ul>
-{% endif %}
 
 {% endblock %}

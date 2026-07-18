@@ -617,7 +617,7 @@ def get_project_sidecars(project_id):
                     JOIN project_files pf ON pf.file_id = f.id
                     WHERE pf.project_id = %s AND pf.status = 'confirmed'
                 )
-                SELECT s.id, s.filename, s.ext, s.size_bytes
+                SELECT s.id, s.filename, s.ext, s.size_bytes, s.thumbnail_path
                 FROM sidecar_files s
                 JOIN project_dirs d ON regexp_replace(s.path, '/[^/]+$', '') = d.dir
                 ORDER BY s.filename
@@ -625,6 +625,13 @@ def get_project_sidecars(project_id):
                 (project_id,),
             )
             return cur.fetchall()
+
+
+def get_sidecar(sidecar_id):
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("SELECT id, path, filename FROM sidecar_files WHERE id = %s", (sidecar_id,))
+            return cur.fetchone()
 
 
 # ---- duplicate files (identical content_hash) --------------------------------
