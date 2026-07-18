@@ -18,8 +18,8 @@ This file tracks *current build status* — the artifact is the design record.
 - [x] Phase 02 — mesh thumbnail rendering for STL/3MF (trimesh + pyrender)
 - [x] Phase 03 — STEP previews (OCP/OpenCASCADE), own `render_step` job lane
 - [x] Phase 04 — browse & search UI (FastAPI + Jinja2 + htmx)
-- [ ] Phase 05 — tags, projects, print metadata, admin page (watched roots CRUD) ← **next**
-- [ ] Phase 06 — relationships (manual + auto-suggest: filename/version, folder grouping)
+- [x] Phase 05 — tags, projects (nestable), print metadata (auto + manual), admin page
+- [ ] Phase 06 — relationships (manual + auto-suggest: filename/version, folder grouping) ← **next**
 - [ ] Phase 07 — drift reconciliation (periodic rescan, hash rematching)
 - [ ] Phase 08 — host-helper (native launchd agent, open-in-Fusion360/Bambu)
 - [ ] Phase 09 — polish & scale
@@ -34,14 +34,30 @@ services/
   common/   shared lib used by watcher + worker — db, host<->container path
             mapping, hashing, ingest primitives (stage/relocate/enqueue)
   api/      FastAPI + Jinja2 + htmx. / is a searchable/filterable thumbnail
-            grid (search-as-you-type + extension checkboxes, both via htmx
-            partial swaps on the same route), /files/{id} is the detail page.
-            Shares `common/` too now (build context is ./services, same
-            pattern as watcher/worker) — uses common.db for queries.
+            grid (search-as-you-type + extension + tag checkboxes, all via
+            htmx partial swaps on the same route), /files/{id} is the detail
+            page (geometry stats + tags/projects/print-metadata panels),
+            /projects is a nestable project tree + create form,
+            /projects/{id} is a project's file grid, /admin lists watched
+            roots with live-editable label/ingest_mode/active. Tag and
+            project removal use hx-delete swapping the chip to nothing;
+            everything else is a plain POST-redirect-GET form (simpler than
+            partials for rare actions). Shares `common/` (build context is
+            ./services) — uses common.db for queries, all in queries.py.
   watcher/  live filesystem events via watchdog. Lightweight — stages a stub
             file row + queues an 'ingest' job, or relocates (Downloads), then
-            gets out of the way.
-  worker/   heavy image (trimesh/pyrender/OCP). Runs a one-shot backfill walk
+            gets out of the way. Polls watched_roots every 10s
+            (ROOT_POLL_INTERVAL_SECONDS in app/main.py) and reconciles its
+            live watchdog schedule against active/ingest_mode — pause/resume/
+            edit an already-mounted root takes effect within ~10s, no
+            restart. Adding a brand-new root still needs one (see Gotchas).
+  worker/   heavy image (trimesh/pyrender/OCP). Also has bambu_metadata.py —
+            after rendering a .3mf, checks for Metadata/project_settings.config
+            (JSON) and Metadata/slice_info.config (XML) inside the zip; if
+            present (a real Bambu Studio project export, not just any 3MF),
+            upserts print_metadata with source='auto_extracted_3mf', never
+            clobbering a manual edit (ON CONFLICT ... WHERE source != 'manual').
+            Runs a one-shot backfill walk
             on startup (hashes inline, no self-queuing), then a Postgres-
             backed job queue consumer (SELECT ... FOR UPDATE SKIP LOCKED, no
             Redis). Image is tagged `spool-worker` and run as TWO Compose
@@ -111,6 +127,28 @@ db/migrations/   plain numbered SQL files, NOT a real migration tool (see
   `stage_stub` is idempotent (`ON CONFLICT (path) DO NOTHING`) specifically
   because a single file copy can fire multiple watchdog events. This is
   expected, not a bug — don't "fix" it by adding dedup logic elsewhere.
+- **Bambu 3MF metadata schema** (reverse-engineered from real files, not
+  documented anywhere official) — `Metadata/project_settings.config` is JSON:
+  `nozzle_diameter`/`layer_height`/`sparse_infill_density` (string with a
+  trailing `%`!)/`printer_model`/`filament_colour`/`filament_type` — but
+  those filament arrays cover **every configured AMS slot**, including ones
+  a given print doesn't use. What's *actually* used lives in
+  `Metadata/slice_info.config`, which is XML, not JSON: `<plate><metadata
+  key="weight"/>` (grams) and `key="prediction"/>` (**seconds**, convert to
+  minutes) plus one `<filament>` element per slot actually used on the
+  plate. Use slice_info for material/color/weight/time, project_settings for
+  process settings (nozzle/layer height/infill). A 3MF without
+  `project_settings.config` just isn't a Bambu project file — `extract_bambu_metadata`
+  returns `None`, don't treat that as an error.
+- **Docker can't attach a new bind mount to a running container** — this is
+  why the admin page only edits/pauses the 3 roots that were already mounted
+  at container start, and has no "add root" UI. If that's ever built, it
+  will need to write the row AND tell the user to run
+  `docker compose up -d --build` — there's no way around the restart for a
+  genuinely new host path, no matter how clever the polling loop is.
+- **HTML `form="id"` attribute** (not `<form>` wrapping table rows, which is
+  invalid HTML5) is how `admin.html` associates each row's inputs with its
+  own POST form — see the pattern there if adding more per-row edit forms.
 - **Testing note**: any file written into the real bind-mounted watched
   folders (even via a throwaway `docker compose run` script) gets picked up
   by the live watcher/backfill for real, since they're the actual host
@@ -159,12 +197,21 @@ docker compose down -v              # stop AND wipe volumes (only if no data wor
 `.env` (gitignored) holds real local paths/credentials — copy from `.env.example`
 if it's ever missing.
 
-## Next: Phase 05 — tags, projects, print metadata, admin page
+**To verify a UI change**, use the `run-spool` skill
+(`.claude/skills/run-spool/SKILL.md`) rather than re-deriving the
+no-browser-tooling workaround — `driver.sh <script.mjs>` runs a Playwright
+script against `http://api:8000` in a throwaway container on the Compose
+network. See `example-flow.mjs` in that directory for the pattern.
 
-Manual organization on top of what's auto-indexed: tags, nestable projects
-(`parent_project_id` already exists on the `projects` table — schema's ready,
-no UI yet), print metadata editing, and the admin page for managing
-`watched_roots` (add/edit/pause a root, trigger a rescan — the whole reason
-that table has an `active` column and isn't just env vars). This is also
-the natural point to fix the "library root is still an empty placeholder"
-gap noted below, if the real path is known by then.
+## Next: Phase 06 — relationships
+
+Manual linking UI first (typed: `derived_from` / `new_version_of` /
+`variant_of` / `duplicate_of`, all in the `relationships` table already),
+then auto-suggestion on top — filename/version heuristics and folder-based
+project grouping (per the spec, flat-per-leaf-folder, not mirroring the
+whole directory tree into nested projects). Also the natural point to build
+the "related files surfaced on a file's page regardless of format" UI the
+spec promised back when Phase 05's print-metadata design deliberately chose
+NOT to copy settings across relationships (Sheet 05) — right now a STEP
+file's detail page has no way to show "here's the STL made from this" at
+all, since relationships aren't wired into the UI yet.

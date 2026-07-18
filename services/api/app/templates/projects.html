@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Projects — SPOOL{% endblock %}
+{% block content %}
+
+<h1>Projects</h1>
+
+<form class="stack-form" method="POST" action="/projects">
+  <label>Name <input type="text" name="name" required></label>
+  <label>Description <input type="text" name="description"></label>
+  <label>Parent project
+    <select name="parent_project_id">
+      <option value="">(none — top level)</option>
+      {% for p in projects %}
+      <option value="{{ p.id }}">{{ p.name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <button type="submit">Create project</button>
+</form>
+
+<div class="project-tree">
+  {% for item in tree recursive %}
+  <div class="project-node">
+    <a href="/projects/{{ item.id }}">{{ item.name }}</a>
+    <span class="project-count">{{ item.file_count }} file{{ "s" if item.file_count != 1 else "" }}</span>
+    {% if item.children %}
+    <div class="project-children">{{ loop(item.children) }}</div>
+    {% endif %}
+  </div>
+  {% else %}
+  <p class="empty">No projects yet — create one above.</p>
+  {% endfor %}
+</div>
+
+{% endblock %}

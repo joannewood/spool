@@ -8,6 +8,7 @@ from common.paths import to_container_path
 from common.roots import fetch_root_by_id
 
 from .backfill import run_backfill
+from .bambu_metadata import extract_bambu_metadata, upsert_extracted_metadata
 from .render import render_thumbnail
 
 POLL_INTERVAL_SECONDS = 1.0
@@ -102,6 +103,11 @@ def process_render_job(conn, file_id):
                 file_id,
             ),
         )
+
+    if os.path.splitext(container_path)[1].lower() == ".3mf":
+        bambu_metadata = extract_bambu_metadata(container_path)
+        if bambu_metadata is not None:
+            upsert_extracted_metadata(conn, file_id, bambu_metadata)
 
 
 def mark_job_done(conn, job_id):

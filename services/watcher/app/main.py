@@ -66,23 +66,62 @@ class RootEventHandler(FileSystemEventHandler):
             self._handle(event.dest_path)
 
 
-def main():
-    conn = get_connection()
+ROOT_POLL_INTERVAL_SECONDS = 10
+
+
+def sync_watches(observer, conn, scheduled):
+    """Reconcile the observer's live watches against the current
+    watched_roots table — add/remove/reschedule without a container
+    restart. Only ever touches roots whose container_path is already
+    bind-mounted (adding a brand-new root still needs one, since Docker
+    can't attach a new bind mount to a running container)."""
     roots = fetch_active_roots(conn)
     dropfolder_root = fetch_dropfolder_root(conn)
-    conn.close()
+    current_ids = {root.id for root in roots}
 
-    observer = Observer()
     for root in roots:
-        handler = RootEventHandler(root, dropfolder_root)
-        observer.schedule(handler, root.container_path, recursive=True)
-        print(f"[watcher] watching {root.label} at {root.container_path}", flush=True)
+        existing = scheduled.get(root.id)
+        if existing is not None:
+            watch, snapshot = existing
+            if snapshot.ingest_mode == root.ingest_mode and snapshot.container_path == root.container_path:
+                continue  # nothing relevant changed, leave the watch alone
+            observer.unschedule(watch)
+            del scheduled[root.id]
+            print(f"[watcher] re-scheduling {root.label} (settings changed)", flush=True)
 
+        if not os.path.isdir(root.container_path):
+            print(f"[watcher] skipping {root.label}: {root.container_path} isn't mounted "
+                  f"(new roots need docker compose up -d --build to attach the bind mount)", flush=True)
+            continue
+
+        handler = RootEventHandler(root, dropfolder_root)
+        watch = observer.schedule(handler, root.container_path, recursive=True)
+        scheduled[root.id] = (watch, root)
+        print(f"[watcher] watching {root.label} at {root.container_path} (ingest_mode={root.ingest_mode})", flush=True)
+
+    for root_id in list(scheduled):
+        if root_id not in current_ids:
+            watch, snapshot = scheduled.pop(root_id)
+            observer.unschedule(watch)
+            print(f"[watcher] stopped watching {snapshot.label} (paused or deactivated)", flush=True)
+
+    return scheduled
+
+
+def main():
+    observer = Observer()
     observer.start()
+
+    scheduled = {}
+    with get_connection() as conn:
+        scheduled = sync_watches(observer, conn, scheduled)
     print("[watcher] ready", flush=True)
+
     try:
         while True:
-            time.sleep(1)
+            time.sleep(ROOT_POLL_INTERVAL_SECONDS)
+            with get_connection() as conn:
+                scheduled = sync_watches(observer, conn, scheduled)
     except KeyboardInterrupt:
         observer.stop()
     observer.join()

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Admin — SPOOL{% endblock %}
+{% block content %}
+
+<h1>Watched roots</h1>
+<p class="note">
+  Editing or pausing a root below takes effect live within a few seconds, no restart needed.
+  Adding a brand-new root isn't supported here — Docker can't attach a new bind mount to an
+  already-running container, so that still needs a <code>docker-compose.yml</code> change and
+  <code>docker compose up -d --build</code>.
+</p>
+
+{% for r in roots %}
+<form id="root-form-{{ r.id }}" method="POST" action="/admin/roots/{{ r.id }}"></form>
+{% endfor %}
+
+<div class="table-wrap">
+  <table class="admin-table">
+    <thead>
+      <tr><th>Label</th><th>Host path</th><th>Kind</th><th>Ingest mode</th><th>Active</th><th>Files</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for r in roots %}
+      <tr>
+        <td><input type="text" name="label" form="root-form-{{ r.id }}" value="{{ r.label }}"></td>
+        <td><code>{{ r.host_path }}</code></td>
+        <td>{{ r.kind }}</td>
+        <td>
+          <select name="ingest_mode" form="root-form-{{ r.id }}">
+            {% for m in ingest_modes %}
+            <option value="{{ m }}" {% if m == r.ingest_mode %}selected{% endif %}>{{ m }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td><input type="checkbox" name="active" form="root-form-{{ r.id }}" {% if r.active %}checked{% endif %}></td>
+        <td>{{ r.file_count }}</td>
+        <td><button type="submit" form="root-form-{{ r.id }}">Save</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

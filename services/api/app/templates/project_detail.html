@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} — SPOOL{% endblock %}
+{% block content %}
+
+<a class="back" href="{% if parent %}/projects/{{ parent.id }}{% else %}/projects{% endif %}">
+  ← {% if parent %}{{ parent.name }}{% else %}all projects{% endif %}
+</a>
+
+<h1>{{ project.name }}</h1>
+{% if project.description %}<p class="note">{{ project.description }}</p>{% endif %}
+
+{% if children %}
+<h2>Sub-projects</h2>
+<ul class="project-list">
+  {% for c in children %}<li><a href="/projects/{{ c.id }}">{{ c.name }}</a></li>{% endfor %}
+</ul>
+{% endif %}
+
+<h2>Files</h2>
+<div class="grid">
+  {% for f in files %}
+  <a class="card" href="/files/{{ f.id }}">
+    <div class="thumb">
+      {% if f.thumbnail_path %}
+        <img src="/thumbnails/{{ f.thumbnail_path }}" alt="{{ f.filename }}" loading="lazy">
+      {% else %}
+        <div class="thumb-placeholder status-{{ f.render_status }}">
+          <span class="ext-label">{{ f.ext }}</span>
+          <span class="status-label">{{ f.render_status }}</span>
+        </div>
+      {% endif %}
+    </div>
+    <div class="meta">
+      <div class="filename" title="{{ f.filename }}">{{ f.filename }}</div>
+      <div class="badges">
+        <span class="ext-badge">{{ f.ext }}</span>
+        {% if f.is_manifold == false %}
+        <span class="badge warn" title="Not watertight — may not slice cleanly">⚠ non-manifold</span>
+        {% endif %}
+      </div>
+    </div>
+  </a>
+  {% else %}
+  <p class="empty">No files in this project yet — add one from a file's detail page.</p>
+  {% endfor %}
+</div>
+
+{% endblock %}
