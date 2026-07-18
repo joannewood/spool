@@ -249,6 +249,12 @@ def create_project(name, description, parent_project_id):
             return cur.fetchone()["id"]
 
 
+def set_project_name(project_id, name):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE projects SET name = %s WHERE id = %s", (name.strip(), project_id))
+
+
 def add_file_to_project(file_id, project_id):
     with get_connection() as conn:
         with conn.cursor() as cur:

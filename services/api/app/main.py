@@ -189,6 +189,12 @@ def project_detail(request: Request, project_id: int):
     )
 
 
+@app.post("/projects/{project_id}/name")
+def update_project_name(project_id: int, name: str = Form(...)):
+    queries.set_project_name(project_id, name)
+    return RedirectResponse(f"/projects/{project_id}", status_code=303)
+
+
 @app.post("/files/{file_id}/projects")
 def add_to_project(file_id: int, project_id: int = Form(...)):
     queries.add_file_to_project(file_id, project_id)

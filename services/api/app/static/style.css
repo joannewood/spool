@@ -541,6 +541,21 @@ main {
 .project-list { padding-left: 20px; font-size: 14px; }
 .sidecar-list { padding-left: 20px; font-size: 14px; color: var(--ink-muted); }
 
+/* project name edit — <details>/<summary>, no JS needed for the toggle */
+.project-title-row { display: flex; align-items: center; gap: 10px; }
+.project-title-row h1 { margin: 0; }
+.edit-toggle summary {
+  list-style: none;
+  cursor: pointer;
+  font-size: 15px;
+  opacity: 0.6;
+  user-select: none;
+}
+.edit-toggle summary::-webkit-details-marker { display: none; }
+.edit-toggle summary:hover { opacity: 1; }
+.edit-toggle[open] summary { opacity: 1; }
+.edit-toggle form { margin-top: 8px; }
+
 /* admin */
 .admin-table {
   width: 100%;

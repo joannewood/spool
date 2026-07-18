@@ -644,6 +644,11 @@ first), independent of the paused Phase 09:
       runtime cast error. Purely additive — ORed alongside the existing
       filename/print_metadata/print_log text search, so a query matching
       no structured pattern behaves exactly as before.
+- [x] Editable project name (`project_detail.html`) — a pencil icon next
+      to the `<h1>` toggles a `<details>/<summary>` reveal (no JS needed
+      for the toggle itself — the one native HTML idiom for "click to
+      reveal a section"), containing a plain rename form,
+      `POST /projects/{id}/name` → `queries.set_project_name`.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,
