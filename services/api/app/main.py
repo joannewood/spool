@@ -326,6 +326,19 @@ def reject_zip(zip_id: int):
     return RedirectResponse("/admin", status_code=303)
 
 
+@app.get("/admin/rejected-archives", response_class=HTMLResponse)
+def admin_rejected_archives(request: Request):
+    return templates.TemplateResponse(
+        request, "admin_rejected_archives.html", {"zips": queries.list_rejected_zips()}
+    )
+
+
+@app.post("/admin/zips/{zip_id}/unreject")
+def unreject_zip(zip_id: int):
+    queries.unreject_zip(zip_id)
+    return RedirectResponse("/admin/rejected-archives", status_code=303)
+
+
 # ---- admin: duplicate files ------------------------------------------------
 
 @app.get("/admin/duplicates", response_class=HTMLResponse)

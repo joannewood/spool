@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Rejected archives — SPOOL{% endblock %}
+{% block content %}
+
+<a class="back" href="/admin">← admin</a>
+<h1>Rejected archives</h1>
+<p class="note">
+  Zip files you've dismissed — SPOOL won't ask about these again on later scans unless you
+  change your mind here. Un-rejecting moves one back to "Pending archives" for the normal
+  confirm/reject review; the file itself is untouched either way.
+</p>
+
+{% if zips %}
+<div class="table-wrap">
+  <table class="admin-table">
+    <thead>
+      <tr><th>Filename</th><th>Path</th><th>Size</th><th>First seen</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for z in zips %}
+      <tr>
+        <td>{{ z.filename }}</td>
+        <td><code>{{ z.path }}</code></td>
+        <td>{{ z.size_bytes | filesizeformat }}</td>
+        <td>{{ z.created_at }}</td>
+        <td>
+          <form method="POST" action="/admin/zips/{{ z.id }}/unreject"><button type="submit">Un-reject</button></form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="empty-inline">no rejected archives</p>
+{% endif %}
+
+{% endblock %}

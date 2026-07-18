@@ -525,6 +525,25 @@ def reject_zip(zip_id):
             cur.execute("UPDATE zip_files SET status = 'rejected' WHERE id = %s", (zip_id,))
 
 
+def list_rejected_zips():
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                "SELECT id, filename, path, size_bytes, created_at FROM zip_files "
+                "WHERE status = 'rejected' ORDER BY created_at DESC"
+            )
+            return cur.fetchall()
+
+
+def unreject_zip(zip_id):
+    """Moves a rejected zip back to 'suggested' so it reappears in the
+    normal Pending archives review flow — the file itself is untouched
+    either way, this only changes whether SPOOL is still asking about it."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE zip_files SET status = 'suggested' WHERE id = %s", (zip_id,))
+
+
 # ---- sidecar files --------------------------------------------------------
 
 def get_project_sidecars(project_id):

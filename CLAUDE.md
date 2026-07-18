@@ -496,6 +496,32 @@ first), independent of the paused Phase 09:
       just adjacent-in-sequence) through its first four slots; `.scad`
       (no preview anyway) stays the neutral default badge style rather
       than reach for an unvalidated 5th hue.
+- [x] `zip_files` uniqueness moved from `path` alone to `(path,
+      content_hash)` (migration 011) — a rejected zip was staying rejected
+      *forever for that path*, which is wrong for a common filename like
+      "Archive.zip" that legitimately gets reused for different downloads
+      over time (old one deleted, new one dropped in with the same name).
+      `zip_ingest.py::stage_zip_if_relevant` now hashes the zip (only after
+      the cheap namelist-peek already confirmed it's worth tracking, so an
+      irrelevant zip never pays this cost) — same content at the same path
+      still won't be re-asked about, but different content at a
+      previously-used path gets a fresh row and a fresh `suggested` status.
+      **Gotcha hit applying this**: existing rows had `content_hash = NULL`
+      post-migration, and Postgres treats NULLs as distinct for uniqueness
+      purposes — so the *next* scan of an already-known zip would insert a
+      new row instead of matching the old one (briefly "re-asking" about
+      already-decided zips once), since NULL never equals a real hash.
+      Backfilling `content_hash` for existing rows (hash the file if it's
+      still on disk) avoids the one-time gap; confirmed live during this —
+      also confirmed the underlying fix itself works: a genuinely different
+      "Archive 2.zip" showed up as a fresh `suggested` row alongside the
+      old `rejected` one for the same path, exactly as intended.
+- [x] Rejected-archives review page (`/admin/rejected-archives`, linked
+      from the main Admin page) — lists everything with
+      `status='rejected'` with an "Un-reject" button
+      (`queries.unreject_zip` → back to `suggested`, reappears in the
+      normal Pending archives flow). The file itself is never touched by
+      either state.
 - [x] Duplicate-file review/deletion admin UI (`/admin/duplicates`) —
       groups files by identical `content_hash` directly (`queries.
       list_duplicate_groups`), not by walking `duplicate_of` relationship
