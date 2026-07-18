@@ -345,6 +345,65 @@ def unreject_zip(zip_id: int):
     return RedirectResponse("/admin/rejected-archives", status_code=303)
 
 
+# ---- admin: bulk review of suggestions -------------------------------------
+
+@app.get("/admin/suggested-projects", response_class=HTMLResponse)
+def admin_suggested_projects(request: Request):
+    return templates.TemplateResponse(
+        request,
+        "admin_suggested_projects.html",
+        {"assignments": queries.list_suggested_project_assignments()},
+    )
+
+
+@app.post("/admin/suggested-projects/{project_id}/{file_id}/confirm")
+def admin_confirm_project_assignment(project_id: int, file_id: int):
+    queries.confirm_file_project(file_id, project_id)
+    return RedirectResponse("/admin/suggested-projects", status_code=303)
+
+
+@app.post("/admin/suggested-projects/{project_id}/{file_id}/reject")
+def admin_reject_project_assignment(project_id: int, file_id: int):
+    queries.reject_file_project(file_id, project_id)
+    return RedirectResponse("/admin/suggested-projects", status_code=303)
+
+
+@app.post("/admin/suggested-projects/accept-bulk")
+def admin_accept_project_assignments_bulk(pairs: list[str] = Form([])):
+    for pair in pairs:
+        project_id_str, file_id_str = pair.split(":")
+        queries.confirm_file_project(int(file_id_str), int(project_id_str))
+    return RedirectResponse("/admin/suggested-projects", status_code=303)
+
+
+@app.get("/admin/suggested-relationships", response_class=HTMLResponse)
+def admin_suggested_relationships(request: Request):
+    return templates.TemplateResponse(
+        request,
+        "admin_suggested_relationships.html",
+        {"relationships": queries.list_suggested_relationships_all()},
+    )
+
+
+@app.post("/admin/suggested-relationships/{rel_id}/confirm")
+def admin_confirm_relationship(rel_id: int):
+    queries.confirm_relationship(rel_id)
+    return RedirectResponse("/admin/suggested-relationships", status_code=303)
+
+
+@app.post("/admin/suggested-relationships/{rel_id}/reject")
+def admin_reject_relationship(rel_id: int):
+    queries.reject_relationship(rel_id)
+    return RedirectResponse("/admin/suggested-relationships", status_code=303)
+
+
+@app.post("/admin/suggested-relationships/accept-bulk")
+def admin_accept_relationships_bulk(rel_ids: list[int] = Form([])):
+    for rel_id in rel_ids:
+        queries.confirm_relationship(rel_id)
+    return RedirectResponse("/admin/suggested-relationships", status_code=303)
+
+
 # ---- admin: duplicate files ------------------------------------------------
 
 @app.get("/admin/duplicates", response_class=HTMLResponse)

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Suggested relationships — SPOOL{% endblock %}
+{% block content %}
+
+<a class="back" href="/admin">← admin</a>
+<h1>Suggested relationships</h1>
+<p class="note">
+  Filename/version and duplicate-hash heuristics the worker has proposed but not yet
+  confirmed. Accept the ones that look right (individually or in bulk) or reject the
+  rest — nothing here links files until you do.
+</p>
+
+{% if relationships %}
+<form method="POST" action="/admin/suggested-relationships/accept-bulk">
+  <label class="dup-select-all">
+    <input type="checkbox" id="sr-select-all">
+    Select all suggestions
+  </label>
+
+  <div class="table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr><th></th><th>From</th><th>Relationship</th><th>To</th><th>Confidence</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for r in relationships %}
+        <tr>
+          <td><input type="checkbox" name="rel_ids" value="{{ r.id }}" class="sr-checkbox"></td>
+          <td><a href="/files/{{ r.from_id }}">{{ r.from_display_name or r.from_filename }}</a></td>
+          <td>{{ r.label }}</td>
+          <td><a href="/files/{{ r.to_id }}">{{ r.to_display_name or r.to_filename }}</a></td>
+          <td>{% if r.confidence is not none %}{{ "%.0f"|format(r.confidence * 100) }}%{% else %}—{% endif %}</td>
+          <td>
+            <form method="POST" action="/admin/suggested-relationships/{{ r.id }}/confirm" class="chip-inline-form"><button type="submit">Confirm</button></form>
+            <form method="POST" action="/admin/suggested-relationships/{{ r.id }}/reject" class="chip-inline-form"><button type="submit" class="rel-reject">Reject</button></form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <button type="submit">Accept selected</button>
+</form>
+{% else %}
+<p class="empty-inline">no suggested relationships</p>
+{% endif %}
+
+<script>
+  document.getElementById("sr-select-all")?.addEventListener("change", (e) => {
+    document.querySelectorAll(".sr-checkbox").forEach((cb) => { cb.checked = e.target.checked; });
+  });
+</script>
+
+{% endblock %}

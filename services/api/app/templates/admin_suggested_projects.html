@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Suggested project assignments — SPOOL{% endblock %}
+{% block content %}
+
+<a class="back" href="/admin">← admin</a>
+<h1>Suggested project assignments</h1>
+<p class="note">
+  Folder-based project groupings the worker has proposed but not yet confirmed.
+  Accept the ones that look right (individually or in bulk) or reject the rest —
+  nothing here changes a file's project until you do.
+</p>
+
+{% if assignments %}
+<form method="POST" action="/admin/suggested-projects/accept-bulk">
+  <label class="dup-select-all">
+    <input type="checkbox" id="sp-select-all">
+    Select all suggestions
+  </label>
+
+  <div class="table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr><th></th><th>File</th><th>Ext</th><th>Suggested project</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for a in assignments %}
+        <tr>
+          <td><input type="checkbox" name="pairs" value="{{ a.project_id }}:{{ a.file_id }}" class="sp-checkbox"></td>
+          <td><a href="/files/{{ a.file_id }}">{{ a.display_name or a.filename }}</a></td>
+          <td><span class="ext-badge {{ a.ext | ext_class }}">{{ a.ext }}</span></td>
+          <td><a href="/projects/{{ a.project_id }}">{{ a.project_name }}</a></td>
+          <td>
+            <form method="POST" action="/admin/suggested-projects/{{ a.project_id }}/{{ a.file_id }}/confirm" class="chip-inline-form"><button type="submit">Confirm</button></form>
+            <form method="POST" action="/admin/suggested-projects/{{ a.project_id }}/{{ a.file_id }}/reject" class="chip-inline-form"><button type="submit" class="rel-reject">Reject</button></form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <button type="submit">Accept selected</button>
+</form>
+{% else %}
+<p class="empty-inline">no suggested project assignments</p>
+{% endif %}
+
+<script>
+  document.getElementById("sp-select-all")?.addEventListener("change", (e) => {
+    document.querySelectorAll(".sp-checkbox").forEach((cb) => { cb.checked = e.target.checked; });
+  });
+</script>
+
+{% endblock %}

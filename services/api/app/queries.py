@@ -387,6 +387,34 @@ def remove_relationship(rel_id):
             cur.execute("DELETE FROM relationships WHERE id = %s", (rel_id,))
 
 
+def list_suggested_relationships_all():
+    """Every suggested relationship across the whole library — for the
+    bulk review page, so this doesn't have to be done one file's page at
+    a time. Label always uses the "out" (from -> to) phrasing, since both
+    files are shown side by side here rather than relative to "this" file
+    the way the per-file panel works."""
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                SELECT r.id, r.type, r.confidence,
+                       f1.id AS from_id, f1.filename AS from_filename, f1.display_name AS from_display_name,
+                       f1.ext AS from_ext, f1.thumbnail_path AS from_thumbnail_path,
+                       f2.id AS to_id, f2.filename AS to_filename, f2.display_name AS to_display_name,
+                       f2.ext AS to_ext, f2.thumbnail_path AS to_thumbnail_path
+                FROM relationships r
+                JOIN files f1 ON f1.id = r.from_file_id
+                JOIN files f2 ON f2.id = r.to_file_id
+                WHERE r.status = 'suggested'
+                ORDER BY r.created_at DESC
+                """
+            )
+            rows = cur.fetchall()
+    for r in rows:
+        r["label"] = RELATIONSHIP_LABELS[(r["type"], "out")]
+    return rows
+
+
 # ---- suggested project membership (folder-based auto-grouping) --------------
 
 def get_suggested_file_projects(file_id):
@@ -420,6 +448,27 @@ def reject_file_project(file_id, project_id):
                 "UPDATE project_files SET status = 'rejected' WHERE file_id = %s AND project_id = %s",
                 (file_id, project_id),
             )
+
+
+def list_suggested_project_assignments():
+    """Every suggested (project, file) pairing across the whole library —
+    for the bulk review page, so this doesn't have to be done one file's
+    page at a time."""
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                SELECT p.id AS project_id, p.name AS project_name,
+                       f.id AS file_id, f.filename, f.display_name, f.ext,
+                       f.thumbnail_path, f.render_status
+                FROM project_files pf
+                JOIN projects p ON p.id = pf.project_id
+                JOIN files f ON f.id = pf.file_id
+                WHERE pf.status = 'suggested'
+                ORDER BY p.name, f.filename
+                """
+            )
+            return cur.fetchall()
 
 
 # ---- print metadata ---------------------------------------------------------

@@ -649,6 +649,32 @@ first), independent of the paused Phase 09:
       for the toggle itself — the one native HTML idiom for "click to
       reveal a section"), containing a plain rename form,
       `POST /projects/{id}/name` → `queries.set_project_name`.
+- [x] Bulk review pages for suggestions (`/admin/suggested-projects`,
+      `/admin/suggested-relationships`, linked from Admin) — every
+      `status='suggested'` row across the whole library on one page instead
+      of one file/project at a time, with individual Confirm/Reject buttons
+      per row plus a "select all" + bulk-accept form (same one-inline-JS
+      checkbox-toggle pattern as `/admin/duplicates`, since no CSS-only
+      technique exists for one checkbox to set a set of unrelated others).
+      Both pages are thin wrappers around already-proven query functions
+      (`confirm_file_project`/`reject_file_project`,
+      `confirm_relationship`/`reject_relationship`) reused from the
+      per-file panels — the new routes just target a library-wide list
+      instead of redirecting to a single file/project page. New query
+      functions `list_suggested_project_assignments()` and
+      `list_suggested_relationships_all()` (the latter always uses the
+      "out"/from→to label phrasing since both files are shown side by
+      side, unlike the per-file panel which is relative to "this" file).
+      Bulk-accept posts `pairs=<project_id>:<file_id>` (projects) or
+      `rel_ids=<id>` (relationships) as repeated form fields, same
+      `list[str]`/`list[int] = Form([])` pattern already used by
+      `/admin/duplicates/delete`. Verified confirm/reject/bulk-accept all
+      three ways against synthetic rows (a throwaway `__test_project__`
+      project and a throwaway `variant_of` relationship between two real
+      files, inserted and deleted via `psql` directly) rather than
+      clicking real suggestions on the live library, since confirming a
+      real suggestion as a "test" would permanently alter actual project/
+      relationship data.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,
