@@ -334,15 +334,21 @@ main {
 .chip-remove:hover { color: var(--warn); background: var(--warn-bg); }
 .empty-inline { color: var(--ink-muted); font-size: 12.5px; }
 
-.inline-form { display: flex; gap: 6px; }
+.inline-form { display: flex; gap: 6px; min-width: 0; }
 .inline-form input, .inline-form select {
   flex: 1;
+  min-width: 0;
   padding: 6px 8px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg);
   color: var(--ink);
   font-size: 13px;
+}
+.inline-form select {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .inline-form button {
   padding: 6px 12px;
