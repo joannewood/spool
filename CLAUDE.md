@@ -1275,6 +1275,29 @@ first), independent of the paused Phase 09:
       Deliberately scoped to the library page only (not
       `project_detail.html`'s file grid, which has its own separate card
       markup, not `_results.html`) per the user's explicit ask.
+- [x] Fixed the right-hand panel overflowing past the page edge on the
+      file detail page — reported as "doesn't line up on the right with
+      the file details above it, goes too close to the edge." Root cause,
+      confirmed by measuring real `getBoundingClientRect()`s live (not
+      just eyeballing): `.panel-print-metadata` was rendering ~124px past
+      `.panels`' own right edge — a classic CSS Grid "blowout." Grid items
+      default to `min-width: auto` (their content's min-content size), not
+      `0`; the `.form-row-3` three-inputs-per-row layout (added in the
+      previous reformat pass) has a combined min-content width bigger than
+      its `1fr` track's fair share, and with nothing in the chain allowed
+      to shrink below that, the track — and the whole `.panels` grid's
+      rendered content — overflowed the container's fixed width instead of
+      respecting it (the container's own box stayed put, since block-level
+      width comes from its parent, not its overflowing children — this is
+      why it *looked* fine structurally but rendered wrong). Fixed with
+      `min-width: 0` at each level that needed to actually shrink: `.panel`
+      itself (the grid item), `.stack-form label` (each `.form-row-3`
+      cell), and `.stack-form input/textarea/select` (also given
+      `width: 100%` so they fill their now-properly-sized label instead of
+      falling back to the UA default text-input size). Verified live via
+      `getBoundingClientRect()` before/after: the panel's right edge went
+      from 1400px (124px past the 1276px container edge) to exactly
+      1276px, matching `.detail`/the Path row above it pixel-for-pixel.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,

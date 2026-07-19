@@ -596,6 +596,13 @@ button.app-icon-btn {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 20px;
+  /* Grid items default to min-width: auto (their content's min-content
+     size), not 0 — a wide-enough child (e.g. three inputs side by side
+     in .form-row-3) can force this panel's 1fr track past its fair
+     share, overflowing the whole .panels grid past the page edge instead
+     of shrinking to fit. min-width: 0 lets the track (and everything
+     below) actually respect the fr sizing. */
+  min-width: 0;
 }
 .chips {
   display: flex;
@@ -694,8 +701,11 @@ button.app-icon-btn {
   gap: 3px;
   font-size: var(--fs-xs);
   color: var(--ink-muted);
+  min-width: 0;
 }
 .stack-form input, .stack-form textarea, .stack-form select {
+  width: 100%;
+  min-width: 0;
   padding: 7px 9px;
   border: 1px solid var(--border);
   border-radius: 6px;
