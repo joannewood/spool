@@ -516,11 +516,10 @@ main {
    width) so the whole right-hand side reads as one aligned label/value
    block instead of the chip rows looking like a separate, unaligned
    afterthought. Same component, same rules (.tag-chips/.project-chips
-   share this layout; .add-tag-toggle/.add-project-toggle share the
-   disclosure-widget look) rather than two near-identical copies.
-   <details>/<summary> (no JS needed) rather than the double-click/
-   dialog patterns used elsewhere on this page, since a plain
-   click-to-reveal-a-form is all this needs. */
+   share this layout) rather than two near-identical copies. Adding
+   either opens a <dialog> (see .modal below) via a real icon button,
+   not an inline reveal — entering a name/picking a project doesn't
+   belong competing for space on the page itself. */
 .tag-chips, .project-chips {
   display: flex;
   flex-wrap: wrap;
@@ -548,24 +547,23 @@ main {
 .chip.project-chip a { color: white; }
 .chip.project-chip .chip-remove { color: white; }
 .chip.project-chip .chip-remove:hover { color: var(--warn); background: white; }
-.add-tag-toggle summary, .add-project-toggle summary {
-  list-style: none;
+/* The "+" trigger for both add-tag and add-project modals — one shared
+   button style, an actual icon (see _icons.html's plus()) instead of a
+   literal "+" character. */
+.chip-add-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 24px;
   height: 24px;
+  padding: 0;
   border-radius: 999px;
   border: 1px dashed var(--border);
+  background: none;
   color: var(--ink-muted);
-  font-size: var(--fs-base);
-  line-height: 1;
   cursor: pointer;
 }
-.add-tag-toggle summary::-webkit-details-marker, .add-project-toggle summary::-webkit-details-marker { display: none; }
-.add-tag-toggle summary:hover, .add-project-toggle summary:hover { border-color: var(--accent); color: var(--accent); }
-.add-tag-toggle[open] summary, .add-project-toggle[open] summary { border-style: solid; border-color: var(--accent); color: var(--accent); }
-.add-tag-toggle form, .add-project-toggle form { margin-top: 8px; }
+.chip-add-btn:hover { border-color: var(--accent); color: var(--accent); }
 /* The "create new project" option (in the same <select> as picking an
    existing one) reveals a name input — CSS-only via :has(), no JS: an
    <option> gets :checked same as a radio/checkbox, so a parent can react
@@ -822,7 +820,9 @@ button.app-icon-btn {
   color: var(--warn);
 }
 
-.printed-modal {
+/* Shared <dialog> shell for every modal on this page (printed status,
+   add tag, add to project) — one shape/backdrop, not a copy per modal. */
+.modal {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 20px;
@@ -831,8 +831,8 @@ button.app-icon-btn {
   width: 90vw;
   max-width: 380px;
 }
-.printed-modal::backdrop { background: rgba(0, 0, 0, 0.45); }
-.printed-modal h2 { margin: 0 0 12px; }
+.modal::backdrop { background: rgba(0, 0, 0, 0.45); }
+.modal h2 { margin: 0 0 12px; }
 .printed-log-form { display: flex; flex-direction: column; gap: 8px; }
 .printed-toggle {
   display: flex;
@@ -853,8 +853,8 @@ button.app-icon-btn {
   font-size: var(--fs-sm);
   font-family: inherit;
 }
-.printed-modal-actions { display: flex; gap: 8px; margin-top: 4px; }
-.printed-modal-actions button[type="button"] {
+.modal-actions { display: flex; gap: 8px; margin-top: 4px; }
+.modal-actions button[type="button"] {
   background: var(--bg);
   color: var(--ink);
   border: 1px solid var(--border);

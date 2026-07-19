@@ -100,7 +100,9 @@ def test_file_detail_tags_have_no_panel_header(client, make_file):
     resp = client.get(f"/files/{file_id}")
     assert "<h2>Tags</h2>" not in resp.text
     assert 'class="tag-chips"' in resp.text
-    assert 'class="add-tag-toggle"' in resp.text
+    # Adding a tag opens a modal via an icon button, not an inline reveal.
+    assert 'data-modal="add-tag-modal"' in resp.text
+    assert 'id="add-tag-modal"' in resp.text
 
 
 def test_file_detail_footer_has_rarely_needed_fields(client, make_file):
@@ -164,7 +166,7 @@ def test_add_file_to_existing_project_via_route(client, make_file, db_conn):
 
 def test_add_file_to_new_project_via_route(client, make_file, db_conn):
     # The "+ create new project…" <select> option (file_detail.html's
-    # add-project-toggle) posts project_id="__new__" alongside the typed
+    # add-project-modal) posts project_id="__new__" alongside the typed
     # name instead of a real id — the route creates the project inline.
     from spool_api import queries
 

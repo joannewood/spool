@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_icons.html" as icons %}
 {% block title %}{{ file.display_name or (file.filename | clean_name) }} — SPOOL{% endblock %}
 {% block content %}
 
@@ -17,7 +18,8 @@
     {% if file.bbox_x is not none %}
     <div class="dims-overlay">{{ "%.1f"|format(file.bbox_x) }} × {{ "%.1f"|format(file.bbox_y) }} × {{ "%.1f"|format(file.bbox_z) }} mm</div>
     {% endif %}
-    <button type="button" id="printed-badge" class="printed-badge {{ 'printed-badge-active' if print_log and print_log.printed else '' }}"
+    <button type="button" class="printed-badge modal-trigger {{ 'printed-badge-active' if print_log and print_log.printed else '' }}"
+            data-modal="printed-modal"
             title="{{ (print_log.comments or '') if print_log and print_log.comments else 'Mark as printed' }}">
       <img class="printed-badge-icon" src="/static/icons/printer.png" alt="Printed">
       {% if print_log and print_log.printed and print_log.rating %}
@@ -26,7 +28,7 @@
     </button>
   </div>
 
-  <dialog id="printed-modal" class="printed-modal">
+  <dialog id="printed-modal" class="modal">
     <form class="printed-log-form" method="POST" action="/files/{{ file.id }}/print-log">
       <h2>Printed</h2>
       <label class="printed-toggle">
@@ -42,9 +44,9 @@
         </div>
         <textarea name="comments" rows="3" placeholder="How did it turn out?">{{ (print_log.comments or '') if print_log else '' }}</textarea>
       </div>
-      <div class="printed-modal-actions">
+      <div class="modal-actions">
         <button type="submit">Save</button>
-        <button type="button" id="printed-modal-cancel">Cancel</button>
+        <button type="button" class="modal-cancel">Cancel</button>
       </div>
       <p class="note-inline">
         <a href="https://www.flaticon.com/free-icons/3d" title="3d icons">3d icons created by Flat-icons-com - Flaticon</a>
@@ -76,21 +78,26 @@
         <button type="button" class="chip-remove" hx-delete="/files/{{ file.id }}/projects/{{ p.id }}" hx-target="#project-{{ p.id }}" hx-swap="outerHTML" title="remove from project">×</button>
       </span>
       {% endfor %}
-      <details class="add-project-toggle">
-        <summary title="Add to a project">+</summary>
-        <form class="inline-form add-project-form" method="POST" action="/files/{{ file.id }}/projects">
-          <select name="project_id" required>
-            <option value="" disabled selected>add to project…</option>
-            {% for p in all_projects %}
-            <option value="{{ p.id }}">{{ p.name }}</option>
-            {% endfor %}
-            <option value="__new__">+ create new project…</option>
-          </select>
-          <input type="text" name="new_project_name" class="new-project-name" placeholder="new project name…" autocomplete="off">
-          <button type="submit">Add</button>
-        </form>
-      </details>
+      <button type="button" class="chip-add-btn modal-trigger" data-modal="add-project-modal" title="Add to a project">{{ icons.plus() }}</button>
     </div>
+
+    <dialog id="add-project-modal" class="modal">
+      <form class="stack-form add-project-form" method="POST" action="/files/{{ file.id }}/projects">
+        <h2>Add to project</h2>
+        <select name="project_id" required autofocus>
+          <option value="" disabled selected>choose a project…</option>
+          {% for p in all_projects %}
+          <option value="{{ p.id }}">{{ p.name }}</option>
+          {% endfor %}
+          <option value="__new__">+ create new project…</option>
+        </select>
+        <input type="text" name="new_project_name" class="new-project-name" placeholder="new project name…" autocomplete="off">
+        <div class="modal-actions">
+          <button type="submit">Add</button>
+          <button type="button" class="modal-cancel">Cancel</button>
+        </div>
+      </form>
+    </dialog>
 
     {% if file.display_name %}<p class="note-inline">Original filename: {{ file.filename }}</p>{% endif %}
 
@@ -136,14 +143,19 @@
         <button type="button" class="chip-remove" hx-delete="/files/{{ file.id }}/tags/{{ t.id }}" hx-target="#tag-{{ t.id }}" hx-swap="outerHTML" title="remove tag">×</button>
       </span>
       {% endfor %}
-      <details class="add-tag-toggle">
-        <summary title="Add a tag">+</summary>
-        <form class="inline-form" method="POST" action="/files/{{ file.id }}/tags">
-          <input type="text" name="name" placeholder="add a tag…" autocomplete="off" required autofocus>
-          <button type="submit">Add</button>
-        </form>
-      </details>
+      <button type="button" class="chip-add-btn modal-trigger" data-modal="add-tag-modal" title="Add a tag">{{ icons.plus() }}</button>
     </div>
+
+    <dialog id="add-tag-modal" class="modal">
+      <form class="stack-form" method="POST" action="/files/{{ file.id }}/tags">
+        <h2>Add tag</h2>
+        <input type="text" name="name" placeholder="tag name…" autocomplete="off" required autofocus>
+        <div class="modal-actions">
+          <button type="submit">Add</button>
+          <button type="button" class="modal-cancel">Cancel</button>
+        </div>
+      </form>
+    </dialog>
 
     {% if open_status == "ok" %}
     <p class="badge ok">✓ opened</p>
@@ -260,18 +272,5 @@
     <div class="footer-item"><dt>First seen</dt><dd>{{ file.first_seen_at }}</dd></div>
   </dl>
 </footer>
-
-<script>
-  // Page-specific (only this template uses the printed-status modal), so
-  // kept inline rather than a shared static/*.js file loaded on every page.
-  const printedModal = document.getElementById("printed-modal");
-  document.getElementById("printed-badge").addEventListener("click", () => printedModal.showModal());
-  document.getElementById("printed-modal-cancel").addEventListener("click", () => printedModal.close());
-  // Click on the backdrop (the dialog element itself, not a descendant) closes it —
-  // native <dialog> doesn't do this on its own. Escape-to-close is already built in.
-  printedModal.addEventListener("click", (event) => {
-    if (event.target === printedModal) printedModal.close();
-  });
-</script>
 
 {% endblock %}
