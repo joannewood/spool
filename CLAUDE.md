@@ -1197,6 +1197,36 @@ first), independent of the paused Phase 09:
       own `<dt>`/`<dd>`, valid HTML5 — a `<dl>` may contain `<div>`-
       wrapped term/description groups) instead of stacking one-per-line
       in a narrow two-column grid, using the available width properly.
+- [x] File detail page, second pass — three more small placement/layout
+      fixes on the same page: (1) the "Open in..." app icons moved off
+      their own right-justified row and into the `Path` row itself
+      (`<dd class="path-row">` wraps the `<code>` path alongside
+      `.app-icons`, `justify-content: space-between`) — shrunk from 48px
+      to 32px buttons to read as inline controls next to a text field
+      rather than a standalone toolbar. (2) Footer field names (`Render
+      status`/`Manifold`/`Hash`/`First seen`) are bold (`.detail-footer dt
+      { font-weight: 600; }`) so they read as labels against the already-
+      muted value text next to them. (3) The Projects/Print metadata panel
+      row was leaving roughly half the row width empty — root cause:
+      `.panels` used `grid-template-columns: repeat(auto-fit, minmax(220px,
+      1fr))`, and auto-fit only collapses a track that has *no item in any
+      row*; since `Related files` below is `.panel-full` (`grid-column: 1 /
+      -1`), it "occupies" every auto-fit track the grid created (as many
+      as fit at the 220px minimum, not just as many as there are real side
+      panels), so the two actually-empty trailing tracks never collapsed
+      back into the two real panels the way auto-fit normally would.
+      Switched to a plain fixed `1fr 1fr` (with a `max-width: 700px` media
+      query collapsing to one column) — panel-full still spans both via
+      the same `1 / -1`, but now there's no phantom track count to
+      preserve. With the panels now genuinely ~2x wider, gave their
+      contents room to match: the auto-extracted metadata `dl.tight` went
+      from one label/value pair per row to two per row (`grid-template-
+      columns: auto 1fr auto 1fr`, reverting to one pair under 700px), and
+      the manual Material/Printer/Slicer fields moved into a `.form-row-3`
+      (3-column grid, collapsing to 1 column under 700px) instead of
+      stacking one per line — `.stack-form`'s old `max-width: 420px` cap
+      (sized for the previous narrow panel) was dropped so the form can
+      actually use the wider panel.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,

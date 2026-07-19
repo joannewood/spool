@@ -70,7 +70,25 @@
     {% endif %}
 
     <dl>
-      <dt>Path</dt><dd><code>{{ file.path }}</code></dd>
+      <dt>Path</dt>
+      <dd class="path-row">
+        <code>{{ file.path }}</code>
+        {% if all_apps %}
+        <div class="app-icons">
+          {% for a in all_apps %}
+          <form method="POST" action="/files/{{ file.id }}/open" class="card-form">
+            <button type="submit" name="app" value="{{ a }}" class="app-icon-btn {{ 'app-icon-default' if a == default_app }}" title="Open in {{ a }}">
+              {% if a in app_icons %}
+              <img src="/static/icons/{{ app_icons[a] }}" alt="{{ a }}">
+              {% else %}
+              <span class="ext-label">{{ a[:2] }}</span>
+              {% endif %}
+            </button>
+          </form>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </dd>
       <dt>Size</dt><dd>{{ file.size_bytes | filesizeformat }}</dd>
       <dt>Volume</dt>
       <dd>{% if file.volume_mm3 is not none %}{{ "%.1f"|format(file.volume_mm3) }} mm³{% else %}—{% endif %}</dd>
@@ -97,22 +115,6 @@
     <p class="badge ok">✓ opened</p>
     {% elif open_status.startswith("error:") %}
     <p class="badge warn">⚠ {{ open_status[6:] }}</p>
-    {% endif %}
-
-    {% if all_apps %}
-    <div class="app-icons">
-      {% for a in all_apps %}
-      <form method="POST" action="/files/{{ file.id }}/open" class="card-form">
-        <button type="submit" name="app" value="{{ a }}" class="app-icon-btn {{ 'app-icon-default' if a == default_app }}" title="Open in {{ a }}">
-          {% if a in app_icons %}
-          <img src="/static/icons/{{ app_icons[a] }}" alt="{{ a }}">
-          {% else %}
-          <span class="ext-label">{{ a[:2] }}</span>
-          {% endif %}
-        </button>
-      </form>
-      {% endfor %}
-    </div>
     {% endif %}
   </div>
 </div>
@@ -171,9 +173,11 @@
     </dl>
     {% endif %}
     <form class="stack-form" method="POST" action="/files/{{ file.id }}/print-metadata">
-      <label>Material <input type="text" name="material" value="{{ (print_metadata.material or '') if print_metadata else '' }}"></label>
-      <label>Printer <input type="text" name="printer_profile" value="{{ (print_metadata.printer_profile or '') if print_metadata else '' }}"></label>
-      <label>Slicer <input type="text" name="slicer" value="{{ (print_metadata.slicer or '') if print_metadata else '' }}"></label>
+      <div class="form-row-3">
+        <label>Material <input type="text" name="material" value="{{ (print_metadata.material or '') if print_metadata else '' }}"></label>
+        <label>Printer <input type="text" name="printer_profile" value="{{ (print_metadata.printer_profile or '') if print_metadata else '' }}"></label>
+        <label>Slicer <input type="text" name="slicer" value="{{ (print_metadata.slicer or '') if print_metadata else '' }}"></label>
+      </div>
       <label>Notes <textarea name="notes" rows="3">{{ (print_metadata.notes or '') if print_metadata else '' }}</textarea></label>
       <button type="submit">Save</button>
       <span class="note-inline">
