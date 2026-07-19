@@ -364,15 +364,12 @@ copies the script out of this repo rather than running it in place).
   no need to go through the host port mapping). Worked well; consider
   `/run-skill-generator` to capture this as a reusable project skill if UI
   verification keeps coming up.
-- **Real watched roots are hardcoded** in `db/migrations/003_seed_watched_roots.sql`
-  for this machine (`/Users/jo/...`) — this is a personal local tool, not
-  meant to be portable. Current roots:
+- **Real watched roots come from `.env`**, not hardcoded paths — see the
+  "Packaging for sharing" entry in the ad hoc backlog below for how this
+  changed. This machine's actual `.env` values:
   - Drop folder: `~/Documents/3DPrintFiles` (created fresh, empty until used)
-  - Library: `~/Documents/3D Printing` — no longer a placeholder, actively
-    being populated with the real library (hundreds of real files as of
-    this writing). The DB label still reads "Library (placeholder)" in
-    the admin page — cosmetic only, harmless to leave or rename via the
-    admin page whenever convenient.
+  - Library: `~/Documents/3D Printing` — actively being populated with the
+    real library (790 real files as of this writing).
   - Downloads: `~/Downloads`, `ingest_mode = relocate_to_dropfolder`
 
 ## Running it
@@ -1330,10 +1327,67 @@ first), independent of the paused Phase 09:
       %}` badge block (same classes, same half-size-icon/full-size-stars
       styling). Verified live against two real projects each containing
       one of the library's two actually-printed files.
-- [ ] Package for sharing with friends — deferred by the user until the
-      tool is feature-complete and they're happy with it; will need to
-      address the hardcoded-personal-paths gotcha above (seed migration,
-      `.env`) for portability to someone else's machine.
+- [~] Package for sharing with friends — started. Removed the two real
+      hardcoded-path blockers:
+      - `db/migrations/003_seed_watched_roots.sql` → `.sh`. Migrations are
+        plain files run once by `docker-entrypoint-initdb.d` on a fresh
+        `pgdata` volume — a `.sql` file can't read environment variables,
+        but Postgres's init process runs `.sh` files with the container's
+        env intact, same as any other file in that directory. The new
+        script reads `DROPFOLDER_HOST_PATH`/`LIBRARY_HOST_PATH`/
+        `DOWNLOADS_HOST_PATH` (now also passed into the `postgres`
+        service's `environment:` in `docker-compose.yml`, alongside
+        watcher/worker which already had them) and fails loudly
+        (`: "${VAR:?message}"`) rather than silently seeding garbage if
+        `.env` is missing a value. `tests/conftest.py`'s migration loop
+        already globs `*.sql` only, so the new `.sh` file is excluded from
+        the test DB automatically — the old explicit `SKIP_MIGRATIONS`
+        set became dead code and was removed. Verified on an isolated
+        throwaway `postgres:16` container (not the real dev volume/data —
+        790 real files, not something to risk): fresh volume + fake
+        `/Users/test/...` env vars seeds exactly those three paths, and
+        the same setup with the vars unset fails with a clear error
+        instead of silently doing nothing.
+      - `host-helper/host_helper.py`'s `ALLOWED_DELETE_ROOTS` (the
+        independent path-validation allowlist `/delete` checks before
+        touching disk, stricter than `/open`'s) was hardcoded to this
+        machine's three real paths — now reads the same three env vars,
+        empty (→ every delete rejected, the safe failure direction) if
+        unset. Since host-helper is native, not Compose, it can't read
+        `.env` the way the containers do — `install.sh` now reads
+        `DROPFOLDER_HOST_PATH`/`LIBRARY_HOST_PATH`/`DOWNLOADS_HOST_PATH`
+        out of `.env` itself and injects them into the launchd plist's
+        new `EnvironmentVariables` dict (`com.spool.hosthelper.plist`
+        gained three `__PLACEHOLDER__` tokens, same sed-templating
+        pattern already used for the script path/log dir). **Gotcha hit
+        writing this**: the first attempt read `.env` via plain bash
+        `source`, which word-splits unquoted values — this project's own
+        real `LIBRARY_HOST_PATH` (`/Users/jo/Documents/3D Printing`) has
+        a space and broke immediately (`Printing: command not found`).
+        Fixed by extracting each value with `sed -n "s/^KEY=//p"` instead
+        of sourcing the file as shell — reads the literal rest-of-line
+        value with no word-splitting, and doesn't require changing the
+        `.env` file's existing (unquoted) format, which docker-compose's
+        own `.env` parser already tolerates fine. Verified live: re-ran
+        `install.sh` for real against this machine's own `.env`, confirmed
+        the generated plist has the right three paths, and confirmed the
+        running host-helper both rejects a delete outside the allowlist
+        (`/tmp/...`) and accepts+performs one inside it (a throwaway file
+        under the real `Downloads` root).
+      - `.env.example` and the README's setup section now spell out the
+        three touchpoints these vars feed (compose bind mounts, the seed
+        script, host-helper's allowlist) and the manual `APP_MAP` edit
+        host-helper still needs (a real app choice, not a path — nothing
+        sensible to default it to for someone else's installed CAD/slicer
+        apps).
+      Still open before this is actually done: a real end-to-end test of
+      the full `docker compose up` + `install.sh` flow on a machine that
+      isn't this one (only simulated so far, via the isolated throwaway
+      container above), and general repo hygiene for a public/shared
+      clone (double-check `.gitignore` covers everything personal,
+      consider whether `CLAUDE.md`'s hyper-detailed personal build log
+      belongs in a friend-facing clone or should move to something
+      private).
 
 ## Deliberate scope boundaries (not bugs, revisit only if they start to hurt)
 

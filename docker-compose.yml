@@ -5,6 +5,11 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      # Only read once, by 003_seed_watched_roots.sh, on a truly empty
+      # pgdata volume — not used by postgres itself.
+      DROPFOLDER_HOST_PATH: ${DROPFOLDER_HOST_PATH}
+      LIBRARY_HOST_PATH: ${LIBRARY_HOST_PATH}
+      DOWNLOADS_HOST_PATH: ${DOWNLOADS_HOST_PATH}
     ports:
       # Host-reachable only for running the test suite (pytest connects
       # directly, no Docker required for the test run itself) — a

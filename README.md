@@ -45,23 +45,45 @@ Fusion or Bambu Studio — no more digging through folders full of
 - Docker Desktop
 - Python 3.9+ on the host, only if you want to run the test suite
 
-## Running it
+## Setting up on your own machine
 
-```bash
-docker compose up -d --build        # bring up postgres, api, watcher, worker
-docker compose ps                   # check health
-curl localhost:8000/health          # confirm api <-> postgres
-```
+1. **Configure your folders.** Copy `.env.example` to `.env` and fill in the
+   three real paths on your Mac — a drop folder for new prints, your
+   existing library, and Downloads (auto-relocated into the drop folder).
+   Also change `POSTGRES_PASSWORD` from the placeholder.
 
-Then open `http://localhost:8000`.
+   ```bash
+   cp .env.example .env
+   ```
 
-`.env` (gitignored — copy `.env.example`) holds the local paths SPOOL should
-watch. The native host-helper (for the "open in app" feature) is installed
-separately:
+2. **Bring up the stack.**
 
-```bash
-host-helper/install.sh
-```
+   ```bash
+   docker compose up -d --build        # bring up postgres, api, watcher, worker
+   docker compose ps                   # check health
+   curl localhost:8000/health          # confirm api <-> postgres
+   ```
+
+   Then open `http://localhost:8000`. Your three folders from `.env` are
+   seeded as watched roots automatically — but only on a genuinely fresh
+   `pgdata` volume (first-ever `docker compose up`). If you change the paths
+   in `.env` later, edit the roots directly on the `/admin` page instead —
+   re-running `docker compose up` won't re-seed an existing database.
+
+3. **Install the host-helper** (native, not Docker — a Linux container can't
+   launch a macOS GUI app, so this one piece runs directly on your Mac as a
+   launchd agent):
+
+   ```bash
+   host-helper/install.sh
+   ```
+
+   It reads the same three paths from `.env`, so run this *after* step 1.
+   Open `host-helper/host_helper.py` first and check `APP_MAP` — it's
+   hardcoded to Autodesk Fusion + Bambu Studio (this project's own setup);
+   change it to whichever CAD/slicer apps you actually use, using their real
+   `.app` bundle name (`ls ~/Applications /Applications`), then run
+   `install.sh`. Re-run it any time you edit `host_helper.py` or `.env`.
 
 See [`CLAUDE.md`](CLAUDE.md) for full architecture notes, every non-obvious
 decision made along the way, and the running list of what's built vs. still
@@ -73,9 +95,10 @@ Nine build phases done — ingestion, mesh + STEP + SVG previews, browse/search,
 tags/projects/print metadata, relationships, drift reconciliation, the native
 open-in-app helper, and a growing backlog of quality-of-life features (search
 across print metadata, duplicate cleanup, a printed/rating tracker, and more).
-Test coverage is underway, starting with the ingestion pipeline. Not yet
-packaged for use on someone else's machine — a few paths are still hardcoded
-to this one.
+124 automated tests covering the ingestion pipeline and the API. Runnable on
+someone else's Mac — watched-root paths are configured via `.env`, not
+hardcoded — aside from a one-line `APP_MAP` edit in `host_helper.py` for
+whichever CAD/slicer apps you actually use (see setup instructions above).
 
 ## License
 

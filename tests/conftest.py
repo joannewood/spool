@@ -26,12 +26,13 @@ TEST_DB_URL = f"postgresql://spool:changeme@localhost:55432/{TEST_DB_NAME}"
 os.environ["DATABASE_URL"] = TEST_DB_URL
 os.environ["THUMBNAILS_DIR"] = tempfile.mkdtemp(prefix="spool-test-thumbnails-")
 
-# 003 seeds this machine's real personal watched-root paths (per CLAUDE.md,
-# a deliberately hardcoded, non-portable seed) — applying it here would make
-# run_backfill/run_rescan walk the *real* filesystem during tests, since
-# tests run on the host, not in a container. Every other migration is
-# schema-only and safe to apply as-is.
-SKIP_MIGRATIONS = {"003_seed_watched_roots.sql"}
+# 003 seeds the watched roots from environment variables (real host paths
+# the developer configured in .env) rather than being a schema migration —
+# applying it here would make run_backfill/run_rescan walk the *real*
+# filesystem during tests, since tests run on the host, not in a
+# container. It's a .sh file specifically so the `*.sql` glob below skips
+# it automatically; every other migration is schema-only and safe to
+# apply as-is.
 
 
 def _psql(database, *args):
@@ -46,15 +47,14 @@ def _psql(database, *args):
 @pytest.fixture(scope="session", autouse=True)
 def _test_database():
     """(Re)creates spool_test fresh once per test session, applying every
-    migration except the personal-machine seed (see SKIP_MIGRATIONS) — reuses
-    the exact manual-apply mechanism already documented in CLAUDE.md for a
-    live DB (the migrations dir is already bind-mounted into the postgres
+    *.sql* migration (003's env-driven root seed is a .sh file, naturally
+    excluded by this glob — see the comment above) — reuses the exact
+    manual-apply mechanism already documented in CLAUDE.md for a live DB
+    (the migrations dir is already bind-mounted into the postgres
     container at this path), rather than a new migration-runner."""
     _psql("postgres", "-c", f"DROP DATABASE IF EXISTS {TEST_DB_NAME};")
     _psql("postgres", "-c", f"CREATE DATABASE {TEST_DB_NAME};")
     for migration in sorted(MIGRATIONS_DIR.glob("*.sql")):
-        if migration.name in SKIP_MIGRATIONS:
-            continue
         _psql(TEST_DB_NAME, "-f", f"/docker-entrypoint-initdb.d/{migration.name}")
 
 

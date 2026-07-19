@@ -22,7 +22,12 @@ PORT = 8100
 # ext -> real installed .app bundle name. Not the marketing name — `open -a`
 # matches the actual bundle, and these differ from both the spec's casual
 # wording and Autodesk's old branding: Autodesk dropped "360" from the name,
-# and Bambu Studio's bundle has no space in it.
+# and Bambu Studio's bundle has no space in it. Unlike the delete-allowlist
+# below, this is NOT env-driven — it's a real (CAD app, slicer) choice, not
+# a path, so there's nothing to sensibly default it to for someone else's
+# machine. If you use different apps, edit this map (find the exact bundle
+# name via `ls ~/Applications /Applications` or `PlistBuddy -c "Print
+# :CFBundleName" <bundle>/Contents/Info.plist`) and re-run install.sh.
 APP_MAP = {
     ".step": "Autodesk Fusion",
     ".stp": "Autodesk Fusion",
@@ -41,12 +46,19 @@ ALLOWED_APPS = set(APP_MAP.values())
 # only ever launches a GUI app — this endpoint independently re-validates
 # that the path falls under a known watched root rather than trusting the
 # caller entirely, even though the api container only ever sources paths
-# from real `files.path` DB rows. Hardcoded to match this machine, same as
-# the seed migration's watched roots (personal tool, not portable).
+# from real `files.path` DB rows. Read from the same env vars docker-compose
+# uses for the watched-root bind mounts (see .env.example), injected into
+# the launchd plist by install.sh, rather than hardcoded to one machine's
+# paths — if none are set, the list is empty and every delete is rejected,
+# which is the safe direction to fail in.
 ALLOWED_DELETE_ROOTS = [
-    "/Users/jo/Documents/3DPrintFiles",
-    "/Users/jo/Documents/3D Printing",
-    "/Users/jo/Downloads",
+    p
+    for p in (
+        os.environ.get("DROPFOLDER_HOST_PATH"),
+        os.environ.get("LIBRARY_HOST_PATH"),
+        os.environ.get("DOWNLOADS_HOST_PATH"),
+    )
+    if p
 ]
 
 
@@ -140,6 +152,14 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    if not ALLOWED_DELETE_ROOTS:
+        print(
+            "[host-helper] WARNING: no ALLOWED_DELETE_ROOTS configured "
+            "(DROPFOLDER_HOST_PATH/LIBRARY_HOST_PATH/DOWNLOADS_HOST_PATH not "
+            "set) — every /delete request will be rejected. Re-run install.sh "
+            "after setting these in .env.",
+            flush=True,
+        )
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     print(f"[host-helper] listening on {HOST}:{PORT}", flush=True)
     server.serve_forever()

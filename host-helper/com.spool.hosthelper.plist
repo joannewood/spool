@@ -13,6 +13,15 @@
     <true/>
     <key>KeepAlive</key>
     <true/>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>DROPFOLDER_HOST_PATH</key>
+        <string>__DROPFOLDER_HOST_PATH__</string>
+        <key>LIBRARY_HOST_PATH</key>
+        <string>__LIBRARY_HOST_PATH__</string>
+        <key>DOWNLOADS_HOST_PATH</key>
+        <string>__DOWNLOADS_HOST_PATH__</string>
+    </dict>
     <key>StandardOutPath</key>
     <string>__LOG_DIR__/host-helper.log</string>
     <key>StandardErrorPath</key>
