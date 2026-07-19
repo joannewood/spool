@@ -690,20 +690,27 @@ button.card {
 .sidecar-card:hover { border-color: var(--ink-muted); }
 .sidecar-card .thumb { background: none; }
 
-/* project name edit — <details>/<summary>, no JS needed for the toggle */
-.project-title-row { display: flex; align-items: center; gap: 10px; }
-.project-title-row h1 { margin: 0; }
-.edit-toggle summary {
-  list-style: none;
-  cursor: pointer;
-  font-size: var(--fs-md);
-  opacity: 0.6;
-  user-select: none;
+/* double-click-to-edit name (file display name, project name) — the JS in
+   inline-edit.js swaps .editable-name-text for .editable-name-form on
+   dblclick; a dashed underline on hover is the only hint this is
+   editable, deliberately no separate icon/button cluttering the title. */
+.editable-name { cursor: text; }
+.editable-name-text {
+  border-bottom: 1px dashed transparent;
 }
-.edit-toggle summary::-webkit-details-marker { display: none; }
-.edit-toggle summary:hover { opacity: 1; }
-.edit-toggle[open] summary { opacity: 1; }
-.edit-toggle form { margin-top: 8px; }
+.editable-name:hover .editable-name-text {
+  border-bottom-color: var(--ink-muted);
+}
+.editable-name-form input {
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  max-width: 480px;
+  padding: 2px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--bg);
+}
 
 /* admin */
 .admin-sections {

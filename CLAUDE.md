@@ -1074,6 +1074,32 @@ first), independent of the paused Phase 09:
       `color: var(--ink)` with accent only on hover) are unaffected —
       those class selectors already outrank the new bare `a` rule by
       specificity regardless of source order.
+- [x] Double-click-to-edit for file display names and project names —
+      replaces the file page's always-visible input+Save row and the
+      project page's pencil-icon `<details>` reveal with a single
+      `<h1 class="editable-name">` wrapping a text span and a `hidden`
+      form; double-clicking the name swaps them in place. New
+      `static/inline-edit.js` (event delegation on `document`, no
+      per-element setup) is the **second** deliberate exception to this
+      app's "no custom JS" rule, alongside the bulk select-all checkbox —
+      there's no CSS-only way to detect a double-click and swap to an
+      editable field. Enter submits the real POST-redirect-GET form
+      (same routes/field names as before, unchanged); Escape or
+      clicking/tabbing away reverts to display **without** saving —
+      deliberately not save-on-blur, since an inline box that silently
+      submits on a stray click risks an unintended save. Pressing Enter
+      with the value unchanged from what's already displayed just
+      reverts instead of submitting, both to skip a no-op round trip and
+      (for file display names specifically) to avoid turning an unset
+      `display_name`'s dynamic filename fallback into a frozen, explicit
+      value just because the box was opened and closed — the JS compares
+      the input against the *displayed* text (which the input is
+      pre-filled from on open), not the raw underlying value, so this
+      falls out naturally rather than needing special-casing. No visible
+      icon or button — a dashed underline on hover is the only hint,
+      discovered via `title="Double-click to rename"` otherwise. Verified
+      live end-to-end (prefill, save, Escape-cancel, restore) against a
+      real project and a real file, cleaning up the test edits after.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,

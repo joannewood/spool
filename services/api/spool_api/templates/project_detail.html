@@ -6,16 +6,12 @@
   ← {% if parent %}{{ parent.name }}{% else %}all projects{% endif %}
 </a>
 
-<div class="project-title-row">
-  <h1>{{ project.name }}</h1>
-  <details class="edit-toggle">
-    <summary title="Edit project name">✏️</summary>
-    <form class="inline-form" method="POST" action="/projects/{{ project.id }}/name">
-      <input type="text" name="name" value="{{ project.name }}" required autofocus>
-      <button type="submit">Save</button>
-    </form>
-  </details>
-</div>
+<h1 class="editable-name" title="Double-click to rename">
+  <span class="editable-name-text">{{ project.name }}</span>
+  <form class="editable-name-form" method="POST" action="/projects/{{ project.id }}/name" hidden>
+    <input type="text" name="name" value="{{ project.name }}" required>
+  </form>
+</h1>
 {% if project.description %}<p class="note">{{ project.description }}</p>{% endif %}
 
 {% if children %}

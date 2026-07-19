@@ -17,11 +17,12 @@
   </div>
 
   <div class="detail-meta">
-    <h1>{{ file.display_name or (file.filename | clean_name) }}</h1>
-    <form class="inline-form" method="POST" action="/files/{{ file.id }}/name">
-      <input type="text" name="display_name" placeholder="custom display name…" value="{{ file.display_name or '' }}">
-      <button type="submit">Save</button>
-    </form>
+    <h1 class="editable-name" title="Double-click to rename">
+      <span class="editable-name-text">{{ file.display_name or (file.filename | clean_name) }}</span>
+      <form class="editable-name-form" method="POST" action="/files/{{ file.id }}/name" hidden>
+        <input type="text" name="display_name" value="{{ file.display_name or (file.filename | clean_name) }}">
+      </form>
+    </h1>
     {% if file.display_name %}<p class="note-inline">Original filename: {{ file.filename }}</p>{% endif %}
 
     {% if file.status == "missing" %}
