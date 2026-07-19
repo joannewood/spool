@@ -1036,6 +1036,20 @@ first), independent of the paused Phase 09:
       from the main browse grid (`search_files`'s `status = 'active'`
       filter), rather than inventing a new "review missing sidecars" UI
       pattern with no precedent even for regular files.
+- [x] Admin page hides the "Duplicate files" and "Suggestions" sections
+      entirely when there's nothing to review — previously both were
+      always-visible static links regardless of whether anything needed
+      approval, which read as "go check this" even on a fully-caught-up
+      library. `/admin` now fetches counts (`len(queries.
+      list_duplicate_groups())`, `list_suggested_project_assignments()`,
+      `list_suggested_relationships_all()`) and each section's `{% if %}`
+      gates on the relevant count(s); the link text itself grows the
+      count too ("Review 4 suggested relationships →") so it's visible
+      without a click. Reused the existing list functions rather than
+      writing dedicated `COUNT(*)`-only queries — a personal library's
+      duplicate/suggestion counts are small enough that fetching the full
+      rows just to take `len()` isn't worth a second, near-duplicate
+      query path.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,

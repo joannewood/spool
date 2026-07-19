@@ -83,21 +83,29 @@
   <a href="/admin/rejected-archives">View rejected archives →</a>
 </section>
 
+{% if duplicate_count %}
 <section class="panel">
   <h2>Duplicate files</h2>
-  <p class="note">Files with byte-identical content, ready to review and clean up.</p>
+  <p class="note">{{ duplicate_count }} group{{ "s" if duplicate_count != 1 else "" }} with byte-identical content, ready to review and clean up.</p>
   <a href="/admin/duplicates">Review duplicate files →</a>
 </section>
+{% endif %}
 
+{% if suggested_project_count or suggested_relationship_count %}
 <section class="panel">
   <h2>Suggestions</h2>
   <p class="note">
     Heuristic proposals from the worker — folder-based project groupings and
     filename/hash-based relationships — waiting for you to confirm or reject.
   </p>
-  <p><a href="/admin/suggested-projects">Review suggested project assignments →</a></p>
-  <p><a href="/admin/suggested-relationships">Review suggested relationships →</a></p>
+  {% if suggested_project_count %}
+  <p><a href="/admin/suggested-projects">Review {{ suggested_project_count }} suggested project assignment{{ "s" if suggested_project_count != 1 else "" }} →</a></p>
+  {% endif %}
+  {% if suggested_relationship_count %}
+  <p><a href="/admin/suggested-relationships">Review {{ suggested_relationship_count }} suggested relationship{{ "s" if suggested_relationship_count != 1 else "" }} →</a></p>
+  {% endif %}
 </section>
+{% endif %}
 
 </div>
 

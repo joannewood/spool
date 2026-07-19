@@ -151,3 +151,60 @@ def test_admin_page_shows_cleaned_zip_filename(client, db_conn, test_root_id):
     finally:
         with db_conn.cursor() as cur:
             cur.execute("DELETE FROM zip_files WHERE id = %s", (zip_id,))
+
+
+# ---- admin page: hide empty sections -------------------------------------
+
+def test_admin_page_hides_duplicate_and_suggestions_sections_when_empty(client):
+    resp = client.get("/admin")
+    assert resp.status_code == 200
+    assert "Duplicate files" not in resp.text
+    assert "Suggestions" not in resp.text
+
+
+def test_admin_page_shows_duplicate_section_when_duplicates_exist(client, make_file, db_conn):
+    make_file(filename="a.stl", content_hash="shared-hash-xyz")
+    make_file(filename="b.stl", content_hash="shared-hash-xyz")
+    resp = client.get("/admin")
+    assert resp.status_code == 200
+    assert "Duplicate files" in resp.text
+    assert "1 group" in resp.text
+
+
+def test_admin_page_shows_suggestions_section_when_project_suggestion_exists(client, make_file, db_conn):
+    from spool_api import queries
+
+    file_id = make_file()
+    project_id = queries.create_project("Suggestion Test Project", "", None)
+    try:
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'suggested')",
+                (project_id, file_id),
+            )
+        resp = client.get("/admin")
+        assert resp.status_code == 200
+        assert "Suggestions" in resp.text
+        assert "1 suggested project assignment" in resp.text
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_admin_page_shows_suggestions_section_when_relationship_suggestion_exists(client, make_file, db_conn):
+    file_a = make_file()
+    file_b = make_file()
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO relationships (from_file_id, to_file_id, type, status) VALUES (%s, %s, 'variant_of', 'suggested') RETURNING id",
+            (file_a, file_b),
+        )
+        rel_id = cur.fetchone()[0]
+    try:
+        resp = client.get("/admin")
+        assert resp.status_code == 200
+        assert "Suggestions" in resp.text
+        assert "1 suggested relationship" in resp.text
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM relationships WHERE id = %s", (rel_id,))

@@ -341,6 +341,9 @@ def admin(request: Request):
             "roots": queries.list_watched_roots(),
             "ingest_modes": INGEST_MODES,
             "pending_zips": queries.list_pending_zips(),
+            "duplicate_count": len(queries.list_duplicate_groups()),
+            "suggested_project_count": len(queries.list_suggested_project_assignments()),
+            "suggested_relationship_count": len(queries.list_suggested_relationships_all()),
         },
     )
 
