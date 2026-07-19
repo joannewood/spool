@@ -1188,6 +1188,15 @@ first), independent of the paused Phase 09:
       form via `<details>/<summary>` (no JS needed, matching the pattern
       used for project rename before that became double-click editing) —
       the `title="Add a tag"` on the summary is the mouse-over explainer.
+- [x] Small file-detail layout fixes — the "Open in..." app icons are now
+      right-justified (`.app-icons { justify-content: flex-end; }`)
+      instead of hugging the left edge under the sparse `<dl>`/tags area.
+      The footer's four fields (render status/manifold/hash/first seen)
+      flow in one compact horizontal row (`display: flex; flex-wrap:
+      wrap;` with each field wrapped in a `.footer-item` div grouping its
+      own `<dt>`/`<dd>`, valid HTML5 — a `<dl>` may contain `<div>`-
+      wrapped term/description groups) instead of stacking one-per-line
+      in a narrow two-column grid, using the available width properly.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,

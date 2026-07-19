@@ -246,16 +246,18 @@
 
 <footer class="detail-footer">
   <dl>
-    <dt>Render status</dt><dd>{{ file.render_status }}</dd>
-    <dt>Manifold</dt>
-    <dd>
-      {% if file.is_manifold is none %}—
-      {% elif file.is_manifold %}✓ watertight
-      {% else %}⚠ not watertight
-      {% endif %}
-    </dd>
-    <dt>Hash</dt><dd><code>{{ file.content_hash[:16] ~ "…" if file.content_hash else "—" }}</code></dd>
-    <dt>First seen</dt><dd>{{ file.first_seen_at }}</dd>
+    <div class="footer-item"><dt>Render status</dt><dd>{{ file.render_status }}</dd></div>
+    <div class="footer-item">
+      <dt>Manifold</dt>
+      <dd>
+        {% if file.is_manifold is none %}—
+        {% elif file.is_manifold %}✓ watertight
+        {% else %}⚠ not watertight
+        {% endif %}
+      </dd>
+    </div>
+    <div class="footer-item"><dt>Hash</dt><dd><code>{{ file.content_hash[:16] ~ "…" if file.content_hash else "—" }}</code></dd></div>
+    <div class="footer-item"><dt>First seen</dt><dd>{{ file.first_seen_at }}</dd></div>
   </dl>
 </footer>
 
