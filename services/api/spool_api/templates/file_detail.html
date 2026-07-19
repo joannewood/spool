@@ -75,17 +75,23 @@
       <dt>Volume</dt>
       <dd>{% if file.volume_mm3 is not none %}{{ "%.1f"|format(file.volume_mm3) }} mm³{% else %}—{% endif %}</dd>
       <dt>Triangles</dt><dd>{{ file.tri_count if file.tri_count is not none else "—" }}</dd>
-      <dt>Manifold</dt>
-      <dd>
-        {% if file.is_manifold is none %}—
-        {% elif file.is_manifold %}✓ watertight
-        {% else %}⚠ not watertight
-        {% endif %}
-      </dd>
-      <dt>Render status</dt><dd>{{ file.render_status }}</dd>
-      <dt>Hash</dt><dd><code>{{ file.content_hash[:16] ~ "…" if file.content_hash else "—" }}</code></dd>
-      <dt>First seen</dt><dd>{{ file.first_seen_at }}</dd>
     </dl>
+
+    <div class="tag-chips">
+      {% for t in tags %}
+      <span class="chip" id="tag-{{ t.id }}">
+        #{{ t.name }}
+        <button type="button" class="chip-remove" hx-delete="/files/{{ file.id }}/tags/{{ t.id }}" hx-target="#tag-{{ t.id }}" hx-swap="outerHTML" title="remove tag">×</button>
+      </span>
+      {% endfor %}
+      <details class="add-tag-toggle">
+        <summary title="Add a tag">+</summary>
+        <form class="inline-form" method="POST" action="/files/{{ file.id }}/tags">
+          <input type="text" name="name" placeholder="add a tag…" autocomplete="off" required autofocus>
+          <button type="submit">Add</button>
+        </form>
+      </details>
+    </div>
 
     {% if open_status == "ok" %}
     <p class="badge ok">✓ opened</p>
@@ -112,24 +118,6 @@
 </div>
 
 <div class="panels">
-  <section class="panel">
-    <h2>Tags</h2>
-    <div class="chips">
-      {% for t in tags %}
-      <span class="chip" id="tag-{{ t.id }}">
-        #{{ t.name }}
-        <button type="button" class="chip-remove" hx-delete="/files/{{ file.id }}/tags/{{ t.id }}" hx-target="#tag-{{ t.id }}" hx-swap="outerHTML" title="remove tag">×</button>
-      </span>
-      {% else %}
-      <span class="empty-inline">no tags yet</span>
-      {% endfor %}
-    </div>
-    <form class="inline-form" method="POST" action="/files/{{ file.id }}/tags">
-      <input type="text" name="name" placeholder="add a tag…" autocomplete="off" required>
-      <button type="submit">Add</button>
-    </form>
-  </section>
-
   <section class="panel">
     <h2>Projects</h2>
     {% if suggested_projects %}
@@ -255,6 +243,21 @@
     </form>
   </section>
 </div>
+
+<footer class="detail-footer">
+  <dl>
+    <dt>Render status</dt><dd>{{ file.render_status }}</dd>
+    <dt>Manifold</dt>
+    <dd>
+      {% if file.is_manifold is none %}—
+      {% elif file.is_manifold %}✓ watertight
+      {% else %}⚠ not watertight
+      {% endif %}
+    </dd>
+    <dt>Hash</dt><dd><code>{{ file.content_hash[:16] ~ "…" if file.content_hash else "—" }}</code></dd>
+    <dt>First seen</dt><dd>{{ file.first_seen_at }}</dd>
+  </dl>
+</footer>
 
 <script>
   // Page-specific (only this template uses the printed-status modal), so

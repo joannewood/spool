@@ -483,6 +483,61 @@ main {
   border-radius: 4px;
   word-break: break-all;
 }
+
+/* tags, inline under the right-hand data — no header, just chips plus a
+   "+" reveal. <details>/<summary> (no JS needed) rather than the double-
+   click/dialog patterns used elsewhere on this page, since a plain
+   click-to-reveal-a-form is all this needs. */
+.tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+}
+.add-tag-toggle summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px dashed var(--border);
+  color: var(--ink-muted);
+  font-size: var(--fs-base);
+  line-height: 1;
+  cursor: pointer;
+}
+.add-tag-toggle summary::-webkit-details-marker { display: none; }
+.add-tag-toggle summary:hover { border-color: var(--accent); color: var(--accent); }
+.add-tag-toggle[open] summary { border-style: solid; border-color: var(--accent); color: var(--accent); }
+.add-tag-toggle form { margin-top: 8px; }
+
+/* rarely-needed fields (hash/timestamps/render internals), pushed to a
+   quiet footer instead of competing with the info actually looked at
+   often. */
+.detail-footer {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.detail-footer dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  font-size: var(--fs-xs);
+  color: var(--ink-muted);
+  max-width: 600px;
+}
+.detail-footer dt { color: var(--ink-muted); }
+.detail-footer dd { margin: 0; }
+.detail-footer code {
+  font-size: var(--fs-xs);
+  background: var(--bg);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
 .note {
   margin-top: 20px;
   font-size: var(--fs-xs);

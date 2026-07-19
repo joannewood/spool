@@ -95,6 +95,30 @@ def test_add_and_remove_tag_via_routes(client, make_file):
     assert "cool-tag" in detail.text
 
 
+def test_file_detail_tags_have_no_panel_header(client, make_file):
+    file_id = make_file()
+    resp = client.get(f"/files/{file_id}")
+    assert "<h2>Tags</h2>" not in resp.text
+    assert 'class="tag-chips"' in resp.text
+    assert 'class="add-tag-toggle"' in resp.text
+
+
+def test_file_detail_footer_has_rarely_needed_fields(client, make_file):
+    file_id = make_file()
+    resp = client.get(f"/files/{file_id}")
+    assert '<footer class="detail-footer">' in resp.text
+    assert "Render status" in resp.text
+    assert "Manifold" in resp.text
+    assert "Hash" in resp.text
+    assert "First seen" in resp.text
+    # and the main dl no longer carries them
+    dl_start = resp.text.index("<dl>")
+    dl_end = resp.text.index("</dl>", dl_start)
+    main_dl = resp.text[dl_start:dl_end]
+    assert "Render status" not in main_dl
+    assert "Hash" not in main_dl
+
+
 # ---- projects -----------------------------------------------------------
 
 def test_create_project_and_view_it(client, db_conn):

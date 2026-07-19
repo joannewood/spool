@@ -1176,6 +1176,18 @@ first), independent of the paused Phase 09:
       stylesheet `display: none` (equal specificity, author stylesheet
       wins over UA default), needing an explicit `.filter-count-badge
       [hidden] { display: none; }` override.
+- [x] File detail page decluttered — rarely-needed fields (render status,
+      manifold, hash, first seen) moved out of the main `<dl>` into a
+      quiet `<footer class="detail-footer">` at the bottom of the page
+      (muted, smaller text, separated by a top border) — the "⚠ not
+      watertight" *warning badge* near the top stays put, since that's an
+      actionable alert, not idle detail; only the plain Manifold status
+      row moved. The "Tags" panel is gone entirely — tags now sit
+      directly under the right-hand `<dl>` (no header) as plain chips
+      plus a small dashed "+" circle; clicking it reveals the add-tag
+      form via `<details>/<summary>` (no JS needed, matching the pattern
+      used for project rename before that became double-click editing) —
+      the `title="Add a tag"` on the summary is the mouse-over explainer.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,
