@@ -9,6 +9,35 @@ from .paths import to_host_path
 THUMBNAILS_DIR = os.environ.get("THUMBNAILS_DIR", "/data/thumbnails")
 
 
+def repoint_file(conn, file_id, new_root, new_container_path):
+    """Re-points an existing file row to a new location — a rename/move
+    keeps the same DB row (and therefore all its tags/relationships/
+    project membership/print_metadata, all keyed by file id, not path)
+    instead of marking the old path missing and creating an unrelated new
+    row for the new path. Content is unchanged by a pure move, so no
+    re-hash/re-render is triggered — only path/filename/ext (and
+    watched_root_id, in case a move somehow crosses roots) change.
+
+    Deliberately does not re-run the folder-grouping/relationship
+    heuristics on the file's new location, same reasoning as rescan's
+    existing "don't re-suggest on a content change" rule — re-suggesting
+    a project on every move would be exactly the kind of suggestion-noise
+    that rule was written to avoid.
+    """
+    new_host_path = to_host_path(new_root, new_container_path)
+    filename = os.path.basename(new_container_path)
+    ext = os.path.splitext(filename)[1].lower()
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE files SET path = %s, filename = %s, ext = %s,
+                             watched_root_id = %s, status = 'active', last_seen_at = now()
+            WHERE id = %s
+            """,
+            (new_host_path, filename, ext, new_root.id, file_id),
+        )
+
+
 def stage_stub(conn, root, container_path):
     """Record a newly discovered index_in_place file with no hash yet, and
     enqueue an ingest job to hash it. Used by the live watcher, which stays

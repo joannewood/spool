@@ -981,6 +981,61 @@ first), independent of the paused Phase 09:
       aggressively would serve stale assets after every deploy; this is
       specifically safe for thumbnails because of the cache-buster, not
       a blanket "add caching everywhere" change.
+- [x] File move/rename tracking — closes the "moved file loses its tags/
+      relationships" scope boundary. New `common/ingest.py::repoint_file`
+      re-points an existing row's `path`/`filename`/`ext` (and
+      `watched_root_id`, in case a move somehow crosses roots) to a new
+      location instead of the old path going `missing` and the new path
+      becoming an unrelated brand-new row — since tags/relationships/
+      project membership/print_metadata are all keyed by file id, not
+      path, they survive automatically. Two independent detection paths,
+      since either alone misses real cases:
+        - **Live watcher** (`watcher/app/main.py::on_moved`) — watchdog's
+          native `FileMovedEvent` gives an explicit `(src_path, dest_path)`
+          pair directly, no guessing needed: look up the tracked row for
+          `src_path`, repoint it if found, otherwise fall through to
+          normal new-file handling (covers a browser's `.crdownload` ->
+          final-name rename, since the temp name was never tracked).
+          Skipped for `relocate_to_dropfolder` roots (Downloads) — files
+          there are never meant to stay tracked at their Downloads path
+          anyway, so there's nothing meaningful to repoint.
+        - **Rescan** (`worker/app/rescan.py::_find_move_source`) — the
+          reliable fallback, since **confirmed live** that Docker
+          Desktop's bind-mount fs events don't reliably deliver a move
+          within this project's real setup either (moved a real test
+          file on the host; the watcher never logged the move, matching
+          the same already-documented bind-mount fs-event unreliability
+          as other gotchas above). Rescan has no explicit src/dest
+          signal at all, so it infers a move: a newly-discovered path
+          with no row of its own gets its content hashed, then matched
+          against still-`active` (not `missing`) rows from *this same
+          root* not yet found elsewhere in *this same pass*. Deliberately
+          scoped to `active` rows only — a row already `missing` from a
+          *prior* rescan is presumed really gone, so re-downloading the
+          exact same file elsewhere gets its own new row rather than
+          resurrecting an old one on a coincidental hash match (a real
+          test case: confirmed a "new copy of a deleted file" still gets
+          treated as new, not a move). Verified live end-to-end:
+          staged a throwaway file, moved+renamed it into a subfolder,
+          confirmed the live watcher didn't catch it (per the bind-mount
+          gotcha above), then ran a manual rescan and confirmed it
+          reported "1 moved" and the same file id now pointed at the new
+          path — no duplicate row.
+- [x] Sidecar file drift tracking — closes the "a missing sidecar stays
+      listed forever" scope boundary. Migration 014 adds `sidecar_files.
+      status` (reusing the existing `file_status` enum — `active`/
+      `missing`, same values `files` already uses). `run_rescan` now
+      tracks sidecars the same shape as model files (known-by-path
+      snapshot, seen-this-pass set, anything unseen goes `missing`,
+      anything `missing` that reappears at the same path goes back to
+      `active`) — but presence-only, no hash/re-render concept, since
+      sidecars were never hashed or rendered in the first place.
+      `queries.get_project_sidecars` now filters `status = 'active'`, so
+      a missing sidecar just quietly stops appearing on the project page
+      — matching exactly how a missing *model* file already disappears
+      from the main browse grid (`search_files`'s `status = 'active'`
+      filter), rather than inventing a new "review missing sidecars" UI
+      pattern with no precedent even for regular files.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,
@@ -989,18 +1044,11 @@ first), independent of the paused Phase 09:
 ## Deliberate scope boundaries (not bugs, revisit only if they start to hurt)
 
 - Phase 07's rescan doesn't re-run Phase 06's relationship/folder-grouping
-  heuristics when a file's content changes in place, and doesn't handle a
-  file *moved* to a new path as a rename — a move looks like the old path
-  going missing and the new path being a brand-new file (losing tags/
-  relationships on the "new" row). True rename-tracking would need the
-  live watcher's `on_moved` event wired up (evaluated during Phase 07
-  planning, deliberately deferred — periodic rescan was judged sufficient
-  for now since Docker Desktop bind-mount fs events are already known to be
-  unreliable, per the gotcha above).
-- `sidecar_files` has no `status`/drift-tracking column — a sidecar whose
-  file disappears just stays listed forever (no `missing` state like
-  `files` gets from Phase 07). Low-value to fix until it's actually
-  annoying in practice.
+  heuristics when a file's content changes in place, or when a file moves
+  (see the rename-tracking fix in the ad hoc backlog below) — deliberate,
+  same reasoning either way: re-suggesting on every in-place slicer
+  re-save or every reorganization would be exactly the suggestion-noise
+  that rule exists to avoid.
 - Nested multi-level kits (a Downloads folder containing another folder
   that itself has model files) don't get full structure preservation on
   relocate — only the innermost leaf folders move as units, per the

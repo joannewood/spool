@@ -148,6 +148,114 @@ def test_run_rescan_touch_only_does_not_trigger_rerender(conn, make_root):
         assert cur.fetchone()[0] == render_jobs_before  # no spurious re-render job
 
 
+def test_run_rescan_detects_moved_file_and_preserves_relationships(conn, make_root):
+    make_root(kind="drop_folder")
+    library = make_root(kind="existing_library")
+    path = _touch(os.path.join(library.container_path, "widget.stl"), b"geometry")
+    run_rescan(conn)
+    before = _get_file(conn, "widget.stl")
+
+    with conn.cursor() as cur:
+        cur.execute("INSERT INTO tags (name) VALUES ('kept') RETURNING id")
+        tag_id = cur.fetchone()[0]
+        cur.execute("INSERT INTO file_tags (file_id, tag_id) VALUES (%s, %s)", (before["id"], tag_id))
+
+    new_path = os.path.join(library.container_path, "renamed_subfolder", "widget-renamed.stl")
+    os.makedirs(os.path.dirname(new_path))
+    os.rename(path, new_path)
+    run_rescan(conn)
+
+    # the old filename is gone, no longer resolvable by that name
+    assert _get_file(conn, "widget.stl") is None
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT id, path, status, content_hash FROM files WHERE filename = %s", ("widget-renamed.stl",))
+        row = cur.fetchone()
+    assert row is not None
+    file_id, new_db_path, status, content_hash = row
+    assert file_id == before["id"]  # same row, not a new one
+    assert new_db_path == new_path
+    assert status == "active"
+    assert content_hash == before["content_hash"]  # unchanged content, no re-hash needed
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM files WHERE watched_root_id = %s", (library.id,))
+        assert cur.fetchone()[0] == 1  # no duplicate row left behind
+        cur.execute("SELECT count(*) FROM file_tags WHERE file_id = %s AND tag_id = %s", (file_id, tag_id))
+        assert cur.fetchone()[0] == 1  # tag survived the move
+
+
+def test_run_rescan_does_not_treat_a_missing_files_old_hash_as_a_move_source(conn, make_root):
+    # A file already marked 'missing' by a *prior* rescan is presumed
+    # really gone — a brand new file that happens to share its content
+    # (e.g. re-downloading the exact same model) should get its own new
+    # row, not silently resurrect the old one at the new path.
+    make_root(kind="drop_folder")
+    library = make_root(kind="existing_library")
+    path = _touch(os.path.join(library.container_path, "widget.stl"), b"geometry")
+    run_rescan(conn)
+    before = _get_file(conn, "widget.stl")
+
+    os.remove(path)
+    run_rescan(conn)
+    assert _get_file(conn, "widget.stl")["status"] == "missing"
+
+    _touch(os.path.join(library.container_path, "widget-again.stl"), b"geometry")
+    run_rescan(conn)
+
+    again = _get_file(conn, "widget-again.stl")
+    assert again is not None
+    assert again["id"] != before["id"]  # a genuinely new row, not a repoint
+    assert _get_file(conn, "widget.stl")["status"] == "missing"  # old row still missing
+
+
+def _get_sidecar(conn, filename):
+    with conn.cursor() as cur:
+        cur.execute("SELECT id, status FROM sidecar_files WHERE filename = %s", (filename,))
+        row = cur.fetchone()
+    return None if row is None else {"id": row[0], "status": row[1]}
+
+
+def test_run_rescan_marks_removed_sidecar_missing(conn, make_root):
+    make_root(kind="drop_folder")
+    library = make_root(kind="existing_library")
+    folder = os.path.join(library.container_path, "Kit")
+    _touch(os.path.join(folder, "widget.stl"))
+    sidecar_path = _touch(os.path.join(folder, "README.txt"))
+    run_rescan(conn)
+    assert _get_sidecar(conn, "README.txt")["status"] == "active"
+
+    os.remove(sidecar_path)
+    run_rescan(conn)
+
+    assert _get_sidecar(conn, "README.txt")["status"] == "missing"
+
+
+def test_run_rescan_revives_missing_sidecar_that_reappears(conn, make_root):
+    make_root(kind="drop_folder")
+    library = make_root(kind="existing_library")
+    folder = os.path.join(library.container_path, "Kit")
+    _touch(os.path.join(folder, "widget.stl"))
+    sidecar_path = _touch(os.path.join(folder, "README.txt"))
+    run_rescan(conn)
+    before_id = _get_sidecar(conn, "README.txt")["id"]
+
+    os.remove(sidecar_path)
+    run_rescan(conn)
+    assert _get_sidecar(conn, "README.txt")["status"] == "missing"
+
+    _touch(sidecar_path)
+    run_rescan(conn)
+
+    sidecar = _get_sidecar(conn, "README.txt")
+    assert sidecar["status"] == "active"
+    assert sidecar["id"] == before_id  # same row revived, not a new one
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM sidecar_files WHERE filename = 'README.txt'")
+        assert cur.fetchone()[0] == 1  # no duplicate row
+
+
 def test_run_rescan_updates_last_scanned_at(conn, make_root):
     dropfolder = make_root(kind="drop_folder")
 

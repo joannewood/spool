@@ -71,6 +71,24 @@ def _reconcile_known_file(conn, row, container_path):
         return "revived" if was_missing else "touched"
 
 
+def _find_move_source(container_path, active_by_hash, seen_paths):
+    """A newly-discovered path with no DB row of its own — before treating
+    it as genuinely new, check whether its content matches a still-active
+    row from this same root that this pass hasn't found at its recorded
+    path yet (a real move candidate). Only 'active' rows are candidates —
+    a row already 'missing' from a *prior* rescan is presumed gone for
+    real, not silently still-there-somewhere, so this doesn't resurrect
+    arbitrarily old missing rows on a coincidental hash match. Returns
+    None (and the caller falls through to normal new-file ingestion) if
+    no such candidate exists — including the ordinary case where the hash
+    doesn't match anything at all."""
+    new_hash = sha256_file(container_path)
+    for candidate in active_by_hash.get(new_hash, []):
+        if candidate["path"] not in seen_paths:
+            return candidate
+    return None
+
+
 def run_rescan(conn):
     roots = fetch_active_roots(conn)
     dropfolder_root = next((r for r in roots if r.kind == "drop_folder"), None)
@@ -85,8 +103,20 @@ def run_rescan(conn):
             )
             known_by_path = {r["path"]: r for r in cur.fetchall()}
 
+            cur.execute(
+                "SELECT id, path, status FROM sidecar_files WHERE watched_root_id = %s",
+                (root.id,),
+            )
+            known_sidecars_by_path = {r["path"]: r for r in cur.fetchall()}
+
+        active_by_hash = {}
+        for row in known_by_path.values():
+            if row["status"] == "active":
+                active_by_hash.setdefault(row["content_hash"], []).append(row)
+
         seen_paths = set()
-        new_count = rehashed_count = revived_count = 0
+        seen_sidecar_paths = set()
+        new_count = rehashed_count = revived_count = moved_count = 0
         # Materialized before any relocation happens — same reason as
         # backfill: moving a whole leaf folder mid-walk could otherwise
         # disrupt os.walk's still-in-progress traversal of that same tree.
@@ -99,6 +129,12 @@ def run_rescan(conn):
                 seen_paths.add(host_path)
                 existing = known_by_path.get(host_path)
                 if existing is None:
+                    moved_from = _find_move_source(container_path, active_by_hash, seen_paths)
+                    if moved_from is not None:
+                        ingest.repoint_file(conn, moved_from["id"], root, container_path)
+                        seen_paths.add(moved_from["path"])
+                        moved_count += 1
+                        continue
                     if _ingest_new_path(conn, root, dropfolder_root, container_path):
                         new_count += 1
                     continue
@@ -114,18 +150,37 @@ def run_rescan(conn):
             # shows up in the drop folder's own walk.
             if model_paths and root.ingest_mode != "relocate_to_dropfolder":
                 for sidecar_path in sidecar_paths:
-                    ingest.stage_sidecar(conn, root, sidecar_path)
+                    host_sidecar_path = to_host_path(root, sidecar_path)
+                    seen_sidecar_paths.add(host_sidecar_path)
+                    existing_sidecar = known_sidecars_by_path.get(host_sidecar_path)
+                    if existing_sidecar is not None and existing_sidecar["status"] == "missing":
+                        with conn.cursor() as cur:
+                            cur.execute(
+                                "UPDATE sidecar_files SET status = 'active' WHERE id = %s",
+                                (existing_sidecar["id"],),
+                            )
+                    else:
+                        # already-known-and-active sidecars are a no-op here
+                        # (ON CONFLICT DO NOTHING) — this only ever inserts a
+                        # genuinely new one.
+                        ingest.stage_sidecar(conn, root, sidecar_path)
 
         missing_count = 0
+        sidecar_missing_count = 0
         with conn.cursor() as cur:
             for path, row in known_by_path.items():
                 if row["status"] == "active" and path not in seen_paths:
                     cur.execute("UPDATE files SET status = 'missing' WHERE id = %s", (row["id"],))
                     missing_count += 1
+            for path, row in known_sidecars_by_path.items():
+                if row["status"] == "active" and path not in seen_sidecar_paths:
+                    cur.execute("UPDATE sidecar_files SET status = 'missing' WHERE id = %s", (row["id"],))
+                    sidecar_missing_count += 1
             cur.execute("UPDATE watched_roots SET last_scanned_at = now() WHERE id = %s", (root.id,))
 
         print(
             f"[worker] rescan — {root.label}: {new_count} new, {rehashed_count} rehashed, "
-            f"{revived_count} revived, {missing_count} newly missing",
+            f"{revived_count} revived, {moved_count} moved, {missing_count} newly missing "
+            f"({sidecar_missing_count} sidecar(s) newly missing)",
             flush=True,
         )

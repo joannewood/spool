@@ -69,6 +69,47 @@ def test_stage_stub_is_idempotent_on_same_path(conn, make_root):
     assert ingest.stage_stub(conn, root, file_path) is None
 
 
+# ---- repoint_file -------------------------------------------------------
+
+def test_repoint_file_updates_path_filename_ext(conn, make_root):
+    root = make_root()
+    file_id = ingest.stage_and_hash(conn, root, _touch(root, "widget.stl"))
+
+    new_dir = os.path.join(root.container_path, "subdir")
+    os.makedirs(new_dir)
+    new_path = os.path.join(new_dir, "renamed.stl")
+    os.rename(os.path.join(root.container_path, "widget.stl"), new_path)
+
+    ingest.repoint_file(conn, file_id, root, new_path)
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT path, filename, ext, status FROM files WHERE id = %s", (file_id,))
+        path, filename, ext, status = cur.fetchone()
+    assert path == new_path
+    assert filename == "renamed.stl"
+    assert ext == ".stl"
+    assert status == "active"
+
+
+def test_repoint_file_preserves_id_and_related_rows(conn, make_root):
+    root = make_root()
+    file_id = ingest.stage_and_hash(conn, root, _touch(root, "widget.stl"))
+    with conn.cursor() as cur:
+        cur.execute("INSERT INTO tags (name) VALUES ('kept') RETURNING id")
+        tag_id = cur.fetchone()[0]
+        cur.execute("INSERT INTO file_tags (file_id, tag_id) VALUES (%s, %s)", (file_id, tag_id))
+
+    new_path = os.path.join(root.container_path, "renamed.stl")
+    os.rename(os.path.join(root.container_path, "widget.stl"), new_path)
+    ingest.repoint_file(conn, file_id, root, new_path)
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM files WHERE id = %s", (file_id,))
+        assert cur.fetchone()[0] == 1  # same row, not a new one
+        cur.execute("SELECT count(*) FROM file_tags WHERE file_id = %s AND tag_id = %s", (file_id, tag_id))
+        assert cur.fetchone()[0] == 1  # tag survived the move
+
+
 # ---- maybe_enqueue_render ---------------------------------------------------
 
 def _job_types_for(conn, file_id):

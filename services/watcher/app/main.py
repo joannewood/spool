@@ -6,7 +6,7 @@ from watchdog.observers import Observer
 
 from common import ingest
 from common.db import get_connection
-from common.paths import is_ignorable_junk, is_model_file, is_zip_file
+from common.paths import is_ignorable_junk, is_model_file, is_zip_file, to_host_path
 from common.roots import fetch_active_roots, fetch_dropfolder_root
 from common.zip_ingest import stage_zip_if_relevant
 
@@ -80,8 +80,33 @@ class RootEventHandler(FileSystemEventHandler):
             self._handle(event.src_path)
 
     def on_moved(self, event):
-        if not event.is_directory:
-            self._handle(event.dest_path)
+        if event.is_directory:
+            return
+        # A real rename/move within this same watched tree — try to find
+        # the tracked row for the OLD path and just repoint it, so tags/
+        # relationships/project membership survive the move instead of
+        # the old path going 'missing' and the new path becoming an
+        # unrelated brand-new file. Not attempted for relocate_to_
+        # dropfolder roots (Downloads) — files there are never meant to
+        # stay tracked at their Downloads path anyway (relocate moves them
+        # away immediately), so there's nothing meaningful to repoint;
+        # falls through to the normal new-file handling below regardless
+        # (harmless — a browser's .crdownload-style rename also falls
+        # through here since the temp name was never tracked).
+        if self.root.ingest_mode != "relocate_to_dropfolder" and is_model_file(event.src_path):
+            host_src = to_host_path(self.root, event.src_path)
+            with get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT id FROM files WHERE path = %s AND status = 'active'", (host_src,))
+                    row = cur.fetchone()
+                if row is not None:
+                    if not wait_until_stable(event.dest_path):
+                        print(f"[watcher] gave up waiting for {event.dest_path} to settle", flush=True)
+                        return
+                    ingest.repoint_file(conn, row[0], self.root, event.dest_path)
+                    print(f"[watcher] tracked move: file {row[0]} {event.src_path} -> {event.dest_path}", flush=True)
+                    return
+        self._handle(event.dest_path)
 
 
 ROOT_POLL_INTERVAL_SECONDS = 10

@@ -623,6 +623,7 @@ def get_project_sidecars(project_id):
                 SELECT s.id, s.filename, s.ext, s.size_bytes, s.thumbnail_path
                 FROM sidecar_files s
                 JOIN project_dirs d ON regexp_replace(s.path, '/[^/]+$', '') = d.dir
+                WHERE s.status = 'active'
                 ORDER BY s.filename
                 """,
                 (project_id,),
