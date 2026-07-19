@@ -1050,6 +1050,17 @@ first), independent of the paused Phase 09:
       duplicate/suggestion counts are small enough that fetching the full
       rows just to take `len()` isn't worth a second, near-duplicate
       query path.
+- [x] Pending archives moved to its own page (`/admin/pending-archives`),
+      same pattern as duplicates/suggestions — the admin page's "Archives"
+      section now only shows a "Review N pending archives →" link
+      (conditional on count, matching the other sections), while "View
+      rejected archives →" stays **unconditionally** visible regardless of
+      pending count, per explicit instruction — un-rejecting only makes
+      sense as an always-reachable escape hatch, not something that should
+      disappear once you're caught up. `confirm_zip`/`reject_zip` now
+      redirect to `/admin/pending-archives` instead of `/admin`, matching
+      how the duplicates/suggestions confirm/reject actions already
+      redirect back to their own page rather than the main admin page.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,

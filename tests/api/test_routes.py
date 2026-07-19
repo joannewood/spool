@@ -142,7 +142,7 @@ def test_admin_page_shows_cleaned_zip_filename(client, db_conn, test_root_id):
         )
         zip_id = cur.fetchone()[0]
     try:
-        resp = client.get("/admin")
+        resp = client.get("/admin/pending-archives")
         assert resp.status_code == 200
         assert "<td>Kit Files.zip</td>" in resp.text
         # the raw path column intentionally stays uncleaned (real disk path
@@ -208,3 +208,57 @@ def test_admin_page_shows_suggestions_section_when_relationship_suggestion_exist
     finally:
         with db_conn.cursor() as cur:
             cur.execute("DELETE FROM relationships WHERE id = %s", (rel_id,))
+
+
+# ---- admin page: archives section ----------------------------------------
+
+def test_admin_page_hides_pending_archives_link_when_none_pending(client):
+    resp = client.get("/admin")
+    assert resp.status_code == 200
+    assert "pending archive" not in resp.text.lower()
+
+
+def test_admin_page_always_shows_rejected_archives_link(client):
+    resp = client.get("/admin")
+    assert resp.status_code == 200
+    assert "View rejected archives" in resp.text
+
+
+def test_admin_page_shows_pending_archives_link_when_present(client, db_conn, test_root_id):
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO zip_files (watched_root_id, path, filename, size_bytes) VALUES (%s, %s, %s, 100) RETURNING id",
+            (test_root_id, "/tmp/api-test-root/Somekit.zip", "Somekit.zip"),
+        )
+        zip_id = cur.fetchone()[0]
+    try:
+        resp = client.get("/admin")
+        assert resp.status_code == 200
+        assert "Review 1 pending archive" in resp.text
+        assert "View rejected archives" in resp.text  # still there alongside it
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM zip_files WHERE id = %s", (zip_id,))
+
+
+def test_pending_archives_page_lists_zips_and_confirm_redirects_back(client, db_conn, test_root_id):
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO zip_files (watched_root_id, path, filename, size_bytes) VALUES (%s, %s, %s, 100) RETURNING id",
+            (test_root_id, "/tmp/api-test-root/NoModelHere.zip", "NoModelHere.zip"),
+        )
+        zip_id = cur.fetchone()[0]
+    try:
+        resp = client.get("/admin/pending-archives")
+        assert resp.status_code == 200
+        assert "NoModelHere.zip" in resp.text
+
+        # confirming a zip with no real file on disk will error inside the
+        # worker's own job processing, not this route — we're only checking
+        # the redirect target here, not the extraction outcome
+        resp = client.post(f"/admin/zips/{zip_id}/reject", follow_redirects=False)
+        assert resp.status_code == 303
+        assert resp.headers["location"] == "/admin/pending-archives"
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM zip_files WHERE id = %s", (zip_id,))

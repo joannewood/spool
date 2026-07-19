@@ -340,11 +340,18 @@ def admin(request: Request):
         {
             "roots": queries.list_watched_roots(),
             "ingest_modes": INGEST_MODES,
-            "pending_zips": queries.list_pending_zips(),
+            "pending_zip_count": len(queries.list_pending_zips()),
             "duplicate_count": len(queries.list_duplicate_groups()),
             "suggested_project_count": len(queries.list_suggested_project_assignments()),
             "suggested_relationship_count": len(queries.list_suggested_relationships_all()),
         },
+    )
+
+
+@app.get("/admin/pending-archives", response_class=HTMLResponse)
+def admin_pending_archives(request: Request):
+    return templates.TemplateResponse(
+        request, "admin_pending_archives.html", {"zips": queries.list_pending_zips()}
     )
 
 
@@ -362,13 +369,13 @@ def admin_update_root(
 @app.post("/admin/zips/{zip_id}/confirm")
 def confirm_zip(zip_id: int):
     queries.enqueue_zip_extraction(zip_id)
-    return RedirectResponse("/admin", status_code=303)
+    return RedirectResponse("/admin/pending-archives", status_code=303)
 
 
 @app.post("/admin/zips/{zip_id}/reject")
 def reject_zip(zip_id: int):
     queries.reject_zip(zip_id)
-    return RedirectResponse("/admin", status_code=303)
+    return RedirectResponse("/admin/pending-archives", status_code=303)
 
 
 @app.get("/admin/rejected-archives", response_class=HTMLResponse)
