@@ -265,9 +265,10 @@ def get_project_files(project_id):
                 """
                 SELECT f.id, f.filename, f.display_name, f.ext, f.thumbnail_path,
                        f.render_status, f.is_manifold, f.bbox_x, f.bbox_y, f.bbox_z,
-                       f.content_hash
+                       f.content_hash, print_log.printed, print_log.rating, print_log.comments
                 FROM files f
                 JOIN project_files pf ON pf.file_id = f.id
+                LEFT JOIN print_log ON print_log.file_id = f.id
                 WHERE pf.project_id = %s AND pf.status = 'confirmed'
                 ORDER BY f.filename
                 """,

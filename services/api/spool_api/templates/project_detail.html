@@ -44,6 +44,14 @@
       {% if f.bbox_x is not none %}
       <div class="dims-overlay">{{ "%.0f"|format(f.bbox_x) }} × {{ "%.0f"|format(f.bbox_y) }} × {{ "%.0f"|format(f.bbox_z) }} mm</div>
       {% endif %}
+      {% if f.printed %}
+      <span class="printed-badge printed-badge-static printed-badge-active" title="{{ f.comments or 'Printed' }}">
+        <img class="printed-badge-icon" src="/static/icons/printer.png" alt="Printed">
+        {% if f.rating %}
+        <span class="printed-badge-stars">{{ '★' * f.rating }}</span>
+        {% endif %}
+      </span>
+      {% endif %}
     </div>
     <div class="meta">
       <div class="filename" title="{{ f.display_name or (f.filename | clean_name) }}">{{ f.display_name or (f.filename | clean_name) }}</div>

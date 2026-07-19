@@ -1302,6 +1302,16 @@ first), independent of the paused Phase 09:
       (Render status/Manifold/Hash/First seen) gained `justify-content:
       center` on its flex row, instead of the four fields hugging the
       left edge under the full-width footer.
+- [x] Printed status + star rating also shown on project page file grids
+      — `project_detail.html` has its own separate card markup (not
+      `_results.html`, which only the library grid uses), so the badge
+      added earlier to the library grid didn't carry over automatically.
+      `get_project_files` (`queries.py`) gained the same `LEFT JOIN
+      print_log ON print_log.file_id = f.id` as `search_files`, and the
+      project page's card template got the identical `{% if f.printed
+      %}` badge block (same classes, same half-size-icon/full-size-stars
+      styling). Verified live against two real projects each containing
+      one of the library's two actually-printed files.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,
