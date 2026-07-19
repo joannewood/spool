@@ -137,6 +137,28 @@ def search_files(
         params.append(slicer)
     where = " AND ".join(conditions)
     order_by = SORT_CLAUSES.get(sort, SORT_CLAUSES["newest"])
+    order_params = []
+    if q:
+        # Plain ILIKE says whether a row matched, not how well — an exact
+        # or prefix filename match reads as far more "relevant" than a
+        # mid-string substring hit or a match that only came from
+        # print_metadata/print_log, but without this they all sorted
+        # identically (by whatever the sort dropdown said, usually
+        # "newest"). Rank by match quality against the name first, then
+        # fall back to the user's chosen sort as the tiebreaker within
+        # each tier — so "newest" still means something among
+        # equally-relevant results, it just isn't the primary key anymore.
+        name_expr = "COALESCE(display_name, filename)"
+        order_by = f"""
+            CASE
+                WHEN {name_expr} ILIKE %s THEN 0
+                WHEN {name_expr} ILIKE %s THEN 1
+                WHEN {name_expr} ILIKE %s THEN 2
+                ELSE 3
+            END,
+            {order_by}
+        """
+        order_params = [q, f"{q}%", f"%{q}%"]
 
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
@@ -155,7 +177,7 @@ def search_files(
                 ORDER BY {order_by}
                 LIMIT %s OFFSET %s
                 """,
-                params + [PAGE_SIZE, offset],
+                params + order_params + [PAGE_SIZE, offset],
             )
             rows = cur.fetchall()
     return rows, total

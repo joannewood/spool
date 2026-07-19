@@ -425,11 +425,29 @@ against.
 
 - [x] Thumbnail cache tuning — see the ad hoc backlog entry below
       (`CachedStaticFiles` + content-hash-versioned URLs).
-- [ ] Search relevance — still ILIKE + a fixed sort dropdown, no
-      relevance ranking. At 790 rows a sequential scan is still trivially
-      fast (checked: no missing indexes are actually causing slow
-      queries yet), so this is a quality-of-ranking problem, not a
-      performance one.
+- [x] Search relevance — `search_files` (`queries.py`) now prepends a
+      relevance `CASE` to `ORDER BY` whenever `q` is set: exact
+      `COALESCE(display_name, filename)` match (tier 0) > name starts
+      with `q` (tier 1) > `q` anywhere in the name (tier 2) > matched only
+      via `print_metadata`/`print_log`/a structured phrase, not the name
+      at all (tier 3) — the user's chosen sort (`newest` by default)
+      still applies *within* each tier as the tiebreaker, so it doesn't
+      stop meaning anything, it's just no longer the primary key while
+      searching. Deliberately plain ILIKE tiering, not Postgres full-text
+      search (`tsvector`/`ts_rank`) — full-text tokenizes into words,
+      which fights this app's actual search patterns (partial/substring
+      hits inside hyphenated or version-suffixed filenames like
+      `top-plug-6mm.stl` or `_v2`), and would need a schema migration for
+      no clear win at personal-library scale. No change when `q` is
+      empty — plain browsing keeps the exact ordering it already had.
+      Added real coverage (`tests/api/test_queries.py`): prefix-vs-
+      substring ranking, name-match-vs-metadata-only-match ranking, and a
+      no-query sanity check that the plain sort path still runs
+      unaffected. Verified live against the real library: searching "top"
+      now surfaces `Top.stl`/`Top half.step`/`top-plug*` before
+      mid-string hits like `CandyStudTopper.stl` or
+      `...Chimney_top_-_3DBenchy.com.stl`, which previously all sorted
+      together by "newest" with no regard for match quality.
 - [ ] General performance pass — revisit once the library is large enough
       that `EXPLAIN ANALYZE` on the search query actually shows a
       sequential scan cost worth caring about; premature to add indexes

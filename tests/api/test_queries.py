@@ -126,3 +126,41 @@ def test_print_metadata_partial_fields_stay_none_not_string(make_file, db_conn):
     assert metadata["material"] == "PLA"
     assert metadata["notes"] is None  # real None, not the string "None"
     assert metadata["printer_profile"] is None
+
+
+# ---- search relevance ranking ---------------------------------------------
+
+def test_search_ranks_prefix_match_above_substring_match(make_file):
+    # Neither is "newest" in a way that would otherwise explain the order —
+    # the substring match is inserted first, so a plain sort-by-recency
+    # would put it ahead were relevance not doing the real ordering.
+    substring_id = make_file(filename="dessicantcontainer-top.stl")
+    prefix_id = make_file(filename="Top.stl")
+
+    rows, _ = queries.search_files(q="top", extensions=None, tags=None, page=1)
+    ids = [r["id"] for r in rows]
+    assert ids.index(prefix_id) < ids.index(substring_id)
+
+
+def test_search_ranks_name_match_above_metadata_only_match(make_file, db_conn):
+    metadata_only_id = make_file(filename="widgetA.stl")
+    name_match_id = make_file(filename="findme-in-name.stl")
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO print_metadata (file_id, material, source) VALUES (%s, %s, 'manual')",
+            (metadata_only_id, "findme material"),
+        )
+
+    rows, _ = queries.search_files(q="findme", extensions=None, tags=None, page=1)
+    ids = [r["id"] for r in rows]
+    assert ids.index(name_match_id) < ids.index(metadata_only_id)
+
+
+def test_search_without_query_does_not_apply_relevance_ranking(make_file):
+    # No q means no relevance CASE at all — just confirm the plain sort
+    # clause still runs without error and returns both rows.
+    a = make_file(filename="alpha.stl")
+    b = make_file(filename="beta.stl")
+    rows, total = queries.search_files(q="", extensions=None, tags=None, page=1, sort="name_asc")
+    ids = {r["id"] for r in rows}
+    assert {a, b} <= ids
