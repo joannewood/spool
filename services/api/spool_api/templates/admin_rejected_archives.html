@@ -19,7 +19,7 @@
     <tbody>
       {% for z in zips %}
       <tr>
-        <td>{{ z.filename }}</td>
+        <td>{{ z.filename | clean_name }}</td>
         <td><code>{{ z.path }}</code></td>
         <td>{{ z.size_bytes | filesizeformat }}</td>
         <td>{{ z.created_at }}</td>

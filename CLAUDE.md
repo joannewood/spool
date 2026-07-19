@@ -932,6 +932,16 @@ first), independent of the paused Phase 09:
       a real rendered `/files/{id}` response) — exactly the class of bug
       this whole effort was meant to start catching automatically instead
       of by eyeballing screenshots.
+- [x] `clean_name` applied to zip filenames too (`admin.html`'s pending-
+      archives table, `admin_rejected_archives.html`) — same URL-encoding
+      artifact that affected model/sidecar/project names could show up in
+      a downloaded zip's own name just as easily. The raw `path` column on
+      both pages deliberately stays uncleaned (the real disk path, shown
+      for verification before confirm/reject/un-reject), same principle
+      as the duplicate-files admin page. Added a route test asserting the
+      filename cell specifically gets cleaned while the path cell doesn't
+      (a plain `not in resp.text` check would have false-failed, since
+      the raw path legitimately contains the same uncleaned substring).
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,

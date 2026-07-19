@@ -64,7 +64,7 @@
       <tbody>
         {% for z in pending_zips %}
         <tr>
-          <td>{{ z.filename }}</td>
+          <td>{{ z.filename | clean_name }}</td>
           <td><code>{{ z.path }}</code></td>
           <td>{{ z.size_bytes | filesizeformat }}</td>
           <td>{% if z.error %}<span class="badge warn">⚠ {{ z.error }}</span>{% endif %}</td>

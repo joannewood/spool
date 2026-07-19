@@ -105,3 +105,22 @@ def test_index_grid_shows_cleaned_filename(client, make_file):
     assert resp.status_code == 200
     assert "AAA battery tray.stl" in resp.text
     assert "AAA+battery+tray.stl" not in resp.text
+
+
+def test_admin_page_shows_cleaned_zip_filename(client, db_conn, test_root_id):
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO zip_files (watched_root_id, path, filename, size_bytes) VALUES (%s, %s, %s, 100) RETURNING id",
+            (test_root_id, "/tmp/api-test-root/Kit+Files.zip", "Kit+Files.zip"),
+        )
+        zip_id = cur.fetchone()[0]
+    try:
+        resp = client.get("/admin")
+        assert resp.status_code == 200
+        assert "<td>Kit Files.zip</td>" in resp.text
+        # the raw path column intentionally stays uncleaned (real disk path
+        # for verification), only the filename cell should be cleaned
+        assert "<td>Kit+Files.zip</td>" not in resp.text
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM zip_files WHERE id = %s", (zip_id,))
