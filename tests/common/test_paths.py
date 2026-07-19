@@ -2,7 +2,7 @@ from common.paths import is_ignorable_junk, is_model_file, is_zip_file, to_conta
 from common.roots import WatchedRoot
 
 
-def _root(host_path="/Users/jo/Documents/3DPrintFiles", container_path="/roots/dropfolder"):
+def _root(host_path="/Users/test/Documents/3DPrintFiles", container_path="/roots/dropfolder"):
     return WatchedRoot(
         id=1,
         host_path=host_path,
@@ -44,18 +44,18 @@ def test_is_ignorable_junk_appledouble():
 
 def test_to_container_path_maps_host_path_under_root():
     root = _root()
-    host_path = "/Users/jo/Documents/3DPrintFiles/sub/widget.stl"
+    host_path = "/Users/test/Documents/3DPrintFiles/sub/widget.stl"
     assert to_container_path(root, host_path) == "/roots/dropfolder/sub/widget.stl"
 
 
 def test_to_host_path_maps_container_path_under_root():
     root = _root()
     container_path = "/roots/dropfolder/sub/widget.stl"
-    assert to_host_path(root, container_path) == "/Users/jo/Documents/3DPrintFiles/sub/widget.stl"
+    assert to_host_path(root, container_path) == "/Users/test/Documents/3DPrintFiles/sub/widget.stl"
 
 
 def test_host_and_container_path_round_trip():
     root = _root()
-    host_path = "/Users/jo/Documents/3DPrintFiles/a/b/widget.stl"
+    host_path = "/Users/test/Documents/3DPrintFiles/a/b/widget.stl"
     container_path = to_container_path(root, host_path)
     assert to_host_path(root, container_path) == host_path

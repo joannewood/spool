@@ -24,6 +24,12 @@ thumbnails/
 # Claude Code local settings
 .claude/settings.local.json
 
+# Internal build log / working notes for Claude Code — a personal,
+# decision-by-decision record kept for continuity across sessions, not
+# meant for a shared/public clone. Anything in here relevant to actually
+# running SPOOL has been folded into README.md instead.
+CLAUDE.md
+
 # Editors
 .vscode/
 .idea/

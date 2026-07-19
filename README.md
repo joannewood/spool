@@ -82,12 +82,72 @@ Fusion or Bambu Studio — no more digging through folders full of
    Open `host-helper/host_helper.py` first and check `APP_MAP` — it's
    hardcoded to Autodesk Fusion + Bambu Studio (this project's own setup);
    change it to whichever CAD/slicer apps you actually use, using their real
-   `.app` bundle name (`ls ~/Applications /Applications`), then run
-   `install.sh`. Re-run it any time you edit `host_helper.py` or `.env`.
+   `.app` bundle name, not the marketing name (`ls ~/Applications /Applications`
+   — e.g. Autodesk's own app is `Autodesk Fusion.app` under `~/Applications`,
+   not `/Applications`, and Bambu's is `BambuStudio.app`, no space — `open -a`
+   only matches the real bundle name). Re-run `install.sh` any time you edit
+   `host_helper.py` or `.env`.
 
-See [`CLAUDE.md`](CLAUDE.md) for full architecture notes, every non-obvious
-decision made along the way, and the running list of what's built vs. still
-planned.
+4. **Grant macOS permissions for the duplicate-delete feature.** "Open in
+   app" works with no extra setup — it just hands off to macOS's own
+   LaunchServices. Actually *deleting* a file (the duplicate-files admin
+   page) needs real filesystem access, which macOS's privacy protections
+   (TCC) block by default for a launchd-spawned process. If a delete fails
+   with "Operation not permitted", grant Full Disk Access to
+   `/usr/bin/python3` in **System Settings → Privacy & Security → Full Disk
+   Access** (one-time, can't be scripted). Everything else — including
+   host-helper starting up and "Open in app" — works without this.
+
+### Day-to-day
+
+```bash
+docker compose ps                   # check health
+docker compose logs worker -f       # watch backfill/render/ingest activity
+docker compose logs watcher -f      # watch live filesystem events
+docker compose exec postgres psql -U spool -d spool   # inspect the data directly
+docker compose down                 # stop (keeps your data — pgdata + thumbnails are named volumes)
+docker compose down -v              # stop AND wipe all data — only if you're OK starting over
+```
+
+Quitting/restarting Docker Desktop stops every container (not just pauses
+them) — your data survives in named volumes either way, so `docker compose
+up -d` brings it all back with nothing lost.
+
+```bash
+host-helper/uninstall.sh                            # stop + remove the host-helper agent
+launchctl print gui/$(id -u)/com.spool.hosthelper    # confirm it's running
+tail -f ~/Library/Logs/spool/host-helper.log         # watch open/delete requests
+```
+
+### Running the test suite
+
+```bash
+docker compose up -d postgres        # only postgres needs to be running
+python3 -m venv .venv
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/pytest
+```
+
+Tests run on the host (not in a container) against a real, separate
+`spool_test` database on the same Postgres instance (exposed at
+`localhost:55432` for exactly this).
+
+### Known limitations
+
+- **Adding a *new* watched root isn't a UI action.** Docker can't attach a
+  new bind mount to an already-running container, so the admin page can
+  only edit/pause the three roots mounted at startup. To watch a fourth
+  folder, add it to `docker-compose.yml`'s volume mounts yourself and
+  `docker compose up -d --build`.
+- **Changing a path in `.env` after first setup doesn't re-seed the
+  database** — the seed only runs once, against a brand-new `pgdata`
+  volume. Update the path on the `/admin` page instead (and re-run
+  `host-helper/install.sh` if it's one of the delete-allowlist paths).
+- **Zip files can't be extracted from your Library folder.** It's mounted
+  read-only (an "existing library" root is never supposed to be written
+  to) — confirming a zip found there will fail with a permissions error in
+  Admin, by design. Extract it yourself, or drop the zip in your drop
+  folder instead.
 
 ## Status
 
