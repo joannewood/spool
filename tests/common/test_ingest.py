@@ -143,6 +143,15 @@ def test_maybe_enqueue_render_svg_and_scad_get_render_job(conn, make_root):
     assert _job_types_for(conn, scad_id) == ["render"]
 
 
+def test_maybe_enqueue_render_gcode_gets_render_job(conn, make_root):
+    # Fast lane, not render_step — extracting an embedded thumbnail from
+    # gcode comments is cheap text scanning, not CAD tessellation.
+    root = make_root()
+    file_id = ingest.stage_and_hash(conn, root, _touch(root, "part.gcode"))
+    ingest.maybe_enqueue_render(conn, file_id, ".gcode")
+    assert _job_types_for(conn, file_id) == ["render"]
+
+
 def test_maybe_enqueue_render_unrecognized_ext_gets_no_job(conn, make_root):
     root = make_root()
     file_id = ingest.stage_and_hash(conn, root, _touch(root, "readme.txt"))

@@ -2,7 +2,14 @@ import os
 import shutil
 from datetime import datetime, timezone
 
-from .config import MESH_EXTENSIONS, SCAD_EXTENSIONS, SIDECAR_IMAGE_EXTENSIONS, STEP_EXTENSIONS, SVG_EXTENSIONS
+from .config import (
+    GCODE_EXTENSIONS,
+    MESH_EXTENSIONS,
+    SCAD_EXTENSIONS,
+    SIDECAR_IMAGE_EXTENSIONS,
+    STEP_EXTENSIONS,
+    SVG_EXTENSIONS,
+)
 from .hashing import sha256_file
 from .paths import to_host_path
 
@@ -139,11 +146,11 @@ def stage_sidecar(conn, root, container_path):
 
 def maybe_enqueue_render(conn, file_id, ext):
     """Queue a render job for a renderable extension — 'render' for mesh
-    formats (also handles SVG/SCAD, both fast/lightweight — see config.py),
-    'render_step' for CAD formats (its own queue lane, since CAD
-    tessellation is much slower than reading a mesh file directly)."""
+    formats (also handles SVG/SCAD/GCODE, all fast/lightweight — see
+    config.py), 'render_step' for CAD formats (its own queue lane, since
+    CAD tessellation is much slower than reading a mesh file directly)."""
     ext = ext.lower()
-    if ext in MESH_EXTENSIONS or ext in SVG_EXTENSIONS or ext in SCAD_EXTENSIONS:
+    if ext in MESH_EXTENSIONS or ext in SVG_EXTENSIONS or ext in SCAD_EXTENSIONS or ext in GCODE_EXTENSIONS:
         job_type = "render"
     elif ext in STEP_EXTENSIONS:
         job_type = "render_step"

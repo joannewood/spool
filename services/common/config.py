@@ -1,4 +1,4 @@
-MODEL_EXTENSIONS = {".stl", ".3mf", ".step", ".stp", ".svg", ".scad"}
+MODEL_EXTENSIONS = {".stl", ".3mf", ".step", ".stp", ".svg", ".scad", ".gcode"}
 
 # Rendered via trimesh directly (Phase 02) vs. tessellated through a CAD
 # kernel first (Phase 03) — STEP renders get their own job_type/queue lane
@@ -17,6 +17,16 @@ SVG_EXTENSIONS = {".svg"}
 # at 'pending' forever, which would look like a stuck job rather than by
 # design.
 SCAD_EXTENSIONS = {".scad"}
+# Sliced output (PrusaSlicer/SuperSlicer/OrcaSlicer/Bambu Studio, all the
+# same lineage) — no mesh/geometry to render, but these slicers embed a
+# preview PNG as base64 in the gcode's own header comments, which is cheap
+# to pull out (see worker/app/gcode_thumbnail.py) rather than needing any
+# actual toolpath rendering. Gets a 'render' job like SVG/SCAD (fast lane,
+# no CAD tessellation involved); ends at render_status='done' with no
+# thumbnail if the slicer profile had thumbnails turned off (confirmed:
+# real files in this library have that be the case) — same as SCAD's
+# no-preview outcome, not an error.
+GCODE_EXTENSIONS = {".gcode"}
 
 # Sidecar image files (kit preview photos, etc.) get a thumbnail the same
 # lightweight way SVG model files do — a plain copy into the thumbnails

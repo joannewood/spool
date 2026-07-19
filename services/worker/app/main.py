@@ -3,7 +3,7 @@ import time
 from datetime import datetime, timezone
 
 from common import ingest
-from common.config import SCAD_EXTENSIONS, SVG_EXTENSIONS
+from common.config import GCODE_EXTENSIONS, SCAD_EXTENSIONS, SVG_EXTENSIONS
 from common.db import get_connection
 from common.hashing import sha256_file
 from common.paths import to_container_path
@@ -11,6 +11,7 @@ from common.roots import fetch_root_by_id
 
 from .backfill import run_backfill
 from .bambu_metadata import extract_bambu_metadata, upsert_extracted_metadata
+from .gcode_thumbnail import extract_gcode_thumbnail
 from .relationship_suggest import suggest_folder_project, suggest_for_file
 from .render import render_svg_thumbnail, render_thumbnail
 from .rescan import RESCAN_INTERVAL_SECONDS, run_rescan
@@ -96,6 +97,20 @@ def process_render_job(conn, file_id):
         # Deliberately no preview — see config.py's SCAD_EXTENSIONS comment.
         with conn.cursor() as cur:
             cur.execute("UPDATE files SET render_status = 'done' WHERE id = %s", (file_id,))
+        return
+
+    if ext in GCODE_EXTENSIONS:
+        # No mesh geometry to render — just pull out the slicer's own
+        # embedded preview PNG, if it wrote one (see gcode_thumbnail.py).
+        thumbnail_filename = extract_gcode_thumbnail(container_path, file_id)
+        with conn.cursor() as cur:
+            if thumbnail_filename:
+                cur.execute(
+                    "UPDATE files SET thumbnail_path = %s, render_status = 'done' WHERE id = %s",
+                    (thumbnail_filename, file_id),
+                )
+            else:
+                cur.execute("UPDATE files SET render_status = 'done' WHERE id = %s", (file_id,))
         return
 
     thumbnail_filename, mesh = render_thumbnail(container_path, file_id)

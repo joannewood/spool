@@ -19,6 +19,7 @@ APP_MAP = {
     ".stl": "BambuStudio",
     ".3mf": "BambuStudio",
     ".svg": "BambuStudio",
+    ".gcode": "BambuStudio",
 }
 
 ALL_APPS = sorted(set(APP_MAP.values()))
