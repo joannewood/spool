@@ -1,7 +1,7 @@
 # SPOOL
 
 A local, searchable library for your 3D printing files (`.stl`, `.3mf`, `.step`,
-`.svg`, `.scad`, `.gcode`). SPOOL watches your folders, hashes and indexes every file
+`.svg`, `.scad`, `.gcode`, `.obj`). SPOOL watches your folders, hashes and indexes every file
 into Postgres, renders a real preview thumbnail for each one, and serves a
 searchable web page so you can find and preview a file before opening it in
 Fusion or Bambu Studio — no more digging through folders full of
@@ -15,7 +15,7 @@ Fusion or Bambu Studio — no more digging through folders full of
   Downloads (auto-relocated into the drop folder) are indexed automatically
   as files arrive, plus a periodic rescan catches anything a live filesystem
   event missed (moved, edited, or deleted files).
-- **Real previews, not icons** — STL/3MF are rendered via `trimesh`/`pyrender`;
+- **Real previews, not icons** — STL/3MF/OBJ are rendered via `trimesh`/`pyrender`;
   STEP is tessellated through OpenCASCADE (`cadquery-ocp`) first; SVG renders
   itself; sliced `.gcode` shows the preview image your slicer already embedded
   in it, if it wrote one; a watertightness check flags files that won't slice

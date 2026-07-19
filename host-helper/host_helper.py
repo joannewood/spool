@@ -37,6 +37,7 @@ APP_MAP = {
     ".3mf": "BambuStudio",
     ".svg": "BambuStudio",
     ".gcode": "BambuStudio",
+    ".obj": "BambuStudio",
 }
 ALLOWED_APPS = set(APP_MAP.values())
 

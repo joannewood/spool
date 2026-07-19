@@ -125,6 +125,15 @@ def test_maybe_enqueue_render_mesh_gets_render_job(conn, make_root):
     assert _job_types_for(conn, file_id) == ["render"]
 
 
+def test_maybe_enqueue_render_obj_gets_render_job(conn, make_root):
+    # .obj is just another MESH_EXTENSIONS entry — no CAD tessellation,
+    # same fast lane as .stl/.3mf.
+    root = make_root()
+    file_id = ingest.stage_and_hash(conn, root, _touch(root, "widget.obj"))
+    ingest.maybe_enqueue_render(conn, file_id, ".obj")
+    assert _job_types_for(conn, file_id) == ["render"]
+
+
 def test_maybe_enqueue_render_step_gets_render_step_job(conn, make_root):
     root = make_root()
     file_id = ingest.stage_and_hash(conn, root, _touch(root, "part.step"))

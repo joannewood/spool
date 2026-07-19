@@ -1,9 +1,15 @@
-MODEL_EXTENSIONS = {".stl", ".3mf", ".step", ".stp", ".svg", ".scad", ".gcode"}
+MODEL_EXTENSIONS = {".stl", ".3mf", ".step", ".stp", ".svg", ".scad", ".gcode", ".obj"}
 
 # Rendered via trimesh directly (Phase 02) vs. tessellated through a CAD
 # kernel first (Phase 03) — STEP renders get their own job_type/queue lane
 # (render_step) so a slow CAD render never blocks quick mesh renders behind it.
-MESH_EXTENSIONS = {".stl", ".3mf"}
+# .obj needs no special-casing anywhere beyond this set — trimesh.load's
+# extension-based dispatch (render.py::load_mesh) already handles it like
+# any other mesh format, and render_thumbnail always applies its own
+# uniform material regardless of what a loaded OBJ's .mtl/textures say, so
+# a missing/broken material reference (common in downloaded OBJ kits)
+# doesn't matter to us either.
+MESH_EXTENSIONS = {".stl", ".3mf", ".obj"}
 STEP_EXTENSIONS = {".step", ".stp"}
 # SVG previews are the file itself (browsers render SVG natively and safely
 # even via a plain <img> tag — no script execution in that context), so no

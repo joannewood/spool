@@ -15,7 +15,7 @@ def _root(host_path="/Users/test/Documents/3DPrintFiles", container_path="/roots
 
 
 def test_is_model_file_recognizes_all_current_extensions():
-    for ext in (".stl", ".3mf", ".step", ".stp", ".STL", ".SvG", ".scad", ".gcode"):
+    for ext in (".stl", ".3mf", ".step", ".stp", ".STL", ".SvG", ".scad", ".gcode", ".obj"):
         assert is_model_file(f"widget{ext}")
 
 
