@@ -120,7 +120,7 @@
 </div>
 
 <div class="panels">
-  <section class="panel">
+  <section class="panel panel-projects">
     <h2>Projects</h2>
     {% if suggested_projects %}
     <div class="chips">
@@ -158,36 +158,7 @@
     <a class="note-link" href="/projects">+ new project</a>
   </section>
 
-  <section class="panel">
-    <h2>Print metadata</h2>
-    {% if print_metadata and print_metadata.source != 'manual' and print_metadata.settings_json %}
-    {% set s = print_metadata.settings_json %}
-    <p class="note">Auto-extracted from the Bambu Studio project file.</p>
-    <dl class="tight">
-      <dt>Nozzle</dt><dd>{{ (s.nozzle_diameter_mm ~ " mm") if s.nozzle_diameter_mm is not none else "—" }}</dd>
-      <dt>Layer height</dt><dd>{{ (s.layer_height_mm ~ " mm") if s.layer_height_mm is not none else "—" }}</dd>
-      <dt>Infill</dt><dd>{{ (s.infill_density_pct ~ "%") if s.infill_density_pct is not none else "—" }}</dd>
-      <dt>Filament</dt><dd>{{ s.filament_types | join(", ") if s.filament_types else "—" }}</dd>
-      <dt>Filament used</dt><dd>{{ (s.filament_used_g ~ " g") if s.filament_used_g is not none else "—" }}</dd>
-      <dt>Est. print time</dt><dd>{{ (s.estimated_print_time_min ~ " min") if s.estimated_print_time_min is not none else "—" }}</dd>
-    </dl>
-    {% endif %}
-    <form class="stack-form" method="POST" action="/files/{{ file.id }}/print-metadata">
-      <div class="form-row-3">
-        <label>Material <input type="text" name="material" value="{{ (print_metadata.material or '') if print_metadata else '' }}"></label>
-        <label>Printer <input type="text" name="printer_profile" value="{{ (print_metadata.printer_profile or '') if print_metadata else '' }}"></label>
-        <label>Slicer <input type="text" name="slicer" value="{{ (print_metadata.slicer or '') if print_metadata else '' }}"></label>
-      </div>
-      <label>Notes <textarea name="notes" rows="3">{{ (print_metadata.notes or '') if print_metadata else '' }}</textarea></label>
-      <button type="submit">Save</button>
-      <span class="note-inline">
-        {% if print_metadata and print_metadata.source == 'manual' %}manually set — won't be overwritten by auto-extraction
-        {% else %}saving marks these fields as manually set{% endif %}
-      </span>
-    </form>
-  </section>
-
-  <section class="panel panel-full">
+  <section class="panel panel-related">
     <h2>Related files</h2>
 
     <div class="rel-list">
@@ -244,6 +215,35 @@
                hx-trigger="input changed delay:250ms">
       </div>
       <div id="rel-search-results" class="rel-search-results"></div>
+    </form>
+  </section>
+
+  <section class="panel panel-print-metadata">
+    <h2>Print metadata</h2>
+    {% if print_metadata and print_metadata.source != 'manual' and print_metadata.settings_json %}
+    {% set s = print_metadata.settings_json %}
+    <p class="note">Auto-extracted from the Bambu Studio project file.</p>
+    <dl class="tight">
+      <dt>Nozzle</dt><dd>{{ (s.nozzle_diameter_mm ~ " mm") if s.nozzle_diameter_mm is not none else "—" }}</dd>
+      <dt>Layer height</dt><dd>{{ (s.layer_height_mm ~ " mm") if s.layer_height_mm is not none else "—" }}</dd>
+      <dt>Infill</dt><dd>{{ (s.infill_density_pct ~ "%") if s.infill_density_pct is not none else "—" }}</dd>
+      <dt>Filament</dt><dd>{{ s.filament_types | join(", ") if s.filament_types else "—" }}</dd>
+      <dt>Filament used</dt><dd>{{ (s.filament_used_g ~ " g") if s.filament_used_g is not none else "—" }}</dd>
+      <dt>Est. print time</dt><dd>{{ (s.estimated_print_time_min ~ " min") if s.estimated_print_time_min is not none else "—" }}</dd>
+    </dl>
+    {% endif %}
+    <form class="stack-form" method="POST" action="/files/{{ file.id }}/print-metadata">
+      <div class="form-row-3">
+        <label>Material <input type="text" name="material" value="{{ (print_metadata.material or '') if print_metadata else '' }}"></label>
+        <label>Printer <input type="text" name="printer_profile" value="{{ (print_metadata.printer_profile or '') if print_metadata else '' }}"></label>
+        <label>Slicer <input type="text" name="slicer" value="{{ (print_metadata.slicer or '') if print_metadata else '' }}"></label>
+      </div>
+      <label>Notes <textarea name="notes" rows="3">{{ (print_metadata.notes or '') if print_metadata else '' }}</textarea></label>
+      <button type="submit">Save</button>
+      <span class="note-inline">
+        {% if print_metadata and print_metadata.source == 'manual' %}manually set — won't be overwritten by auto-extraction
+        {% else %}saving marks these fields as manually set{% endif %}
+      </span>
     </form>
   </section>
 </div>

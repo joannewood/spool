@@ -1227,6 +1227,20 @@ first), independent of the paused Phase 09:
       stacking one per line — `.stack-form`'s old `max-width: 420px` cap
       (sized for the previous narrow panel) was dropped so the form can
       actually use the wider panel.
+- [x] File detail page, third pass — split the left column into two
+      stacked panels (Projects on top, Related files below) instead of
+      Related files spanning the full width beneath both side panels;
+      Print metadata now occupies the whole right column, sized to match
+      the left column's combined height. Pure CSS Grid, no JS: `.panels`
+      gained an explicit `grid-template-rows: auto auto`, with
+      `.panel-projects`/`.panel-related` each taking one row of column 1
+      and `.panel-print-metadata` spanning `grid-row: 1 / 3` in column 2 —
+      when one side's natural content height exceeds the other's, Grid's
+      row-sizing algorithm stretches the shorter side's row(s) to match
+      (verified live: two real files with very different Print-metadata/
+      Related-files content both came out with the left and right column
+      heights matching exactly, to the pixel). Removed the now-unused
+      `.panel-full` rule (Related files was the only panel ever using it).
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,

@@ -573,20 +573,23 @@ button.app-icon-btn {
 .app-icon-btn:hover { border-color: var(--accent); transform: translateY(-1px); }
 .app-icon-btn.app-icon-default { border-color: var(--accent); }
 
-/* panels: projects / print metadata / related files on the detail page.
-   Fixed 2-column (not auto-fit) — auto-fit's "collapse empty tracks" only
-   kicks in for tracks with no item in ANY row, and panel-full's Related
-   files row spans every auto-fit track below, so the two side panels'
-   own empty trailing tracks never collapsed, leaving dead space instead
-   of the panels stretching to fill the row. */
+/* panels: left column stacks Projects over Related files, right column is
+   Print metadata alone spanning both rows — grid-row: 1 / 3 on the right
+   panel makes its track pair stretch (or shrink) to whichever side ends up
+   taller, so the two columns' total height always matches without JS. */
 .panels {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
   gap: 20px;
   margin-top: 32px;
 }
+.panel-projects { grid-column: 1; grid-row: 1; }
+.panel-related { grid-column: 1; grid-row: 2; }
+.panel-print-metadata { grid-column: 2; grid-row: 1 / 3; }
 @media (max-width: 700px) {
   .panels { grid-template-columns: 1fr; }
+  .panel-projects, .panel-related, .panel-print-metadata { grid-column: 1; grid-row: auto; }
 }
 .panel {
   background: var(--surface);
@@ -797,7 +800,6 @@ button.app-icon-btn {
 }
 
 /* relationships */
-.panel-full { grid-column: 1 / -1; }
 .badge.suggest {
   font-size: var(--fs-2xs);
   color: var(--accent);
