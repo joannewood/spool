@@ -74,19 +74,34 @@ def index(
     q: str = "",
     ext: list[str] = Query(default=[]),
     tag: list[str] = Query(default=[]),
+    rating: list[int] = Query(default=[]),
+    printed: str = "",
+    material: str = "",
+    printer_profile: str = "",
+    slicer: str = "",
     sort: str = "newest",
     page: int = 1,
 ):
     page = max(page, 1)
     if sort not in queries.SORT_CLAUSES:
         sort = "newest"
-    files, total = queries.search_files(q, ext, tag, page, sort)
+    if printed not in ("", "yes", "no"):
+        printed = ""
+    files, total = queries.search_files(
+        q, ext, tag, page, sort,
+        ratings=rating, printed=printed, material=material, printer_profile=printer_profile, slicer=slicer,
+    )
     total_pages = max(1, -(-total // queries.PAGE_SIZE))  # ceil division
 
     qs_params = (
         ([("q", q)] if q else [])
         + [("ext", e) for e in ext]
         + [("tag", t) for t in tag]
+        + [("rating", r) for r in rating]
+        + ([("printed", printed)] if printed else [])
+        + ([("material", material)] if material else [])
+        + ([("printer_profile", printer_profile)] if printer_profile else [])
+        + ([("slicer", slicer)] if slicer else [])
         + ([("sort", sort)] if sort != "newest" else [])
     )
     base_qs = urlencode(qs_params)
@@ -102,6 +117,14 @@ def index(
             "selected_extensions": set(ext),
             "all_tags": queries.list_all_tags(),
             "selected_tags": set(tag),
+            "selected_ratings": set(rating),
+            "selected_printed": printed,
+            "all_materials": queries.list_print_metadata_values("material"),
+            "all_printers": queries.list_print_metadata_values("printer_profile"),
+            "all_slicers": queries.list_print_metadata_values("slicer"),
+            "selected_material": material,
+            "selected_printer": printer_profile,
+            "selected_slicer": slicer,
             "sort": sort,
             "sort_options": SORT_OPTIONS,
             "page": page,

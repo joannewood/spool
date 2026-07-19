@@ -262,3 +262,55 @@ def test_pending_archives_page_lists_zips_and_confirm_redirects_back(client, db_
     finally:
         with db_conn.cursor() as cur:
             cur.execute("DELETE FROM zip_files WHERE id = %s", (zip_id,))
+
+
+# ---- library filter panel: rating / printed / material -------------------
+
+def test_index_filters_by_rating(client, make_file, db_conn):
+    file_a = make_file(filename="rated-a.stl")
+    file_b = make_file(filename="rated-b.stl")
+    with db_conn.cursor() as cur:
+        cur.execute("INSERT INTO print_log (file_id, printed, rating) VALUES (%s, true, 5)", (file_a,))
+        cur.execute("INSERT INTO print_log (file_id, printed, rating) VALUES (%s, true, 2)", (file_b,))
+
+    resp = client.get("/?rating=5")
+    assert resp.status_code == 200
+    assert "rated-a.stl" in resp.text
+    assert "rated-b.stl" not in resp.text
+
+
+def test_index_filters_by_printed_status(client, make_file, db_conn):
+    printed_file = make_file(filename="was-printed.stl")
+    unprinted_file = make_file(filename="never-printed.stl")
+    with db_conn.cursor() as cur:
+        cur.execute("INSERT INTO print_log (file_id, printed) VALUES (%s, true)", (printed_file,))
+
+    resp = client.get("/?printed=yes")
+    assert "was-printed.stl" in resp.text
+    assert "never-printed.stl" not in resp.text
+
+    resp = client.get("/?printed=no")
+    assert "was-printed.stl" not in resp.text
+    assert "never-printed.stl" in resp.text
+
+
+def test_index_filters_by_material(client, make_file, db_conn):
+    pla_file = make_file(filename="pla-part.stl")
+    petg_file = make_file(filename="petg-part.stl")
+    with db_conn.cursor() as cur:
+        cur.execute("INSERT INTO print_metadata (file_id, material) VALUES (%s, 'PLA-unique-test')", (pla_file,))
+        cur.execute("INSERT INTO print_metadata (file_id, material) VALUES (%s, 'PETG-unique-test')", (petg_file,))
+
+    resp = client.get("/?material=PLA-unique-test")
+    assert "pla-part.stl" in resp.text
+    assert "petg-part.stl" not in resp.text
+    # the filter panel's dropdown should offer both real values
+    assert "PLA-unique-test" in resp.text
+    assert "PETG-unique-test" in resp.text
+
+
+def test_index_filter_panel_no_longer_at_top(client):
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert 'id="filter-panel"' in resp.text
+    assert 'id="filter-toggle"' in resp.text

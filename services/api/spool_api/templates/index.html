@@ -1,36 +1,143 @@
 {% extends "base.html" %}
 {% block content %}
 
-<form class="searchbar" method="GET" action="/"
+<form class="searchbar" id="search-form" method="GET" action="/"
       hx-get="/" hx-target="#results" hx-select="#results" hx-swap="outerHTML" hx-push-url="true"
-      hx-trigger="input changed delay:250ms from:input[name='q'], change from:input[type='checkbox'], change from:select[name='sort']">
+      hx-trigger="input changed delay:250ms from:input[name='q'], change from:input[type='checkbox'], change from:input[type='radio'], change from:select">
   <input type="search" name="q" placeholder="Search filenames, tags, print metadata…" value="{{ q }}" autocomplete="off" autofocus>
   <select name="sort">
     {% for value, label in sort_options %}
     <option value="{{ value }}" {% if value == sort %}selected{% endif %}>{{ label }}</option>
     {% endfor %}
   </select>
-  <div class="ext-filters">
-    {% for e in all_extensions %}
-    <label class="ext-toggle {{ e | ext_class }}">
-      <input type="checkbox" name="ext" value="{{ e }}" {% if e in selected_extensions %}checked{% endif %}>
-      {{ e }}
-    </label>
-    {% endfor %}
-  </div>
-  {% if all_tags %}
-  <div class="ext-filters">
-    {% for t in all_tags %}
-    <label class="ext-toggle">
-      <input type="checkbox" name="tag" value="{{ t.name }}" {% if t.name in selected_tags %}checked{% endif %}>
-      #{{ t.name }}
-    </label>
-    {% endfor %}
-  </div>
-  {% endif %}
+  {% set active_filter_count = selected_extensions|length + selected_tags|length + selected_ratings|length + (1 if selected_printed else 0) + (1 if selected_material else 0) + (1 if selected_printer else 0) + (1 if selected_slicer else 0) %}
+  <button type="button" id="filter-toggle" class="filter-toggle-btn">
+    Filters
+    <span id="filter-count-badge" class="filter-count-badge" {% if not active_filter_count %}hidden{% endif %}>{{ active_filter_count }}</span>
+  </button>
   <button type="submit">Search</button>
 </form>
 
 {% include "_results.html" %}
+
+<div id="filter-panel" class="filter-panel">
+  <button type="button" id="filter-panel-close" class="filter-panel-close" title="Close">×</button>
+  <h2>Filters</h2>
+
+  <div class="filter-panel-section">
+    <h3>File type</h3>
+    <div class="ext-filters">
+      {% for e in all_extensions %}
+      <label class="ext-toggle {{ e | ext_class }}">
+        <input type="checkbox" name="ext" value="{{ e }}" form="search-form" {% if e in selected_extensions %}checked{% endif %}>
+        {{ e }}
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if all_tags %}
+  <div class="filter-panel-section">
+    <h3>Tags</h3>
+    <div class="ext-filters">
+      {% for t in all_tags %}
+      <label class="ext-toggle">
+        <input type="checkbox" name="tag" value="{{ t.name }}" form="search-form" {% if t.name in selected_tags %}checked{% endif %}>
+        #{{ t.name }}
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="filter-panel-section">
+    <h3>Rating</h3>
+    <div class="filter-panel-checklist">
+      {% for i in range(5, 0, -1) %}
+      <label>
+        <input type="checkbox" name="rating" value="{{ i }}" form="search-form" {% if i in selected_ratings %}checked{% endif %}>
+        {{ '★' * i }}{{ '☆' * (5 - i) }}
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="filter-panel-section">
+    <h3>Printed</h3>
+    <div class="filter-panel-checklist">
+      <label><input type="radio" name="printed" value="" form="search-form" {% if not selected_printed %}checked{% endif %}> Any</label>
+      <label><input type="radio" name="printed" value="yes" form="search-form" {% if selected_printed == "yes" %}checked{% endif %}> Printed</label>
+      <label><input type="radio" name="printed" value="no" form="search-form" {% if selected_printed == "no" %}checked{% endif %}> Not printed</label>
+    </div>
+  </div>
+
+  {% if all_materials %}
+  <div class="filter-panel-section">
+    <h3>Material</h3>
+    <select name="material" form="search-form">
+      <option value="">Any</option>
+      {% for m in all_materials %}
+      <option value="{{ m }}" {% if m == selected_material %}selected{% endif %}>{{ m }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% endif %}
+
+  {% if all_printers %}
+  <div class="filter-panel-section">
+    <h3>Printer</h3>
+    <select name="printer_profile" form="search-form">
+      <option value="">Any</option>
+      {% for p in all_printers %}
+      <option value="{{ p }}" {% if p == selected_printer %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% endif %}
+
+  {% if all_slicers %}
+  <div class="filter-panel-section">
+    <h3>Slicer</h3>
+    <select name="slicer" form="search-form">
+      <option value="">Any</option>
+      {% for s in all_slicers %}
+      <option value="{{ s }}" {% if s == selected_slicer %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% endif %}
+
+  <a class="note-link" href="/">Clear all filters</a>
+</div>
+
+<script>
+  // Page-specific (only the library page has a filter panel), so kept
+  // inline rather than a shared static/*.js file loaded on every page.
+  const filterPanel = document.getElementById("filter-panel");
+  document.getElementById("filter-toggle").addEventListener("click", () => {
+    filterPanel.classList.add("filter-panel-open");
+  });
+  document.getElementById("filter-panel-close").addEventListener("click", () => {
+    filterPanel.classList.remove("filter-panel-open");
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") filterPanel.classList.remove("filter-panel-open");
+  });
+
+  // The count badge lives outside #results, so it isn't covered by the
+  // searchbar's htmx partial swap (which only replaces #results) — update
+  // it directly from the panel's own current input states instead of
+  // waiting on a server round trip.
+  function updateFilterCount() {
+    const checked = filterPanel.querySelectorAll('input[type="checkbox"]:checked').length;
+    const printedSet = filterPanel.querySelector('input[name="printed"]:checked:not([value=""])') ? 1 : 0;
+    const selectsSet = [...filterPanel.querySelectorAll("select")].filter((s) => s.value !== "").length;
+    const total = checked + printedSet + selectsSet;
+    const badge = document.getElementById("filter-count-badge");
+    badge.textContent = total;
+    badge.hidden = total === 0;
+  }
+  filterPanel.addEventListener("change", updateFilterCount);
+</script>
 
 {% endblock %}

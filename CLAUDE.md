@@ -1134,7 +1134,49 @@ first), independent of the paused Phase 09:
       scoped to *model-file* dimensions only — a sidecar card's own
       `.dims` (showing file size, not bbox measurements, a coincidentally
       reused class name for an unrelated field) was left exactly where it
-      was, on `project_detail.html`'s sidecar card block specifically. — deferred by the user until the
+      was, on `project_detail.html`'s sidecar card block specifically.
+- [x] Library page: extension/tag checkboxes moved off the top bar into a
+      "Filters" side panel, alongside new rating/printed/material/
+      printer/slicer filters. The panel is a plain fixed-position `<div>`
+      sliding in via a class toggle (`.filter-panel-open`, added/removed
+      by a page-specific inline `<script>`) — deliberately **not** a
+      `<dialog>`/`.showModal()` this time, since a true modal dims/blocks
+      the results grid behind it, defeating the point of a side panel
+      (comparing filter changes against the still-visible, still-
+      interactive grid). Every input inside targets the searchbar form
+      via `form="search-form"` (the same cross-DOM-location trick
+      `admin.html`'s per-row edit forms already use) so it submits/live-
+      updates together with the rest of the search despite not being a
+      DOM descendant of that form; the existing `hx-trigger` gained
+      `change from:input[type='radio']` for the new Printed radios (the
+      old trigger only covered checkboxes/selects). New `queries.
+      list_print_metadata_values(column)` (a hardcoded-column-name
+      allowlist, same SQL-injection-safety pattern as `SORT_CLAUSES`)
+      populates the Material/Printer/Slicer dropdowns with values that
+      actually exist in the library — deliberately dropdowns-of-real-
+      values rather than free text, since the main search bar already
+      does free-text ILIKE across those same columns; a second text box
+      would just be redundant. "Not printed" matches files with **no**
+      `print_log` row at all, not just an explicit `printed=false` row
+      (`NOT IN (SELECT file_id FROM print_log WHERE printed = true)`
+      naturally covers both). The active-filter-count badge on the
+      "Filters" button lives outside `#results`, so it isn't covered by
+      the searchbar's htmx partial swap — a small JS function recomputes
+      it directly from the panel's own current input states on every
+      `change` instead of waiting on a server round trip.
+      **Caught two real bugs while verifying live** (not just written
+      blind): the printed-radio "is anything selected" check used
+      `input[value!=""]`, which isn't valid CSS attribute-selector syntax
+      (`!=` doesn't exist; fixed to `:not([value=""])`) — this silently
+      threw inside the change handler and would have left the badge
+      permanently stuck, caught only because the browser console was
+      checked, not just the visual result. Separately, the badge showed
+      a "0" instead of being hidden by default — `.filter-count-badge`'s
+      own `display: inline-flex` beat the `hidden` attribute's UA-
+      stylesheet `display: none` (equal specificity, author stylesheet
+      wins over UA default), needing an explicit `.filter-count-badge
+      [hidden] { display: none; }` override.
+- [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,
       `.env`) for portability to someone else's machine.

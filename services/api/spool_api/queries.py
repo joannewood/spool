@@ -56,7 +56,35 @@ def _structured_metadata_clauses(q):
     return clauses, params
 
 
-def search_files(q, extensions, tags, page, sort="newest"):
+_METADATA_FILTER_COLUMNS = {"material", "printer_profile", "slicer"}
+
+
+def list_print_metadata_values(column):
+    """Distinct non-empty values for a print_metadata column — populates
+    the filter panel's Material/Printer/Slicer dropdowns with values that
+    actually exist, rather than free text (this is a *filter*, picking
+    from what's really in the library, not another search box — the main
+    search bar already does free-text ILIKE across these same columns).
+    `column` must be one of `_METADATA_FILTER_COLUMNS`: interpolated
+    directly into the query, so never accept this from raw user input."""
+    if column not in _METADATA_FILTER_COLUMNS:
+        raise ValueError(f"invalid print_metadata filter column: {column}")
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT DISTINCT {column} FROM print_metadata
+                WHERE {column} IS NOT NULL AND {column} != ''
+                ORDER BY {column}
+                """
+            )
+            return [row[0] for row in cur.fetchall()]
+
+
+def search_files(
+    q, extensions, tags, page, sort="newest",
+    ratings=None, printed=None, material=None, printer_profile=None, slicer=None,
+):
     offset = (page - 1) * PAGE_SIZE
     conditions = ["status = 'active'"]
     params = []
@@ -88,6 +116,25 @@ def search_files(q, extensions, tags, page, sort="newest"):
             "id IN (SELECT file_id FROM file_tags ft JOIN tags t ON t.id = ft.tag_id WHERE t.name = ANY(%s))"
         )
         params.append(list(tags))
+    if ratings:
+        conditions.append("id IN (SELECT file_id FROM print_log WHERE rating = ANY(%s))")
+        params.append(list(ratings))
+    if printed == "yes":
+        conditions.append("id IN (SELECT file_id FROM print_log WHERE printed = true)")
+    elif printed == "no":
+        # No print_log row at all counts as "not printed" too, not just an
+        # explicit printed=false row — NOT IN a file_id-only subquery
+        # handles both the same way.
+        conditions.append("id NOT IN (SELECT file_id FROM print_log WHERE printed = true)")
+    if material:
+        conditions.append("id IN (SELECT file_id FROM print_metadata WHERE material = %s)")
+        params.append(material)
+    if printer_profile:
+        conditions.append("id IN (SELECT file_id FROM print_metadata WHERE printer_profile = %s)")
+        params.append(printer_profile)
+    if slicer:
+        conditions.append("id IN (SELECT file_id FROM print_metadata WHERE slicer = %s)")
+        params.append(slicer)
     where = " AND ".join(conditions)
     order_by = SORT_CLAUSES.get(sort, SORT_CLAUSES["newest"])
 

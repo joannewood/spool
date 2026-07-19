@@ -210,6 +210,103 @@ main {
   padding: 10px 20px;
   font-size: var(--fs-base);
 }
+.filter-toggle-btn {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  padding: 10px 20px;
+  font-size: var(--fs-base);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.filter-toggle-btn:hover { border-color: var(--accent); }
+.filter-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: white;
+  font-size: var(--fs-2xs);
+}
+/* [hidden] needs to explicitly beat the class rule's own `display` above —
+   equal specificity, but an author stylesheet rule otherwise wins over
+   the UA default `[hidden] { display: none }` by cascade order alone. */
+.filter-count-badge[hidden] { display: none; }
+
+/* filter side panel — a plain fixed-position div sliding in via a class
+   toggle (not a <dialog>): a true modal would dim/block the results grid
+   behind it, but the whole point of a side panel is comparing filter
+   changes against the still-visible, still-interactive grid. Every input
+   inside targets the searchbar form via the HTML `form="search-form"`
+   attribute (same cross-DOM-location trick admin.html's per-row edit
+   forms already use) so it submits/live-updates together with the rest
+   of the search, even though it isn't a DOM descendant of that form. */
+.filter-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 320px;
+  max-width: 90vw;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.18);
+  padding: 20px;
+  overflow-y: auto;
+  transform: translateX(100%);
+  transition: transform 0.2s ease;
+  z-index: 50;
+}
+.filter-panel.filter-panel-open { transform: translateX(0); }
+.filter-panel h2 { margin: 0 0 4px; }
+.filter-panel-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: none;
+  color: var(--ink-muted);
+  border: none;
+  font-size: var(--fs-lg);
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 999px;
+}
+.filter-panel-close:hover { color: var(--warn); background: var(--warn-bg); }
+.filter-panel-section { margin-top: 20px; }
+.filter-panel-section h3 {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--ink-muted);
+  margin: 0 0 8px;
+}
+.filter-panel-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  color: var(--ink);
+}
+.filter-panel-checklist label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.filter-panel-section select {
+  width: 100%;
+  padding: 7px 28px 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background-color: var(--bg);
+  color: var(--ink);
+  font-size: var(--fs-sm);
+}
 
 .result-count {
   color: var(--ink-muted);
