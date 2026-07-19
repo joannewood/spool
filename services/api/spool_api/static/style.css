@@ -533,6 +533,7 @@ main {
 .detail-footer dl {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 6px 28px;
   font-size: var(--fs-xs);
   color: var(--ink-muted);

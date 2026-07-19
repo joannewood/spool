@@ -1298,6 +1298,10 @@ first), independent of the paused Phase 09:
       `getBoundingClientRect()` before/after: the panel's right edge went
       from 1400px (124px past the 1276px container edge) to exactly
       1276px, matching `.detail`/the Path row above it pixel-for-pixel.
+- [x] Centered the file detail page's footer content — `.detail-footer dl`
+      (Render status/Manifold/Hash/First seen) gained `justify-content:
+      center` on its flex row, instead of the four fields hugging the
+      left edge under the full-width footer.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,
