@@ -432,10 +432,11 @@ main {
 .card-projects { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
 .card-project-badge {
   font-size: var(--fs-2xs);
-  color: var(--accent);
-  background: var(--accent-bg);
+  font-weight: 600;
+  color: white;
+  background: var(--accent);
   border-radius: 4px;
-  padding: 1px 6px;
+  padding: 2px 7px;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
