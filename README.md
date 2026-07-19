@@ -168,4 +168,4 @@ modified version, it needs to stay open under the same license. Copyright
 
 ## Credits
 
-<a href="https://www.flaticon.com/free-icons/3d-print" title="3d print icons">3d print icons created by Magnific - Flaticon</a>
+<a href="https://www.flaticon.com/free-icons/3d" title="3d icons">3d icons created by Flat-icons-com - Flaticon</a>
