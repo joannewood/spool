@@ -1061,6 +1061,19 @@ first), independent of the paused Phase 09:
       redirect to `/admin/pending-archives` instead of `/admin`, matching
       how the duplicates/suggestions confirm/reject actions already
       redirect back to their own page rather than the main admin page.
+- [x] Base link color for dark mode — a plain unstyled `<a>` (several
+      admin-page links, "+ new project", etc.) previously fell back to
+      the browser's own default blue/purple, which isn't tuned for the
+      dark surface at all (`:visited`'s default purple especially reads
+      as barely-visible there). New global `a, a:visited { color:
+      var(--accent); }` — one accent color for both states, matching how
+      every other accent-colored element already works; this app has no
+      real "have I been here before" navigational need that would
+      justify a second color. Contexts that deliberately use a different
+      base link color (`.chip a`, `.card`, `.project-node a`, etc., all
+      `color: var(--ink)` with accent only on hover) are unaffected —
+      those class selectors already outrank the new bare `a` rule by
+      specificity regardless of source order.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,

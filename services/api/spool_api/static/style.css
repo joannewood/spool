@@ -95,6 +95,19 @@ body {
   line-height: 1.5;
 }
 
+/* Base link color — without this, a plain unstyled <a> (several admin-page
+   links, "+ new project", etc.) falls back to the browser's own default
+   blue/purple, which isn't tuned for the dark surface at all and reads as
+   barely-visible there (visited's default purple especially). One accent
+   color for both visited and unvisited, matching how every other
+   accent-colored element in this file already works — this app has no
+   real "have I been here before" navigational need that would justify a
+   second color. More specific selectors elsewhere (.chip a, .card, etc.)
+   already win over this by specificity, regardless of source order. */
+a, a:visited {
+  color: var(--accent);
+}
+
 .topbar {
   padding: 14px 24px;
   border-bottom: 1px solid var(--border);
