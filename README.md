@@ -157,7 +157,7 @@ Nine build phases done — ingestion, mesh + STEP + SVG previews, browse/search,
 tags/projects/print metadata, relationships, drift reconciliation, the native
 open-in-app helper, and a growing backlog of quality-of-life features (search
 across print metadata, duplicate cleanup, a printed/rating tracker, and more).
-124 automated tests covering the ingestion pipeline and the API. Runnable on
+136 automated tests covering the ingestion pipeline and the API. Runnable on
 someone else's Mac — watched-root paths are configured via `.env`, not
 hardcoded — aside from a one-line `APP_MAP` edit in `host_helper.py` for
 whichever CAD/slicer apps you actually use (see setup instructions above).
