@@ -1123,7 +1123,18 @@ first), independent of the paused Phase 09:
       the browser for free. This is the **third** deliberate exception to
       the "no custom JS" rule, alongside the bulk select-all checkbox and
       double-click-to-edit names.
-- [ ] Package for sharing with friends — deferred by the user until the
+- [x] Dimensions moved onto the thumbnail itself, bottom-left corner, on
+      every page that shows one (library grid, project grid, file detail)
+      — a `.dims-overlay` chip (fixed dark background + white text
+      regardless of light/dark theme, since it sits on arbitrary
+      thumbnail image content rather than the page's own surface) inside
+      `.thumb`/`.detail-thumb` (both gained `position: relative`),
+      replacing the old below-the-filename `.dims` line on grid cards and
+      the "Dimensions" `<dl>` row on the file detail page. Deliberately
+      scoped to *model-file* dimensions only — a sidecar card's own
+      `.dims` (showing file size, not bbox measurements, a coincidentally
+      reused class name for an unrelated field) was left exactly where it
+      was, on `project_detail.html`'s sidecar card block specifically. — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,
       `.env`) for portability to someone else's machine.

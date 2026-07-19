@@ -14,6 +14,9 @@
         <span class="status-label">{{ file.render_status }}</span>
       </div>
     {% endif %}
+    {% if file.bbox_x is not none %}
+    <div class="dims-overlay">{{ "%.1f"|format(file.bbox_x) }} × {{ "%.1f"|format(file.bbox_y) }} × {{ "%.1f"|format(file.bbox_z) }} mm</div>
+    {% endif %}
     <button type="button" id="printed-badge" class="printed-badge {{ 'printed-badge-active' if print_log and print_log.printed else '' }}"
             title="{{ (print_log.comments or '') if print_log and print_log.comments else 'Mark as printed' }}">
       <img class="printed-badge-icon" src="/static/icons/printer.png" alt="Printed">
@@ -69,12 +72,6 @@
     <dl>
       <dt>Path</dt><dd><code>{{ file.path }}</code></dd>
       <dt>Size</dt><dd>{{ file.size_bytes | filesizeformat }}</dd>
-      <dt>Dimensions</dt>
-      <dd>
-        {% if file.bbox_x is not none %}
-          {{ "%.1f"|format(file.bbox_x) }} × {{ "%.1f"|format(file.bbox_y) }} × {{ "%.1f"|format(file.bbox_z) }} mm
-        {% else %}—{% endif %}
-      </dd>
       <dt>Volume</dt>
       <dd>{% if file.volume_mm3 is not none %}{{ "%.1f"|format(file.volume_mm3) }} mm³{% else %}—{% endif %}</dd>
       <dt>Triangles</dt><dd>{{ file.tri_count if file.tri_count is not none else "—" }}</dd>

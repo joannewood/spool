@@ -238,6 +238,7 @@ main {
   transform: translateY(-1px);
 }
 .thumb {
+  position: relative;
   aspect-ratio: 1 / 1;
   background:
     linear-gradient(45deg, rgba(127,127,127,0.08) 25%, transparent 25%) -8px 0/16px 16px,
@@ -247,6 +248,21 @@ main {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+/* dimensions overlay — a fixed dark chip regardless of light/dark theme,
+   since it sits on top of arbitrary thumbnail image content (bright or
+   dark render, checkerboard transparency pattern) rather than the page's
+   own surface, so it needs to stay legible against anything behind it. */
+.dims-overlay {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: var(--fs-2xs);
+  line-height: 1.4;
 }
 .thumb img {
   width: 100%;
