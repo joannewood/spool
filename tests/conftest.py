@@ -1,4 +1,6 @@
+import os
 import subprocess
+import tempfile
 from pathlib import Path
 
 import psycopg
@@ -11,6 +13,18 @@ MIGRATIONS_DIR = REPO_ROOT / "db" / "migrations"
 
 TEST_DB_NAME = "spool_test"
 TEST_DB_URL = f"postgresql://spool:changeme@localhost:55432/{TEST_DB_NAME}"
+
+# Both env vars are read at *import time* by common/db.py and spool_api/
+# main.py respectively, so they have to be set before any test file gets
+# around to `import spool_api` (or anything that imports it) — this file
+# is the first thing pytest loads, so module-level (not fixture) code here
+# runs early enough. Forced (not setdefault) so api tests can never end up
+# accidentally pointed at the real `spool` database. THUMBNAILS_DIR needs
+# to exist and be writable — main.py does an unconditional os.makedirs on
+# import, and the production default (/data/thumbnails) is neither on a
+# host run outside Docker.
+os.environ["DATABASE_URL"] = TEST_DB_URL
+os.environ["THUMBNAILS_DIR"] = tempfile.mkdtemp(prefix="spool-test-thumbnails-")
 
 # 003 seeds this machine's real personal watched-root paths (per CLAUDE.md,
 # a deliberately hardcoded, non-portable seed) — applying it here would make
@@ -58,6 +72,21 @@ def conn():
         yield connection
     finally:
         connection.rollback()
+        connection.close()
+
+
+@pytest.fixture
+def db_conn():
+    """Autocommit, no rollback — matches the real app's own connection
+    style (common.db.get_connection). Needed for spool_api.queries
+    functions, which each open their own connection rather than accepting
+    an injected `conn` the way worker functions do, so the `conn` fixture's
+    rollback-based isolation doesn't apply to them. Tests using this
+    fixture clean up whatever rows they insert."""
+    connection = psycopg.connect(TEST_DB_URL, autocommit=True)
+    try:
+        yield connection
+    finally:
         connection.close()
 
 

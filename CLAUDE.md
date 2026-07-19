@@ -180,7 +180,7 @@ networking config needed). One route, `POST /open` with `{"path", "app"}`:
 validates the path exists and the app name is in a server-side allowlist
 (`ALLOWED_APPS` — never trust the caller's app name into `subprocess`, even
 though the list-form call isn't shell-injectable), then `open -a <app>
-<path>`. `services/api/app/host_helper_client.py` mirrors the ext→app
+<path>`. `services/api/spool_api/host_helper_client.py` mirrors the ext→app
 `APP_MAP` (kept in sync by hand — five lines, not worth a shared package
 between a Docker image and a native process) and is what
 `POST /files/{id}/open` (in `main.py`) calls; the file detail page's
@@ -564,13 +564,10 @@ first), independent of the paused Phase 09:
       opening its own connection — so the `conn` fixture just opens its
       own connection with autocommit **off** and calls `conn.rollback()` at
       teardown, with no monkeypatching needed. `pyproject.toml`'s
-      `pythonpath = ["services", "services/worker"]` makes `common` and
-      `worker`'s `app` package importable directly; **`services/api` is
-      deliberately not added yet** — it also has a top-level package
-      literally named `app`, and two different `app` packages can't
-      coexist on `sys.path` in one pytest session, so API route tests will
-      need a different approach (e.g. installing api as a properly-named
-      package, or per-test `sys.path` isolation) when that's built.
+      `pythonpath` makes `common` and `worker`'s `app` package importable
+      directly (`services/api` route tests came later — see their own
+      entry below for how the `app`-vs-`app` package collision that
+      blocked this originally got resolved).
       Run with `docker compose up -d postgres` (already the normal dev
       state) then `python3 -m venv .venv && .venv/bin/pip install -r
       requirements-dev.txt && .venv/bin/pytest` from the repo root — the
@@ -581,7 +578,7 @@ first), independent of the paused Phase 09:
       tautological) by deliberately breaking the `duplicate_of` hash-match
       query mid-session — exactly the two tests depending on it failed,
       nothing else did.
-- [x] Custom favicon — `services/api/app/static/favicon.svg`, a simple
+- [x] Custom favicon — `services/api/spool_api/static/favicon.svg`, a simple
       spool/reel glyph in the UI's existing `--accent` blue, wired via a
       plain `<link rel="icon" type="image/svg+xml">` in `base.html`. SVG
       favicons need no build step/rasterization and scale cleanly.
@@ -814,7 +811,7 @@ first), independent of the paused Phase 09:
       selection step). Icons are the actual macOS app icons, extracted
       **once** as a manual step, not via a live host-helper endpoint:
       `sips -s format png <bundle>/Contents/Resources/<icon>.icns --out
-      services/api/app/static/icons/<name>.png` (`sips` is a built-in
+      services/api/spool_api/static/icons/<name>.png` (`sips` is a built-in
       macOS CLI, no new dependency) — found each icon's filename via
       `/usr/libexec/PlistBuddy -c "Print :CFBundleIconFile" <bundle>/
       Contents/Info.plist` rather than guessing (`Icon.icns` for
@@ -891,6 +888,50 @@ first), independent of the paused Phase 09:
       early before ever reaching the matching logic for that case) —
       corrected that one row back to NULL by hand after noticing it in a
       spot-check, rather than leaving stale/impossible data in place.
+- [x] API test coverage (`tests/api/`) — closes the gap noted when
+      worker-first test coverage was originally built: `services/api`'s
+      package was literally named `app`, the same as the worker's, and
+      two same-named top-level packages can't coexist on `sys.path` in
+      one pytest session. Fixed at the root: `services/api/app/` was
+      renamed on disk to `services/api/spool_api/` (`git mv`, keeping
+      history) — its `Dockerfile`'s `COPY api/app ./app` became `COPY
+      api/spool_api ./app`, so the *container-internal* package name is
+      still `app` and the `uvicorn app.main:app` CMD didn't need to
+      change at all, only the copy source. `pyproject.toml`'s
+      `pythonpath` gained `"services/api"`, making `spool_api` importable
+      alongside worker's `app` in the same session. Two more things had
+      to be handled before `spool_api` would even import cleanly under
+      pytest: `common/db.py` reads `DATABASE_URL` at *import* time, and
+      `spool_api/main.py` does an unconditional `os.makedirs(THUMBNAILS_
+      DIR)` at import time too (the production default, `/data/
+      thumbnails`, doesn't exist on a host run outside Docker and can't
+      be created without root) — both env vars are now force-set at the
+      very top of the root `tests/conftest.py`, early enough to apply
+      before any test file anywhere imports `spool_api`.
+      **Second design difference from the worker tests**: `spool_api.
+      queries` functions each open their *own* `common.db.get_connection()`
+      call rather than accepting an injected `conn` the way every worker
+      function does, so the existing rollback-based `conn` fixture's
+      isolation doesn't apply to them — a new `db_conn` fixture
+      (autocommit, no rollback, matching the real app's own connection
+      style) is used instead, and api tests clean up their own inserted
+      rows explicitly (a `make_file`/`test_root_id` factory-fixture pair
+      in `tests/api/conftest.py` tracks and deletes what it creates).
+      Route tests use FastAPI's `TestClient` (needs `httpx` — added to
+      `requirements-dev.txt` alongside `fastapi`/`jinja2`/
+      `python-multipart`, all pinned to match `services/api/
+      requirements.txt`, since `spool_api.main` has to actually import
+      successfully on the host). 25 new tests across `tests/api/
+      test_queries.py` (pure-function + CRUD coverage) and `tests/api/
+      test_routes.py` (real route round-trips) — confirmed the full
+      95-test suite runs cleanly together in one session, proving the
+      package collision is genuinely resolved, not just avoided by
+      accident of file naming. Includes an explicit regression test for
+      the `print_metadata` "None"-literal bug fixed earlier this session
+      (asserts `>None<`/`None</textarea>`/`value="None"` never appear in
+      a real rendered `/files/{id}` response) — exactly the class of bug
+      this whole effort was meant to start catching automatically instead
+      of by eyeballing screenshots.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,

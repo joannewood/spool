@@ -1,8 +1,10 @@
 [tool.pytest.ini_options]
-# Worker-first: services/ makes `common` importable, services/worker makes
-# `app` importable as the worker's package. Deliberately not adding
-# services/api here too — it also has a top-level package named `app`, and
-# two different `app` packages can't coexist on sys.path in one session.
-# See CLAUDE.md's testing section for how API tests will need to handle this.
-pythonpath = ["services", "services/worker"]
+# services/ makes `common` importable, services/worker makes `app`
+# importable as the worker's package. services/api's package was renamed
+# on disk from `app` to `spool_api` (its Dockerfile COPYs it back to a
+# container-internal `app` so the runtime `uvicorn app.main:app` CMD is
+# unchanged) specifically so it could be added here too — two packages
+# both named `app` can't coexist on sys.path in one pytest session, but
+# `app` (worker) and `spool_api` (api) can.
+pythonpath = ["services", "services/worker", "services/api"]
 testpaths = ["tests"]

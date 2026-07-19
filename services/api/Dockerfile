@@ -6,7 +6,7 @@ COPY api/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY common ./common
-COPY api/app ./app
+COPY api/spool_api ./app
 
 # Vendored at build time so the running app never needs network access —
 # everything the browser loads comes from localhost, matching the "all

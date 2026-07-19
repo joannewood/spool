@@ -24,7 +24,7 @@ APP_MAP = {
 ALL_APPS = sorted(set(APP_MAP.values()))
 
 # Real app icons extracted once from each .app bundle's own .icns
-# (services/api/app/static/icons/ — `sips -s format png <bundle>/Contents/
+# (services/api/spool_api/static/icons/ — `sips -s format png <bundle>/Contents/
 # Resources/<icon>.icns --out <name>.png`), not a live host-helper endpoint:
 # these never change short of a reinstall, so there's nothing to gain from
 # re-extracting them per request over just checking the PNGs in like
