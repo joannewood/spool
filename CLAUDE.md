@@ -1100,6 +1100,29 @@ first), independent of the paused Phase 09:
       discovered via `title="Double-click to rename"` otherwise. Verified
       live end-to-end (prefill, save, Escape-cancel, restore) against a
       real project and a real file, cleaning up the test edits after.
+- [x] Printed status moved from a sidebar panel to a badge over the detail
+      thumbnail — the "Printed" section (checkbox + star rating +
+      comments, always visible, always taking up a whole panel) is
+      replaced by a small badge in the thumbnail's top-right corner:
+      grayscale + faded when not printed, full color when it is, with
+      the star rating (if set) shown as a small row of ★ beneath the
+      icon, and the comment surfaced via the badge's own `title`
+      attribute (native browser tooltip on hover — no extra markup
+      needed). Clicking the badge opens a native `<dialog>` modal
+      (`.showModal()`) containing the exact same checkbox/stars/textarea
+      form as before, posting to the same existing `/files/{id}/print-log`
+      route — no backend changes. Icon is a real image (Flaticon, "3d
+      print icons created by Magnific" — credited in the modal itself and
+      in the README's new Credits section), resized to 64px via `sips`
+      like the app-open icons; grayscale/color is a CSS `filter`, not a
+      swapped image. A small inline `<script>` in `file_detail.html`
+      (not a shared `static/*.js` file, since only this page uses it)
+      wires the badge click to `showModal()`, a Cancel button to
+      `.close()`, and a backdrop-click-to-close handler (native `<dialog>`
+      doesn't do that on its own) — Escape-to-close is already built into
+      the browser for free. This is the **third** deliberate exception to
+      the "no custom JS" rule, alongside the bulk select-all checkbox and
+      double-click-to-edit names.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,

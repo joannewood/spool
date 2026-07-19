@@ -342,6 +342,7 @@ main {
   .detail { grid-template-columns: 1fr; }
 }
 .detail-thumb {
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -521,14 +522,52 @@ button.app-icon-btn {
 }
 .note-inline { font-size: var(--fs-xs); color: var(--ink-muted); }
 
-/* printed toggle / rating */
-.printed-log-form { display: flex; flex-direction: column; gap: 8px; max-width: 420px; }
-.printed-log-form button {
-  align-self: flex-start;
-  padding: 10px 20px;
-  font-size: var(--fs-base);
-  margin-top: 4px;
+/* printed badge (over the detail thumbnail) + its edit modal */
+.printed-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 5px 7px;
+  border: none;
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
 }
+.printed-badge:hover { background: var(--accent-bg); }
+.printed-badge-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+  /* grayscale + faded until marked printed — filter/opacity on the same
+     icon rather than swapping images, so it just looks "off" vs "on".
+     Icon: Flaticon (see file_detail.html footer for attribution). */
+  filter: grayscale(1);
+  opacity: 0.4;
+}
+.printed-badge-active .printed-badge-icon { filter: none; opacity: 1; }
+.printed-badge-stars {
+  font-size: 10px;
+  letter-spacing: -1px;
+  color: var(--warn);
+}
+
+.printed-modal {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  background: var(--surface);
+  color: var(--ink);
+  width: 90vw;
+  max-width: 380px;
+}
+.printed-modal::backdrop { background: rgba(0, 0, 0, 0.45); }
+.printed-modal h2 { margin: 0 0 12px; }
+.printed-log-form { display: flex; flex-direction: column; gap: 8px; }
 .printed-toggle {
   display: flex;
   align-items: center;
@@ -537,7 +576,7 @@ button.app-icon-btn {
   color: var(--ink);
   cursor: pointer;
 }
-.printed-details { display: none; margin-top: 10px; max-width: 420px; }
+.printed-details { display: none; margin-top: 10px; }
 .printed-toggle:has(input:checked) ~ .printed-details { display: flex; flex-direction: column; gap: 8px; }
 .printed-details textarea {
   padding: 7px 9px;
@@ -547,6 +586,12 @@ button.app-icon-btn {
   color: var(--ink);
   font-size: var(--fs-sm);
   font-family: inherit;
+}
+.printed-modal-actions { display: flex; gap: 8px; margin-top: 4px; }
+.printed-modal-actions button[type="button"] {
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--border);
 }
 .star-rating { display: flex; flex-direction: row-reverse; justify-content: flex-end; gap: 2px; }
 .star-rating input { position: absolute; opacity: 0; width: 0; height: 0; }

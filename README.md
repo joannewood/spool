@@ -82,3 +82,7 @@ to this one.
 [GPLv3](LICENSE) — free to use, share, and modify; if you distribute a
 modified version, it needs to stay open under the same license. Copyright
 © 2026 Jo Wood.
+
+## Credits
+
+<a href="https://www.flaticon.com/free-icons/3d-print" title="3d print icons">3d print icons created by Magnific - Flaticon</a>
