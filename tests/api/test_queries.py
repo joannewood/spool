@@ -202,3 +202,23 @@ def test_search_only_shows_confirmed_project_membership(make_file, db_conn):
     finally:
         with db_conn.cursor() as cur:
             cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_get_project_files_attaches_project_memberships(make_file, db_conn):
+    # Same file-card component as the library grid (get_project_files uses
+    # the same _attach_project_memberships helper as search_files) — a
+    # file can belong to more than one project, and this page needs to
+    # know about all of them, not just the one it's currently showing.
+    project_a = queries.create_project("Project A", "", None)
+    project_b = queries.create_project("Project B", "", None)
+    file_id = make_file(filename="multiproject.stl")
+    try:
+        queries.add_file_to_project(file_id, project_a)
+        queries.add_file_to_project(file_id, project_b)
+
+        rows = queries.get_project_files(project_a)
+        names = {p["name"] for p in rows[0]["projects"]}
+        assert names == {"Project A", "Project B"}
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id IN (%s, %s)", (project_a, project_b))

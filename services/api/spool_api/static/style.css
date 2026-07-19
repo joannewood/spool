@@ -768,8 +768,15 @@ button.app-icon-btn {
    clickable or grab hover/focus itself. */
 .printed-badge-static { cursor: default; }
 .printed-badge-static:hover { background: var(--surface); }
-.printed-badge-static .printed-badge-icon { width: 9px; height: 9px; }
-.printed-badge-icon {
+/* Scoped under .printed-badge (not just .printed-badge-icon alone) so
+   this reliably beats ".thumb img"/".detail-thumb img" — those rules
+   stretch a *preview* image to fill the whole thumbnail box, but the
+   badge icon is a nested <img> inside that same container and matches
+   them too; without the extra specificity here, the badge silently
+   rendered at the source PNG's native 64px instead of the intended
+   18px (caught by measuring computed style directly, not visible at a
+   glance in a screenshot). */
+.printed-badge .printed-badge-icon {
   width: 18px;
   height: 18px;
   display: block;

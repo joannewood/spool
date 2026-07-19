@@ -148,6 +148,32 @@ def test_rename_project_via_route(client, db_conn):
             cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
 
 
+def test_project_detail_shows_other_project_but_not_its_own(client, make_file, db_conn):
+    # The file card is the same shared component the library grid uses,
+    # showing every confirmed project a file belongs to — except a
+    # project's own page would just be showing its own name back at you
+    # on every card, so the route filters that one out before rendering.
+    from spool_api import queries
+
+    project_a = queries.create_project("Current Project", "", None)
+    project_b = queries.create_project("Other Project", "", None)
+    file_id = make_file(filename="multiproject-route.stl")
+    try:
+        queries.add_file_to_project(file_id, project_a)
+        queries.add_file_to_project(file_id, project_b)
+
+        resp = client.get(f"/projects/{project_a}")
+        assert resp.status_code == 200
+        # "Current Project" legitimately appears elsewhere on its own page
+        # (the <title>, the <h1>, the rename form's input value) — only
+        # the *card badge* rendering is what should be filtered out.
+        assert 'title="In project: Other Project"' in resp.text
+        assert 'title="In project: Current Project"' not in resp.text
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id IN (%s, %s)", (project_a, project_b))
+
+
 # ---- URL-encoded name cleanup shows up through the real route too --------
 
 def test_index_grid_shows_cleaned_filename(client, make_file):

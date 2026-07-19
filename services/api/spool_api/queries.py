@@ -8,6 +8,33 @@ from common.text import clean_name
 PAGE_SIZE = 60
 
 
+def _attach_project_memberships(cur, rows):
+    """Attaches each row's confirmed project memberships as row['projects']
+    — one batch query keyed off this result set's file ids, not a
+    per-file lookup (get_file_projects is the right shape for a single
+    file's own page, the wrong shape for a whole grid of results). Shared
+    by every place that renders a grid of file cards (search_files,
+    get_project_files) so they show project association identically
+    rather than each growing its own slightly-different version."""
+    file_ids = [r["id"] for r in rows]
+    projects_by_file = {file_id: [] for file_id in file_ids}
+    if file_ids:
+        cur.execute(
+            """
+            SELECT pf.file_id, p.id, p.name
+            FROM project_files pf
+            JOIN projects p ON p.id = pf.project_id
+            WHERE pf.status = 'confirmed' AND pf.file_id = ANY(%s)
+            ORDER BY p.name
+            """,
+            (file_ids,),
+        )
+        for row in cur.fetchall():
+            projects_by_file[row["file_id"]].append({"id": row["id"], "name": row["name"]})
+    for r in rows:
+        r["projects"] = projects_by_file[r["id"]]
+
+
 # ---- search / browse ----------------------------------------------------
 
 SORT_CLAUSES = {
@@ -180,30 +207,7 @@ def search_files(
                 params + order_params + [PAGE_SIZE, offset],
             )
             rows = cur.fetchall()
-
-            # One batch query for just this page's project memberships,
-            # rather than N+1 per-file lookups — the whole point is
-            # showing when a broad search/filter surfaced several files
-            # from the same project, so this needs to run on every
-            # search, not just the file detail page's single-file version
-            # (get_file_projects).
-            file_ids = [r["id"] for r in rows]
-            projects_by_file = {file_id: [] for file_id in file_ids}
-            if file_ids:
-                cur.execute(
-                    """
-                    SELECT pf.file_id, p.id, p.name
-                    FROM project_files pf
-                    JOIN projects p ON p.id = pf.project_id
-                    WHERE pf.status = 'confirmed' AND pf.file_id = ANY(%s)
-                    ORDER BY p.name
-                    """,
-                    (file_ids,),
-                )
-                for row in cur.fetchall():
-                    projects_by_file[row["file_id"]].append({"id": row["id"], "name": row["name"]})
-            for r in rows:
-                r["projects"] = projects_by_file[r["id"]]
+            _attach_project_memberships(cur, rows)
     return rows, total
 
 
@@ -320,7 +324,13 @@ def get_project_files(project_id):
                 """,
                 (project_id,),
             )
-            return cur.fetchall()
+            rows = cur.fetchall()
+            # Same file-card component as the library grid (see
+            # _attach_project_memberships) — a file can belong to more
+            # than one project, so this page should be able to show that
+            # too, not just assume "none, we're already on its project."
+            _attach_project_memberships(cur, rows)
+            return rows
 
 
 def get_file_projects(file_id):

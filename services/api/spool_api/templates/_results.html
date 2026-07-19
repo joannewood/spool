@@ -1,47 +1,10 @@
+{% import "_file_card.html" as cards %}
 <div id="results">
   <p class="result-count">{{ total }} file{{ "s" if total != 1 else "" }}</p>
 
   <div class="grid">
     {% for f in files %}
-    <a class="card" href="/files/{{ f.id }}">
-      <div class="thumb">
-        {% if f.thumbnail_path %}
-          <img src="{{ thumb_url(f.thumbnail_path, f.content_hash) }}" alt="{{ f.filename }}" loading="lazy">
-        {% else %}
-          <div class="thumb-placeholder status-{{ f.render_status }}">
-            <span class="ext-label">{{ f.ext }}</span>
-            <span class="status-label">{{ f.render_status }}</span>
-          </div>
-        {% endif %}
-        {% if f.bbox_x is not none %}
-        <div class="dims-overlay">{{ "%.0f"|format(f.bbox_x) }} × {{ "%.0f"|format(f.bbox_y) }} × {{ "%.0f"|format(f.bbox_z) }} mm</div>
-        {% endif %}
-        {% if f.printed %}
-        <span class="printed-badge printed-badge-static printed-badge-active" title="{{ f.comments or 'Printed' }}">
-          <img class="printed-badge-icon" src="/static/icons/printer.png" alt="Printed">
-          {% if f.rating %}
-          <span class="printed-badge-stars">{{ '★' * f.rating }}</span>
-          {% endif %}
-        </span>
-        {% endif %}
-      </div>
-      <div class="meta">
-        <div class="filename" title="{{ f.display_name or (f.filename | clean_name) }}">{{ f.display_name or (f.filename | clean_name) }}</div>
-        <div class="badges">
-          <span class="ext-badge {{ f.ext | ext_class }}">{{ f.ext }}</span>
-          {% if f.is_manifold == false %}
-          <span class="badge warn" title="Not watertight — may not slice cleanly">⚠ non-manifold</span>
-          {% endif %}
-        </div>
-        {% if f.projects %}
-        <div class="card-projects">
-          {% for p in f.projects %}
-          <span class="card-project-badge" title="In project: {{ p.name }}">{{ p.name }}</span>
-          {% endfor %}
-        </div>
-        {% endif %}
-      </div>
-    </a>
+    {{ cards.file_card(f) }}
     {% else %}
     <p class="empty">No files match.</p>
     {% endfor %}

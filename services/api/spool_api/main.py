@@ -218,13 +218,21 @@ def project_detail(request: Request, project_id: int, open_status: str = ""):
     project = queries.get_project(project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="project not found")
+    files = queries.get_project_files(project_id)
+    # The file card shows every confirmed project a file belongs to (same
+    # component as the library grid) — but repeating *this* project's own
+    # name on every card of its own page is pure noise, not information;
+    # only other memberships (a file that's also in a second project) are
+    # worth showing here.
+    for f in files:
+        f["projects"] = [p for p in f["projects"] if p["id"] != project_id]
     return templates.TemplateResponse(
         request,
         "project_detail.html",
         {
             "project": project,
             "children": queries.get_project_children(project_id),
-            "files": queries.get_project_files(project_id),
+            "files": files,
             "parent": queries.get_project(project["parent_project_id"]) if project["parent_project_id"] else None,
             "sidecars": queries.get_project_sidecars(project_id),
             "open_status": open_status,
