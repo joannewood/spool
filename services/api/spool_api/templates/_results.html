@@ -33,6 +33,13 @@
           <span class="badge warn" title="Not watertight — may not slice cleanly">⚠ non-manifold</span>
           {% endif %}
         </div>
+        {% if f.projects %}
+        <div class="card-projects">
+          {% for p in f.projects %}
+          <span class="card-project-badge" title="In project: {{ p.name }}">{{ p.name }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
       </div>
     </a>
     {% else %}

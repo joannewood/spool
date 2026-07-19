@@ -164,3 +164,41 @@ def test_search_without_query_does_not_apply_relevance_ranking(make_file):
     rows, total = queries.search_files(q="", extensions=None, tags=None, page=1, sort="name_asc")
     ids = {r["id"] for r in rows}
     assert {a, b} <= ids
+
+
+# ---- project associations surfaced on search/browse results ---------------
+
+def test_search_attaches_project_membership_to_each_row(make_file, db_conn):
+    grouped_a = make_file(filename="groupwidget-shared-project-a.stl")
+    grouped_b = make_file(filename="groupwidget-shared-project-b.stl")
+    ungrouped = make_file(filename="groupwidget-lonesome.stl")
+    project_id = queries.create_project("Shared Test Project", "", None)
+    try:
+        queries.add_file_to_project(grouped_a, project_id)
+        queries.add_file_to_project(grouped_b, project_id)
+
+        rows, _ = queries.search_files(q="groupwidget", extensions=None, tags=None, page=1)
+        by_id = {r["id"]: r for r in rows}
+
+        assert [p["name"] for p in by_id[grouped_a]["projects"]] == ["Shared Test Project"]
+        assert [p["name"] for p in by_id[grouped_b]["projects"]] == ["Shared Test Project"]
+        assert by_id[ungrouped]["projects"] == []
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_search_only_shows_confirmed_project_membership(make_file, db_conn):
+    file_id = make_file(filename="suggestedwidget.stl")
+    project_id = queries.create_project("Suggested-Only Project", "", None)
+    try:
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'suggested')",
+                (project_id, file_id),
+            )
+        rows, _ = queries.search_files(q="suggestedwidget", extensions=None, tags=None, page=1)
+        assert rows[0]["projects"] == []
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))

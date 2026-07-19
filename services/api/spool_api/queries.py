@@ -180,6 +180,30 @@ def search_files(
                 params + order_params + [PAGE_SIZE, offset],
             )
             rows = cur.fetchall()
+
+            # One batch query for just this page's project memberships,
+            # rather than N+1 per-file lookups — the whole point is
+            # showing when a broad search/filter surfaced several files
+            # from the same project, so this needs to run on every
+            # search, not just the file detail page's single-file version
+            # (get_file_projects).
+            file_ids = [r["id"] for r in rows]
+            projects_by_file = {file_id: [] for file_id in file_ids}
+            if file_ids:
+                cur.execute(
+                    """
+                    SELECT pf.file_id, p.id, p.name
+                    FROM project_files pf
+                    JOIN projects p ON p.id = pf.project_id
+                    WHERE pf.status = 'confirmed' AND pf.file_id = ANY(%s)
+                    ORDER BY p.name
+                    """,
+                    (file_ids,),
+                )
+                for row in cur.fetchall():
+                    projects_by_file[row["file_id"]].append({"id": row["id"], "name": row["name"]})
+            for r in rows:
+                r["projects"] = projects_by_file[r["id"]]
     return rows, total
 
 

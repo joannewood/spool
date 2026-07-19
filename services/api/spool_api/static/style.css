@@ -423,6 +423,24 @@ main {
   border-radius: 4px;
   padding: 1px 6px;
 }
+/* Project association on a library/search grid card — plain text, not a
+   link, since the whole card is already an <a> to the file (nesting an
+   <a> inside it would be invalid HTML5). A broad search/filter that
+   surfaces several files from the same project shows the same badge
+   label repeated across their cards, without needing to spatially
+   group/re-sort the grid to make the association visible. */
+.card-projects { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+.card-project-badge {
+  font-size: var(--fs-2xs);
+  color: var(--accent);
+  background: var(--accent-bg);
+  border-radius: 4px;
+  padding: 1px 6px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .empty { color: var(--ink-muted); grid-column: 1 / -1; }
 
