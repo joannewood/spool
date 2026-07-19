@@ -148,6 +148,55 @@ def test_rename_project_via_route(client, db_conn):
             cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
 
 
+def test_add_file_to_existing_project_via_route(client, make_file, db_conn):
+    from spool_api import queries
+
+    file_id = make_file(filename="add-existing-project.stl")
+    project_id = queries.create_project("Existing Project", "", None)
+    try:
+        resp = client.post(f"/files/{file_id}/projects", data={"project_id": str(project_id)}, follow_redirects=False)
+        assert resp.status_code == 303
+        assert [p["id"] for p in queries.get_file_projects(file_id)] == [project_id]
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_add_file_to_new_project_via_route(client, make_file, db_conn):
+    # The "+ create new project…" <select> option (file_detail.html's
+    # add-project-toggle) posts project_id="__new__" alongside the typed
+    # name instead of a real id — the route creates the project inline.
+    from spool_api import queries
+
+    file_id = make_file(filename="add-new-project.stl")
+    resp = client.post(
+        f"/files/{file_id}/projects",
+        data={"project_id": "__new__", "new_project_name": "Brand New Project"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    projects = queries.get_file_projects(file_id)
+    try:
+        assert [p["name"] for p in projects] == ["Brand New Project"]
+    finally:
+        for p in projects:
+            with db_conn.cursor() as cur:
+                cur.execute("DELETE FROM projects WHERE id = %s", (p["id"],))
+
+
+def test_add_file_to_new_project_with_blank_name_is_a_no_op(client, make_file):
+    from spool_api import queries
+
+    file_id = make_file(filename="add-new-project-blank.stl")
+    resp = client.post(
+        f"/files/{file_id}/projects",
+        data={"project_id": "__new__", "new_project_name": "   "},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert queries.get_file_projects(file_id) == []
+
+
 def test_project_detail_shows_other_project_but_not_its_own(client, make_file, db_conn):
     # The file card is the same shared component the library grid uses,
     # showing every confirmed project a file belongs to — except a

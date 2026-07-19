@@ -247,8 +247,18 @@ def update_project_name(project_id: int, name: str = Form(...)):
 
 
 @app.post("/files/{file_id}/projects")
-def add_to_project(file_id: int, project_id: int = Form(...)):
-    queries.add_file_to_project(file_id, project_id)
+def add_to_project(file_id: int, project_id: str = Form(...), new_project_name: str = Form("")):
+    # "+ create new project…" is an option in the same <select> as picking
+    # an existing one (see file_detail.html's add-project-toggle) rather
+    # than a separate persistent link — creates the project inline instead
+    # of navigating away to /projects and back.
+    if project_id == "__new__":
+        name = new_project_name.strip()
+        if name:
+            project_id = queries.create_project(name, "", None)
+            queries.add_file_to_project(file_id, project_id)
+    else:
+        queries.add_file_to_project(file_id, int(project_id))
     return RedirectResponse(f"/files/{file_id}", status_code=303)
 
 

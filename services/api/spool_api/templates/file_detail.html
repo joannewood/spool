@@ -59,6 +59,38 @@
         <input type="text" name="display_name" value="{{ file.display_name or (file.filename | clean_name) }}">
       </form>
     </h1>
+
+    <div class="project-chips">
+      {% for p in suggested_projects %}
+      <span class="chip suggest-chip" id="sproject-{{ p.id }}">
+        <span class="badge suggest">suggested</span>
+        <a href="/projects/{{ p.id }}" title="{{ p.name }}">{{ p.name }}</a>
+        <form method="POST" action="/files/{{ file.id }}/projects/{{ p.id }}/confirm" class="chip-inline-form"><button type="submit" class="rel-confirm" title="confirm">✓</button></form>
+        <form method="POST" action="/files/{{ file.id }}/projects/{{ p.id }}/reject" class="chip-inline-form"><button type="submit" class="rel-reject" title="dismiss">×</button></form>
+      </span>
+      {% endfor %}
+      {% for p in projects %}
+      <span class="chip" id="project-{{ p.id }}">
+        <a href="/projects/{{ p.id }}" title="{{ p.name }}">{{ p.name }}</a>
+        <button type="button" class="chip-remove" hx-delete="/files/{{ file.id }}/projects/{{ p.id }}" hx-target="#project-{{ p.id }}" hx-swap="outerHTML" title="remove from project">×</button>
+      </span>
+      {% endfor %}
+      <details class="add-project-toggle">
+        <summary title="Add to a project">+</summary>
+        <form class="inline-form add-project-form" method="POST" action="/files/{{ file.id }}/projects">
+          <select name="project_id" required>
+            <option value="" disabled selected>add to project…</option>
+            {% for p in all_projects %}
+            <option value="{{ p.id }}">{{ p.name }}</option>
+            {% endfor %}
+            <option value="__new__">+ create new project…</option>
+          </select>
+          <input type="text" name="new_project_name" class="new-project-name" placeholder="new project name…" autocomplete="off">
+          <button type="submit">Add</button>
+        </form>
+      </details>
+    </div>
+
     {% if file.display_name %}<p class="note-inline">Original filename: {{ file.filename }}</p>{% endif %}
 
     {% if file.status == "missing" %}
@@ -120,44 +152,6 @@
 </div>
 
 <div class="panels">
-  <section class="panel panel-projects">
-    <h2>Projects</h2>
-    {% if suggested_projects %}
-    <div class="chips">
-      {% for p in suggested_projects %}
-      <span class="chip suggest-chip" id="sproject-{{ p.id }}">
-        <span class="badge suggest">suggested</span>
-        <a href="/projects/{{ p.id }}" title="{{ p.name }}">{{ p.name }}</a>
-        <form method="POST" action="/files/{{ file.id }}/projects/{{ p.id }}/confirm" class="chip-inline-form"><button type="submit" class="rel-confirm" title="confirm">✓</button></form>
-        <form method="POST" action="/files/{{ file.id }}/projects/{{ p.id }}/reject" class="chip-inline-form"><button type="submit" class="rel-reject" title="dismiss">×</button></form>
-      </span>
-      {% endfor %}
-    </div>
-    {% endif %}
-    <div class="chips">
-      {% for p in projects %}
-      <span class="chip" id="project-{{ p.id }}">
-        <a href="/projects/{{ p.id }}" title="{{ p.name }}">{{ p.name }}</a>
-        <button type="button" class="chip-remove" hx-delete="/files/{{ file.id }}/projects/{{ p.id }}" hx-target="#project-{{ p.id }}" hx-swap="outerHTML" title="remove from project">×</button>
-      </span>
-      {% else %}
-      <span class="empty-inline">not in any project</span>
-      {% endfor %}
-    </div>
-    {% if all_projects %}
-    <form class="inline-form" method="POST" action="/files/{{ file.id }}/projects">
-      <select name="project_id" required>
-        <option value="" disabled selected>add to project…</option>
-        {% for p in all_projects %}
-        <option value="{{ p.id }}">{{ p.name }}</option>
-        {% endfor %}
-      </select>
-      <button type="submit">Add</button>
-    </form>
-    {% endif %}
-    <a class="note-link" href="/projects">+ new project</a>
-  </section>
-
   <section class="panel panel-related">
     <h2>Related files</h2>
 

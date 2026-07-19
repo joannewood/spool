@@ -511,18 +511,21 @@ main {
 .path-row code { flex: 1 1 auto; min-width: 0; }
 .path-row .app-icons { flex: 0 0 auto; }
 
-/* tags, inline under the right-hand data — no header, just chips plus a
-   "+" reveal. <details>/<summary> (no JS needed) rather than the double-
+/* tags AND projects — both inline under the right-hand data, no header,
+   just chips plus a "+" reveal. Same component, same rules (.tag-chips/
+   .project-chips share this layout; .add-tag-toggle/.add-project-toggle
+   share the disclosure-widget look) rather than two near-identical
+   copies. <details>/<summary> (no JS needed) rather than the double-
    click/dialog patterns used elsewhere on this page, since a plain
    click-to-reveal-a-form is all this needs. */
-.tag-chips {
+.tag-chips, .project-chips {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   margin-top: 12px;
 }
-.add-tag-toggle summary {
+.add-tag-toggle summary, .add-project-toggle summary {
   list-style: none;
   display: inline-flex;
   align-items: center;
@@ -536,10 +539,18 @@ main {
   line-height: 1;
   cursor: pointer;
 }
-.add-tag-toggle summary::-webkit-details-marker { display: none; }
-.add-tag-toggle summary:hover { border-color: var(--accent); color: var(--accent); }
-.add-tag-toggle[open] summary { border-style: solid; border-color: var(--accent); color: var(--accent); }
-.add-tag-toggle form { margin-top: 8px; }
+.add-tag-toggle summary::-webkit-details-marker, .add-project-toggle summary::-webkit-details-marker { display: none; }
+.add-tag-toggle summary:hover, .add-project-toggle summary:hover { border-color: var(--accent); color: var(--accent); }
+.add-tag-toggle[open] summary, .add-project-toggle[open] summary { border-style: solid; border-color: var(--accent); color: var(--accent); }
+.add-tag-toggle form, .add-project-toggle form { margin-top: 8px; }
+/* The "create new project" option (in the same <select> as picking an
+   existing one) reveals a name input — CSS-only via :has(), no JS: an
+   <option> gets :checked same as a radio/checkbox, so a parent can react
+   to which one is currently selected. Hidden fields are automatically
+   excluded from HTML5 required-field validation, so `required` on this
+   input only actually applies while it's visible. */
+.new-project-name { display: none; }
+.add-project-form:has(option[value="__new__"]:checked) .new-project-name { display: block; }
 
 /* rarely-needed fields (hash/timestamps/render internals), pushed to a
    quiet footer instead of competing with the info actually looked at
@@ -600,16 +611,11 @@ button.app-icon-btn {
 .panels {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  grid-template-rows: auto auto;
   gap: 20px;
   margin-top: 32px;
 }
-.panel-projects { grid-column: 1; grid-row: 1; }
-.panel-related { grid-column: 1; grid-row: 2; }
-.panel-print-metadata { grid-column: 2; grid-row: 1 / 3; }
 @media (max-width: 700px) {
   .panels { grid-template-columns: 1fr; }
-  .panel-projects, .panel-related, .panel-print-metadata { grid-column: 1; grid-row: auto; }
 }
 .panel {
   background: var(--surface);
