@@ -61,6 +61,7 @@
     </h1>
 
     <div class="project-chips">
+      <span class="inline-label">Project</span>
       {% for p in suggested_projects %}
       <span class="chip suggest-chip" id="sproject-{{ p.id }}">
         <span class="badge suggest">suggested</span>
@@ -70,7 +71,7 @@
       </span>
       {% endfor %}
       {% for p in projects %}
-      <span class="chip" id="project-{{ p.id }}">
+      <span class="chip project-chip" id="project-{{ p.id }}">
         <a href="/projects/{{ p.id }}" title="{{ p.name }}">{{ p.name }}</a>
         <button type="button" class="chip-remove" hx-delete="/files/{{ file.id }}/projects/{{ p.id }}" hx-target="#project-{{ p.id }}" hx-swap="outerHTML" title="remove from project">×</button>
       </span>
@@ -128,6 +129,7 @@
     </dl>
 
     <div class="tag-chips">
+      <span class="inline-label">Tags</span>
       {% for t in tags %}
       <span class="chip" id="tag-{{ t.id }}">
         #{{ t.name }}

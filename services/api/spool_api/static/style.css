@@ -511,20 +511,43 @@ main {
 .path-row code { flex: 1 1 auto; min-width: 0; }
 .path-row .app-icons { flex: 0 0 auto; }
 
-/* tags AND projects — both inline under the right-hand data, no header,
-   just chips plus a "+" reveal. Same component, same rules (.tag-chips/
-   .project-chips share this layout; .add-tag-toggle/.add-project-toggle
-   share the disclosure-widget look) rather than two near-identical
-   copies. <details>/<summary> (no JS needed) rather than the double-
-   click/dialog patterns used elsewhere on this page, since a plain
+/* tags AND projects — both inline under the right-hand data, with a
+   label lined up against the file-info dl's dt column (same 120px
+   width) so the whole right-hand side reads as one aligned label/value
+   block instead of the chip rows looking like a separate, unaligned
+   afterthought. Same component, same rules (.tag-chips/.project-chips
+   share this layout; .add-tag-toggle/.add-project-toggle share the
+   disclosure-widget look) rather than two near-identical copies.
+   <details>/<summary> (no JS needed) rather than the double-click/
+   dialog patterns used elsewhere on this page, since a plain
    click-to-reveal-a-form is all this needs. */
 .tag-chips, .project-chips {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 8px 6px;
   margin-top: 12px;
+  font-size: var(--fs-base);
 }
+.inline-label {
+  flex: 0 0 120px;
+  color: var(--ink-muted);
+}
+/* Same solid accent-fill/white-text treatment as the library grid's
+   .card-project-badge — one project chip, two contexts, one look,
+   rather than this page's chip reading differently from the card's.
+   Compound selector (.chip.project-chip, not just .project-chip) is
+   required, not stylistic — the base .chip rule is defined later in
+   this file with equal (single-class) specificity, so a plain
+   .project-chip selector here would silently lose to it regardless of
+   these declarations. */
+.chip.project-chip {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.chip.project-chip a { color: white; }
+.chip.project-chip .chip-remove { color: white; }
+.chip.project-chip .chip-remove:hover { color: var(--warn); background: white; }
 .add-tag-toggle summary, .add-project-toggle summary {
   list-style: none;
   display: inline-flex;
