@@ -13,7 +13,7 @@
 {% if relationships %}
 <form method="POST" action="/admin/suggested-relationships/accept-bulk">
   <label class="dup-select-all">
-    <input type="checkbox" id="sr-select-all">
+    <input type="checkbox" class="select-all-checkbox" data-target=".sr-checkbox">
     Select all suggestions
   </label>
 
@@ -45,11 +45,5 @@
 {% else %}
 <p class="empty-inline">no suggested relationships</p>
 {% endif %}
-
-<script>
-  document.getElementById("sr-select-all")?.addEventListener("change", (e) => {
-    document.querySelectorAll(".sr-checkbox").forEach((cb) => { cb.checked = e.target.checked; });
-  });
-</script>
 
 {% endblock %}

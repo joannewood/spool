@@ -13,7 +13,7 @@
 {% if assignments %}
 <form method="POST" action="/admin/suggested-projects/accept-bulk">
   <label class="dup-select-all">
-    <input type="checkbox" id="sp-select-all">
+    <input type="checkbox" class="select-all-checkbox" data-target=".sp-checkbox">
     Select all suggestions
   </label>
 
@@ -44,11 +44,5 @@
 {% else %}
 <p class="empty-inline">no suggested project assignments</p>
 {% endif %}
-
-<script>
-  document.getElementById("sp-select-all")?.addEventListener("change", (e) => {
-    document.querySelectorAll(".sp-checkbox").forEach((cb) => { cb.checked = e.target.checked; });
-  });
-</script>
 
 {% endblock %}

@@ -16,7 +16,7 @@
 {% if groups %}
 <form method="POST" action="/admin/duplicates/delete">
   <label class="dup-select-all">
-    <input type="checkbox" id="dup-select-all">
+    <input type="checkbox" class="select-all-checkbox" data-target=".dup-remove-default">
     Select all duplicates (keeps the first/oldest copy in each group)
   </label>
 
@@ -47,11 +47,5 @@
 {% else %}
 <p class="empty-inline">no duplicate files found</p>
 {% endif %}
-
-<script>
-  document.getElementById("dup-select-all")?.addEventListener("change", (e) => {
-    document.querySelectorAll(".dup-remove-default").forEach((cb) => { cb.checked = e.target.checked; });
-  });
-</script>
 
 {% endblock %}
