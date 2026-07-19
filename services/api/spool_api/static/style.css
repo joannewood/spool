@@ -738,6 +738,7 @@ button.app-icon-btn {
    clickable or grab hover/focus itself. */
 .printed-badge-static { cursor: default; }
 .printed-badge-static:hover { background: var(--surface); }
+.printed-badge-static .printed-badge-icon { width: 9px; height: 9px; }
 .printed-badge-icon {
   width: 18px;
   height: 18px;

@@ -1258,10 +1258,20 @@ first), independent of the paused Phase 09:
       interactive element (the card link) is invalid HTML5; this is
       display-only, editing still happens on the detail page. Comment
       (if any) surfaces via the same `title` hover-tooltip pattern already
-      used on the detail badge. Verified live: a genuinely-printed 4-star
-      file and a 3-star file both showed the colored icon + correct star
-      count on the library grid, everything else showed the grayed-out
-      icon, matching the detail page's own printed/unprinted states.
+      used on the detail badge. Refined after first landing, per explicit
+      follow-up asks: the grid badge is omitted entirely for an unprinted
+      file (`{% if f.printed %}`) rather than showing a grayed-out icon —
+      at library-grid scale a muted icon on every one of 790 cards read as
+      noise, whereas the detail page's always-shown badge is also the
+      click target for marking a file printed in the first place, so it
+      keeps the grayed-out state there. The grid icon is also shrunk to
+      half size (`.printed-badge-static .printed-badge-icon { width: 9px;
+      height: 9px; }`, vs. 18px on the detail page) while
+      `.printed-badge-stars` keeps its own font-size untouched — the icon
+      was competing with the star row for attention at card scale, the
+      stars weren't. Verified live: a genuinely-printed 4-star file shows
+      a small colored icon + full-size stars on its card, everything else
+      shows no badge at all.
       Deliberately scoped to the library page only (not
       `project_detail.html`'s file grid, which has its own separate card
       markup, not `_results.html`) per the user's explicit ask.
