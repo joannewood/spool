@@ -733,6 +733,11 @@ button.app-icon-btn {
   cursor: pointer;
 }
 .printed-badge:hover { background: var(--accent-bg); }
+/* Grid-card version is a plain status indicator, not a button — it sits
+   inside the whole-card <a>, so it must never look independently
+   clickable or grab hover/focus itself. */
+.printed-badge-static { cursor: default; }
+.printed-badge-static:hover { background: var(--surface); }
 .printed-badge-icon {
   width: 18px;
   height: 18px;

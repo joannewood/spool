@@ -1241,6 +1241,30 @@ first), independent of the paused Phase 09:
       Related-files content both came out with the left and right column
       heights matching exactly, to the pixel). Removed the now-unused
       `.panel-full` rule (Related files was the only panel ever using it).
+- [x] Printed status + star rating propagated to the library grid — until
+      now the printed badge/star overlay only existed on the file detail
+      page; `search_files` (`queries.py`) gained a `LEFT JOIN print_log ON
+      print_log.file_id = files.id`, selecting `printed`/`rating`/
+      `comments` alongside the existing columns (unqualified `WHERE`
+      conditions like `status = 'active'`/`id IN (...)` stayed untouched —
+      no column name collides between `files` and `print_log`, so no
+      ambiguity). `_results.html` cards reuse the exact same
+      `.printed-badge`/`.printed-badge-icon`/`.printed-badge-active`/
+      `.printed-badge-stars` classes/markup as the detail page for visual
+      consistency, but as a plain `<span>` (`.printed-badge-static`, new
+      modifier suppressing the hover background/cursor) instead of a
+      `<button>` — the whole card is already an `<a>`, and nesting
+      interactive content (a button meant to open a modal) inside another
+      interactive element (the card link) is invalid HTML5; this is
+      display-only, editing still happens on the detail page. Comment
+      (if any) surfaces via the same `title` hover-tooltip pattern already
+      used on the detail badge. Verified live: a genuinely-printed 4-star
+      file and a 3-star file both showed the colored icon + correct star
+      count on the library grid, everything else showed the grayed-out
+      icon, matching the detail page's own printed/unprinted states.
+      Deliberately scoped to the library page only (not
+      `project_detail.html`'s file grid, which has its own separate card
+      markup, not `_results.html`) per the user's explicit ask.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,

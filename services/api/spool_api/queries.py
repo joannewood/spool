@@ -145,9 +145,12 @@ def search_files(
 
             cur.execute(
                 f"""
-                SELECT id, filename, display_name, ext, thumbnail_path, render_status,
-                       is_manifold, bbox_x, bbox_y, bbox_z, content_hash
+                SELECT files.id, files.filename, files.display_name, files.ext,
+                       files.thumbnail_path, files.render_status, files.is_manifold,
+                       files.bbox_x, files.bbox_y, files.bbox_z, files.content_hash,
+                       print_log.printed, print_log.rating, print_log.comments
                 FROM files
+                LEFT JOIN print_log ON print_log.file_id = files.id
                 WHERE {where}
                 ORDER BY {order_by}
                 LIMIT %s OFFSET %s
