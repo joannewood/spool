@@ -6,7 +6,7 @@
     <a class="card" href="/files/{{ f.id }}">
       <div class="thumb">
         {% if f.thumbnail_path %}
-          <img src="/thumbnails/{{ f.thumbnail_path }}" alt="{{ f.filename }}" loading="lazy">
+          <img src="{{ thumb_url(f.thumbnail_path, f.content_hash) }}" alt="{{ f.filename }}" loading="lazy">
         {% else %}
           <div class="thumb-placeholder status-{{ f.render_status }}">
             <span class="ext-label">{{ f.ext }}</span>

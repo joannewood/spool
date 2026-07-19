@@ -27,7 +27,7 @@
       <input type="checkbox" name="file_ids" value="{{ f.id }}" class="dup-checkbox {{ 'dup-keep-default' if loop.first else 'dup-remove-default' }}">
       <a class="dup-thumb" href="/files/{{ f.id }}">
         {% if f.thumbnail_path %}
-          <img src="/thumbnails/{{ f.thumbnail_path }}" alt="">
+          <img src="{{ thumb_url(f.thumbnail_path, f.content_hash) }}" alt="">
         {% else %}
           <span class="ext-label">?</span>
         {% endif %}

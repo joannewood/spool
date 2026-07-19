@@ -38,7 +38,7 @@
   <a class="card" href="/files/{{ f.id }}">
     <div class="thumb">
       {% if f.thumbnail_path %}
-        <img src="/thumbnails/{{ f.thumbnail_path }}" alt="{{ f.filename }}" loading="lazy">
+        <img src="{{ thumb_url(f.thumbnail_path, f.content_hash) }}" alt="{{ f.filename }}" loading="lazy">
       {% else %}
         <div class="thumb-placeholder status-{{ f.render_status }}">
           <span class="ext-label">{{ f.ext }}</span>
@@ -70,7 +70,7 @@
     <button type="submit" class="card sidecar-card">
       <div class="thumb">
         {% if s.thumbnail_path %}
-          <img src="/thumbnails/{{ s.thumbnail_path }}" alt="{{ s.filename }}" loading="lazy">
+          <img src="{{ thumb_url(s.thumbnail_path) }}" alt="{{ s.filename }}" loading="lazy">
         {% else %}
           <div class="thumb-placeholder">
             <span class="ext-label">{{ s.ext }}</span>

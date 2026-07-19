@@ -7,7 +7,7 @@
 <div class="detail">
   <div class="detail-thumb">
     {% if file.thumbnail_path %}
-      <img src="/thumbnails/{{ file.thumbnail_path }}" alt="{{ file.filename }}">
+      <img src="{{ thumb_url(file.thumbnail_path, file.content_hash) }}" alt="{{ file.filename }}">
     {% else %}
       <div class="thumb-placeholder large status-{{ file.render_status }}">
         <span class="ext-label">{{ file.ext }}</span>
@@ -192,7 +192,7 @@
       <div class="rel-row" id="rel-{{ r.id }}">
         <a class="rel-thumb" href="/files/{{ r.other_id }}">
           {% if r.thumbnail_path %}
-            <img src="/thumbnails/{{ r.thumbnail_path }}" alt="">
+            <img src="{{ thumb_url(r.thumbnail_path, r.content_hash) }}" alt="">
           {% else %}
             <span class="ext-label">{{ r.ext }}</span>
           {% endif %}
@@ -213,7 +213,7 @@
       <div class="rel-row" id="rel-{{ r.id }}">
         <a class="rel-thumb" href="/files/{{ r.other_id }}">
           {% if r.thumbnail_path %}
-            <img src="/thumbnails/{{ r.thumbnail_path }}" alt="">
+            <img src="{{ thumb_url(r.thumbnail_path, r.content_hash) }}" alt="">
           {% else %}
             <span class="ext-label">{{ r.ext }}</span>
           {% endif %}

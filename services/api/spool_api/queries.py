@@ -99,7 +99,7 @@ def search_files(q, extensions, tags, page, sort="newest"):
             cur.execute(
                 f"""
                 SELECT id, filename, display_name, ext, thumbnail_path, render_status,
-                       is_manifold, bbox_x, bbox_y, bbox_z
+                       is_manifold, bbox_x, bbox_y, bbox_z, content_hash
                 FROM files
                 WHERE {where}
                 ORDER BY {order_by}
@@ -214,7 +214,8 @@ def get_project_files(project_id):
             cur.execute(
                 """
                 SELECT f.id, f.filename, f.display_name, f.ext, f.thumbnail_path,
-                       f.render_status, f.is_manifold, f.bbox_x, f.bbox_y, f.bbox_z
+                       f.render_status, f.is_manifold, f.bbox_x, f.bbox_y, f.bbox_z,
+                       f.content_hash
                 FROM files f
                 JOIN project_files pf ON pf.file_id = f.id
                 WHERE pf.project_id = %s AND pf.status = 'confirmed'
@@ -309,7 +310,7 @@ def _fetch_relationships(file_id, status):
             if not rels:
                 return []
             cur.execute(
-                "SELECT id, filename, display_name, ext, thumbnail_path, render_status FROM files WHERE id = ANY(%s)",
+                "SELECT id, filename, display_name, ext, thumbnail_path, render_status, content_hash FROM files WHERE id = ANY(%s)",
                 ([r["other_id"] for r in rels],),
             )
             files_by_id = {f["id"]: f for f in cur.fetchall()}
@@ -330,6 +331,7 @@ def _fetch_relationships(file_id, status):
                 "ext": other["ext"],
                 "thumbnail_path": other["thumbnail_path"],
                 "render_status": other["render_status"],
+                "content_hash": other["content_hash"],
             }
         )
     return result
@@ -661,7 +663,7 @@ def list_duplicate_groups():
             cur.execute(
                 """
                 SELECT id, filename, display_name, path, size_bytes, thumbnail_path,
-                       render_status, first_seen_at
+                       render_status, first_seen_at, content_hash
                 FROM files WHERE id = ANY(%s)
                 """,
                 (all_ids,),

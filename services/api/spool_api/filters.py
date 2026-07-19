@@ -10,6 +10,23 @@ def ext_class(ext):
     return "ext-" + ext.lstrip(".")
 
 
+def thumb_url(thumbnail_path, content_hash=None):
+    """Appends a cache-busting ?v= query param derived from the file's own
+    content_hash — the thumbnail's filename is stable (`{file_id}.png`,
+    overwritten in place on re-render), so pairing a long-lived
+    Cache-Control header on /thumbnails (see main.py) with a plain
+    filename would serve a stale image after a real re-render until the
+    browser's cache expired. A changed content_hash naturally produces a
+    new URL, so the long cache lifetime is safe. Sidecars have no
+    content_hash (never re-rendered in place once created), so they're
+    omitted — nothing to bust."""
+    if not thumbnail_path:
+        return None
+    if content_hash:
+        return f"/thumbnails/{thumbnail_path}?v={content_hash[:8]}"
+    return f"/thumbnails/{thumbnail_path}"
+
+
 def format_size(num_bytes):
     if num_bytes is None:
         return "—"

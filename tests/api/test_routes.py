@@ -16,6 +16,33 @@ def test_file_detail_200_for_real_file(client, make_file):
     assert "widget.stl" in resp.text
 
 
+def test_file_detail_thumbnail_url_is_content_hash_versioned(client, make_file):
+    file_id = make_file(filename="widget.stl", thumbnail_path=f"widget.png", content_hash="abcdef1234567890")
+    resp = client.get(f"/files/{file_id}")
+    assert resp.status_code == 200
+    assert '/thumbnails/widget.png?v=abcdef12"' in resp.text
+
+
+def test_cached_static_files_sets_long_cache_control(tmp_path):
+    # Tested against a standalone Starlette app rather than the real
+    # /thumbnails mount, so this doesn't depend on a real thumbnail
+    # existing on disk or on mutating the shared app's routing.
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from spool_api.main import CachedStaticFiles
+
+    (tmp_path / "test-thumb.png").write_bytes(b"fake-png-bytes")
+
+    probe_app = FastAPI()
+    probe_app.mount("/thumbnails", CachedStaticFiles(directory=str(tmp_path)), name="thumbnails")
+    probe_client = TestClient(probe_app)
+
+    resp = probe_client.get("/thumbnails/test-thumb.png")
+    assert resp.status_code == 200
+    assert resp.headers["cache-control"] == "public, max-age=31536000, immutable"
+
+
 def test_index_page_loads(client):
     resp = client.get("/")
     assert resp.status_code == 200

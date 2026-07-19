@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from . import host_helper_client, queries
-from .filters import clean_name, ext_class, format_size
+from .filters import clean_name, ext_class, format_size, thumb_url
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 THUMBNAILS_DIR = os.environ.get("THUMBNAILS_DIR", "/data/thumbnails")
@@ -27,14 +27,31 @@ SORT_OPTIONS = [
 APP_DIR = os.path.dirname(__file__)
 os.makedirs(THUMBNAILS_DIR, exist_ok=True)
 
+
+class CachedStaticFiles(StaticFiles):
+    """A thumbnail's filename is stable (`{file_id}.png`, overwritten in
+    place on re-render), so this is only safe to use behind a cache-buster
+    — see filters.py::thumb_url, which appends a ?v=<content_hash> query
+    param so a real content change always produces a new URL. Not used
+    for the /static mount, since CSS/JS/icons there change during active
+    development without any equivalent versioning scheme; caching those
+    aggressively would serve stale assets after every deploy."""
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+
+
 app = FastAPI(title="SPOOL API")
 app.mount("/static", StaticFiles(directory=os.path.join(APP_DIR, "static")), name="static")
-app.mount("/thumbnails", StaticFiles(directory=THUMBNAILS_DIR), name="thumbnails")
+app.mount("/thumbnails", CachedStaticFiles(directory=THUMBNAILS_DIR), name="thumbnails")
 
 templates = Jinja2Templates(directory=os.path.join(APP_DIR, "templates"))
 templates.env.filters["filesizeformat"] = format_size
 templates.env.filters["ext_class"] = ext_class
 templates.env.filters["clean_name"] = clean_name
+templates.env.globals["thumb_url"] = thumb_url
 
 
 @app.get("/health")

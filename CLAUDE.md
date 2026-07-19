@@ -419,15 +419,27 @@ network. See `example-flow.mjs` in that directory for the pattern.
 Search relevance, thumbnail cache tuning, and a performance pass for a
 genuinely large library — per the original spec's closing phase. Paused
 (at the user's request) while the real library gets populated — it's
-actively filling in now (hundreds of real files under `Library` already,
-well past the old placeholder-path state), so there's finally real scale
-to work against once this resumes.
+actively filling in now (790 real files under `Library`, well past the
+old placeholder-path state), so there's finally real scale to work
+against.
+
+- [x] Thumbnail cache tuning — see the ad hoc backlog entry below
+      (`CachedStaticFiles` + content-hash-versioned URLs).
+- [ ] Search relevance — still ILIKE + a fixed sort dropdown, no
+      relevance ranking. At 790 rows a sequential scan is still trivially
+      fast (checked: no missing indexes are actually causing slow
+      queries yet), so this is a quality-of-ranking problem, not a
+      performance one.
+- [ ] General performance pass — revisit once the library is large enough
+      that `EXPLAIN ANALYZE` on the search query actually shows a
+      sequential scan cost worth caring about; premature to add indexes
+      or restructure queries against 790 rows with nothing slow yet.
 
 While populating the library, three ingestion-pipeline gaps surfaced
 outside the Phase 09 pause (not part of it, just concurrent unplanned
 work): the folder-grouping threshold, sidecar-file indexing, and
 zip review/extraction — all described in the worker/ section above and
-their own gotchas below. Resume Phase 09 proper whenever ready.
+their own gotchas below.
 
 ## Ad hoc feature backlog (post-Phase-08, outside the phase structure)
 
@@ -942,6 +954,33 @@ first), independent of the paused Phase 09:
       filename cell specifically gets cleaned while the path cell doesn't
       (a plain `not in resp.text` check would have false-failed, since
       the raw path legitimately contains the same uncleaned substring).
+- [x] Thumbnail caching (Phase 09) — `/thumbnails` is now served through
+      `CachedStaticFiles` (`spool_api/main.py`, a `StaticFiles` subclass
+      overriding `file_response` to add `Cache-Control: public,
+      max-age=31536000, immutable`), so the browser stops re-requesting
+      already-seen thumbnails on every page view/repeat visit. Safe only
+      because the URL is now cache-busted: a thumbnail's filename is
+      stable (`{file_id}.png`, overwritten in place on re-render), so
+      blindly caching the plain URL would have kept serving a stale image
+      after a real re-render until the browser's cache expired.
+      `filters.py::thumb_url(thumbnail_path, content_hash)` appends
+      `?v=<content_hash[:8]>` — a real content change always produces a
+      new URL, so the long cache lifetime can never go stale. Threaded
+      `content_hash` into every query that renders a thumbnail but didn't
+      already select it (`search_files`, `get_project_files`,
+      `list_duplicate_groups`, `_fetch_relationships`) and swapped every
+      template's `/thumbnails/{{ x.thumbnail_path }}` for `{{ thumb_url(x.
+      thumbnail_path, x.content_hash) }}`. Sidecar thumbnails skip the
+      `?v=` entirely (`thumb_url(s.thumbnail_path)`, no second arg) —
+      they have no `content_hash` column and are never re-rendered in
+      place once created (`stage_sidecar`'s `ON CONFLICT (path) DO
+      NOTHING` means a sidecar is only ever processed once), so there's
+      nothing to bust. Deliberately **not** applied to the `/static`
+      mount (CSS/JS/icons) — those change during active development
+      without any equivalent versioning scheme, so caching them
+      aggressively would serve stale assets after every deploy; this is
+      specifically safe for thumbnails because of the cache-buster, not
+      a blanket "add caching everywhere" change.
 - [ ] Package for sharing with friends — deferred by the user until the
       tool is feature-complete and they're happy with it; will need to
       address the hardcoded-personal-paths gotcha above (seed migration,
