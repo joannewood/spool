@@ -378,6 +378,107 @@ def test_pending_archives_page_lists_zips_and_confirm_redirects_back(client, db_
             cur.execute("DELETE FROM zip_files WHERE id = %s", (zip_id,))
 
 
+def test_pending_archives_page_has_select_all_and_no_nested_forms(client, db_conn, test_root_id):
+    # Regression coverage for a real bug: a per-row action wrapped in its own
+    # <form> nested inside the page's bulk-accept <form> is invalid HTML5 —
+    # browsers drop the nested start tag, so the button silently submits the
+    # OUTER bulk form instead of its own intended action. Buttons must use
+    # formaction on a bare <button> living directly in the one outer form.
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO zip_files (watched_root_id, path, filename, size_bytes) VALUES (%s, %s, %s, 100) RETURNING id",
+            (test_root_id, "/tmp/api-test-root/BulkKit.zip", "BulkKit.zip"),
+        )
+        zip_id = cur.fetchone()[0]
+    try:
+        resp = client.get("/admin/pending-archives")
+        assert resp.status_code == 200
+        assert resp.text.count("<form") == 1  # only the outer bulk-accept form
+        assert 'class="select-all-checkbox" data-target=".zip-checkbox"' in resp.text
+        assert f'name="zip_ids" value="{zip_id}"' in resp.text
+        assert f'formaction="/admin/zips/{zip_id}/confirm"' in resp.text
+        assert f'formaction="/admin/zips/{zip_id}/reject"' in resp.text
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM zip_files WHERE id = %s", (zip_id,))
+
+
+def test_accept_zips_bulk_confirms_each_and_redirects(client, db_conn, test_root_id):
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO zip_files (watched_root_id, path, filename, size_bytes) VALUES (%s, %s, %s, 100) RETURNING id",
+            (test_root_id, "/tmp/api-test-root/BulkA.zip", "BulkA.zip"),
+        )
+        zip_a = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO zip_files (watched_root_id, path, filename, size_bytes) VALUES (%s, %s, %s, 100) RETURNING id",
+            (test_root_id, "/tmp/api-test-root/BulkB.zip", "BulkB.zip"),
+        )
+        zip_b = cur.fetchone()[0]
+    try:
+        resp = client.post(
+            "/admin/zips/accept-bulk", data={"zip_ids": [str(zip_a), str(zip_b)]}, follow_redirects=False
+        )
+        assert resp.status_code == 303
+        assert resp.headers["location"] == "/admin/pending-archives"
+
+        with db_conn.cursor() as cur:
+            cur.execute("SELECT status FROM zip_files WHERE id = ANY(%s) ORDER BY id", ([zip_a, zip_b],))
+            statuses = [row[0] for row in cur.fetchall()]
+        assert statuses == ["confirmed", "confirmed"]
+
+        with db_conn.cursor() as cur:
+            cur.execute("SELECT count(*) FROM jobs WHERE zip_file_id = ANY(%s) AND job_type = 'extract_zip'", ([zip_a, zip_b],))
+            assert cur.fetchone()[0] == 2
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM zip_files WHERE id = ANY(%s)", ([zip_a, zip_b],))
+
+
+def test_suggested_projects_page_has_no_nested_forms(client, make_file, db_conn):
+    # Same regression as the pending-archives test above — this page had the
+    # exact bug (Confirm silently submitted the bulk form instead of its own
+    # per-row action) until fixed alongside the archives bulk-select feature.
+    from spool_api import queries
+
+    file_id = make_file()
+    project_id = queries.create_project("Nested Form Regression Project", "", None)
+    try:
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'suggested')",
+                (project_id, file_id),
+            )
+        resp = client.get("/admin/suggested-projects")
+        assert resp.status_code == 200
+        assert resp.text.count("<form") == 1
+        assert f'formaction="/admin/suggested-projects/{project_id}/{file_id}/confirm"' in resp.text
+        assert f'formaction="/admin/suggested-projects/{project_id}/{file_id}/reject"' in resp.text
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_suggested_relationships_page_has_no_nested_forms(client, make_file, db_conn):
+    file_a = make_file()
+    file_b = make_file()
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO relationships (from_file_id, to_file_id, type, status) VALUES (%s, %s, 'variant_of', 'suggested') RETURNING id",
+            (file_a, file_b),
+        )
+        rel_id = cur.fetchone()[0]
+    try:
+        resp = client.get("/admin/suggested-relationships")
+        assert resp.status_code == 200
+        assert resp.text.count("<form") == 1
+        assert f'formaction="/admin/suggested-relationships/{rel_id}/confirm"' in resp.text
+        assert f'formaction="/admin/suggested-relationships/{rel_id}/reject"' in resp.text
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM relationships WHERE id = %s", (rel_id,))
+
+
 # ---- library filter panel: rating / printed / material -------------------
 
 def test_index_filters_by_rating(client, make_file, db_conn):

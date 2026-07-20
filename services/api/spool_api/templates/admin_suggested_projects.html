@@ -30,8 +30,8 @@
           <td><span class="ext-badge {{ a.ext | ext_class }}">{{ a.ext }}</span></td>
           <td><a href="/projects/{{ a.project_id }}">{{ a.project_name }}</a></td>
           <td>
-            <form method="POST" action="/admin/suggested-projects/{{ a.project_id }}/{{ a.file_id }}/confirm" class="chip-inline-form"><button type="submit">Confirm</button></form>
-            <form method="POST" action="/admin/suggested-projects/{{ a.project_id }}/{{ a.file_id }}/reject" class="chip-inline-form"><button type="submit" class="rel-reject">Reject</button></form>
+            <button type="submit" formaction="/admin/suggested-projects/{{ a.project_id }}/{{ a.file_id }}/confirm">Confirm</button>
+            <button type="submit" formaction="/admin/suggested-projects/{{ a.project_id }}/{{ a.file_id }}/reject" class="rel-reject">Reject</button>
           </td>
         </tr>
         {% endfor %}

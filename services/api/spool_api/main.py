@@ -438,6 +438,13 @@ def reject_zip(zip_id: int):
     return RedirectResponse("/admin/pending-archives", status_code=303)
 
 
+@app.post("/admin/zips/accept-bulk")
+def admin_accept_zips_bulk(zip_ids: list[int] = Form([])):
+    for zip_id in zip_ids:
+        queries.enqueue_zip_extraction(zip_id)
+    return RedirectResponse("/admin/pending-archives", status_code=303)
+
+
 @app.get("/admin/rejected-archives", response_class=HTMLResponse)
 def admin_rejected_archives(request: Request):
     return templates.TemplateResponse(

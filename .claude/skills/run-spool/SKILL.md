@@ -70,6 +70,31 @@ EOF
 the PNG) — a 200 response and zero console errors don't prove the page
 looks right.
 
+**Never click a real "select all" or bulk-submit control against this
+real, live database.** This app has no separate staging instance — driving
+`http://api:8000` means driving the actual real library/admin data.
+Confirmed the hard way: verifying `/admin/pending-archives`'s bulk-select
+feature, a script inserted 2 throwaway test rows then clicked the page's
+real `.select-all-checkbox` + "Accept selected" intending to exercise just
+those 2 — but select-all checks *every* row rendered on the page, which
+included 604 real, not-yet-reviewed pending archives. 266 of them were
+fully extracted (irreversibly — original zip deleted) before the mistake
+was caught. For any bulk-select/bulk-action page (duplicates, suggested-
+projects, suggested-relationships, pending-archives):
+- Never click the real select-all control or a real bulk-submit button
+  live. Either scope interaction to elements matching a distinguishing
+  test-data marker (an id, a `__test_*__` filename), or don't submit at
+  all — inspect checkbox `.checked` state via `page.evaluate`/
+  `evaluateAll` instead of actually clicking the final submit button.
+- Verify the actual bulk-action *logic* (does accept-bulk really confirm
+  every selected id) via a `pytest` route test against `spool_test`
+  (`.venv/bin/pytest tests/api/`), not live — that's the isolated,
+  actually-safe place to exercise state-changing bulk behavior.
+- Live/Playwright verification here is for the read-only "does it render
+  right" surface only: elements present, correct `formaction`/`href`
+  values, correct visual layout — never for confirming a bulk submit
+  actually works end-to-end against real data.
+
 ## Run (human path)
 
 Open `http://localhost:8000/` in a real browser once the stack is up. No

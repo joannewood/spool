@@ -31,8 +31,8 @@
           <td><a href="/files/{{ r.to_id }}">{{ r.to_display_name or (r.to_filename | clean_name) }}</a></td>
           <td>{% if r.confidence is not none %}{{ "%.0f"|format(r.confidence * 100) }}%{% else %}—{% endif %}</td>
           <td>
-            <form method="POST" action="/admin/suggested-relationships/{{ r.id }}/confirm" class="chip-inline-form"><button type="submit">Confirm</button></form>
-            <form method="POST" action="/admin/suggested-relationships/{{ r.id }}/reject" class="chip-inline-form"><button type="submit" class="rel-reject">Reject</button></form>
+            <button type="submit" formaction="/admin/suggested-relationships/{{ r.id }}/confirm">Confirm</button>
+            <button type="submit" formaction="/admin/suggested-relationships/{{ r.id }}/reject" class="rel-reject">Reject</button>
           </td>
         </tr>
         {% endfor %}
