@@ -306,6 +306,44 @@ def test_get_recent_job_activity_includes_a_finished_job_with_error(make_file, d
     assert match["error"] == "status dashboard test error"
 
 
+def test_get_recent_job_activity_filters_by_q(make_file, db_conn):
+    match_id = make_file(filename="query-filter-unique.stl")
+    other_id = make_file(filename="query-filter-nomatch.stl")
+    with db_conn.cursor() as cur:
+        cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'render', 'done')", (match_id,))
+        cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'render', 'done')", (other_id,))
+
+    recent = queries.get_recent_job_activity(limit=200, q="query-filter-unique")
+    target_names = {j["target_name"] for j in recent}
+    assert target_names == {"query-filter-unique.stl"}
+
+
+def test_get_recent_job_activity_filters_by_status(make_file, db_conn):
+    file_id = make_file(filename="query-filter-status.stl")
+    with db_conn.cursor() as cur:
+        cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'render', 'done')", (file_id,))
+        cur.execute(
+            "INSERT INTO jobs (file_id, job_type, status, error) VALUES (%s, 'ingest', 'failed', 'x')",
+            (file_id,),
+        )
+
+    recent = queries.get_recent_job_activity(limit=200, q="query-filter-status", status="failed")
+    assert len(recent) == 1
+    assert recent[0]["job_type"] == "ingest"
+    assert recent[0]["status"] == "failed"
+
+
+def test_get_recent_job_activity_filters_by_job_type(make_file, db_conn):
+    file_id = make_file(filename="query-filter-jobtype.stl")
+    with db_conn.cursor() as cur:
+        cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'render', 'done')", (file_id,))
+        cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'ingest', 'done')", (file_id,))
+
+    recent = queries.get_recent_job_activity(limit=200, q="query-filter-jobtype", job_type="render")
+    assert len(recent) == 1
+    assert recent[0]["job_type"] == "render"
+
+
 def test_get_ingestion_totals_reflects_an_unhashed_file(make_file):
     before = queries.get_ingestion_totals()
     make_file(filename="status-totals-unique.stl", content_hash=None)

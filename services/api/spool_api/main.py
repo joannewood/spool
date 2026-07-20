@@ -30,6 +30,11 @@ assert set(ALL_EXTENSIONS) == MODEL_EXTENSIONS, (
 )
 INGEST_MODES = ["index_in_place", "relocate_to_dropfolder"]
 RELATIONSHIP_TYPES = ["derived_from", "new_version_of", "variant_of", "duplicate_of"]
+# The job_type enum also has 'rescan', but that's never actually inserted as
+# a queued row (run_rescan is called directly in the worker's main loop, not
+# via the jobs table) — omitted here so /admin/status's filter dropdown only
+# offers types real jobs can actually have.
+JOB_TYPES = ["ingest", "render", "render_step", "extract_zip"]
 SORT_OPTIONS = [
     ("newest", "Newest first"),
     ("oldest", "Oldest first"),
@@ -409,16 +414,24 @@ def admin(request: Request):
 
 
 @app.get("/admin/status", response_class=HTMLResponse)
-def admin_status(request: Request):
+def admin_status(request: Request, q: str = "", status: str = "", job_type: str = ""):
+    if status not in ("", "done", "failed"):
+        status = ""
+    if job_type not in ("", *JOB_TYPES):
+        job_type = ""
     return templates.TemplateResponse(
         request,
         "admin_status.html",
         {
             "job_summary": queries.get_job_queue_summary(),
             "running_jobs": queries.get_running_jobs(),
-            "recent_activity": queries.get_recent_job_activity(),
+            "recent_activity": queries.get_recent_job_activity(q=q, status=status, job_type=job_type),
             "totals": queries.get_ingestion_totals(),
             "roots": queries.list_watched_roots(),
+            "job_types": JOB_TYPES,
+            "q": q,
+            "selected_status": status,
+            "selected_job_type": job_type,
         },
     )
 

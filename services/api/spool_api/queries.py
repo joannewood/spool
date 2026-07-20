@@ -753,24 +753,41 @@ def get_running_jobs():
             return cur.fetchall()
 
 
-def get_recent_job_activity(limit=40):
+def get_recent_job_activity(limit=100, q="", status="", job_type=""):
     """Most recently finished jobs (done or failed), newest first, with a
     human-readable target name and the raw error text for failures — the
-    live "what just happened" feed."""
+    live "what just happened" feed. `q` matches against the target's
+    filename (ILIKE substring, same convention as the main library
+    search); `status`/`job_type` narrow to an exact value when set,
+    otherwise every done/failed job is eligible — this is the filtering
+    the /admin/status page's search bar drives."""
+    conditions = ["j.status IN ('done', 'failed')"]
+    params = []
+    if status:
+        conditions = ["j.status = %s"]
+        params.append(status)
+    if job_type:
+        conditions.append("j.job_type = %s")
+        params.append(job_type)
+    if q:
+        conditions.append("COALESCE(f.filename, z.filename) ILIKE %s")
+        params.append(f"%{q}%")
+    where = " AND ".join(conditions)
+
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
-                """
+                f"""
                 SELECT j.id, j.job_type, j.status, j.error, j.completed_at,
                        COALESCE(f.filename, z.filename) AS target_name
                 FROM jobs j
                 LEFT JOIN files f ON f.id = j.file_id
                 LEFT JOIN zip_files z ON z.id = j.zip_file_id
-                WHERE j.status IN ('done', 'failed')
+                WHERE {where}
                 ORDER BY j.completed_at DESC NULLS LAST, j.id DESC
                 LIMIT %s
                 """,
-                (limit,),
+                (*params, limit),
             )
             return cur.fetchall()
 

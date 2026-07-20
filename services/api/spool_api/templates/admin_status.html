@@ -6,10 +6,31 @@
 <h1>Processing status</h1>
 <p class="note">Live view of the ingestion pipeline — refreshes automatically every few seconds.</p>
 
-{# Self-polling htmx pattern (distinct from the library page's user-triggered
-   refresh) — this whole block re-fetches its own route on a timer and swaps
-   itself, since there's no user input driving updates here. #}
-<div id="status-content" hx-get="/admin/status" hx-trigger="every 4s" hx-select="#status-content" hx-swap="outerHTML">
+{# The filter form drives both on-demand filtering (input/select changes)
+   and the periodic auto-refresh (every 4s) — a single hx-trigger list on
+   one element, rather than a separate self-polling div plus a separate
+   filter form, so a filter someone's applied stays in effect across every
+   auto-refresh tick instead of being reset by an unrelated poll. Same
+   hx-select/hx-swap="outerHTML" idiom as the library page's search bar. #}
+<form class="searchbar" id="status-filter-form" method="GET" action="/admin/status"
+      hx-get="/admin/status" hx-target="#status-content" hx-select="#status-content" hx-swap="outerHTML"
+      hx-trigger="input changed delay:250ms from:input[name='q'], change from:select, every 4s">
+  <input type="search" name="q" placeholder="Search recent activity by filename…" value="{{ q }}" autocomplete="off">
+  <select name="status">
+    <option value="" {% if not selected_status %}selected{% endif %}>Any status</option>
+    <option value="done" {% if selected_status == "done" %}selected{% endif %}>Done</option>
+    <option value="failed" {% if selected_status == "failed" %}selected{% endif %}>Failed</option>
+  </select>
+  <select name="job_type">
+    <option value="" {% if not selected_job_type %}selected{% endif %}>Any type</option>
+    {% for jt in job_types %}
+    <option value="{{ jt }}" {% if selected_job_type == jt %}selected{% endif %}>{{ jt }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit">Search</button>
+</form>
+
+<div id="status-content">
 
 <div class="admin-sections">
 
@@ -77,7 +98,10 @@
 </section>
 
 <section class="panel">
-  <h2>Recent activity</h2>
+  <h2>
+    Recent activity
+    {% if q or selected_status or selected_job_type %}<span class="note-inline">(filtered)</span>{% endif %}
+  </h2>
   {% if recent_activity %}
   <div class="table-wrap">
     <table class="admin-table">
@@ -100,7 +124,9 @@
     </table>
   </div>
   {% else %}
-  <p class="empty-inline">no recent activity</p>
+  <p class="empty-inline">
+    {% if q or selected_status or selected_job_type %}no matching activity{% else %}no recent activity{% endif %}
+  </p>
   {% endif %}
 </section>
 

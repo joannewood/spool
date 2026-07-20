@@ -564,8 +564,57 @@ def test_admin_status_page_loads(client):
 def test_admin_status_page_self_polls_via_htmx(client):
     resp = client.get("/admin/status")
     assert resp.status_code == 200
-    assert 'hx-trigger="every 4s"' in resp.text
+    assert "every 4s" in resp.text
     assert 'hx-select="#status-content"' in resp.text
+
+
+def test_admin_status_filters_by_target_filename(client, make_file, db_conn):
+    match_id = make_file(filename="filterable-unique-name.stl")
+    other_id = make_file(filename="totally-different.stl")
+    with db_conn.cursor() as cur:
+        cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'render', 'done')", (match_id,))
+        cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'render', 'done')", (other_id,))
+
+    resp = client.get("/admin/status", params={"q": "filterable-unique-name"})
+    assert resp.status_code == 200
+    assert "filterable-unique-name.stl" in resp.text
+    assert "totally-different.stl" not in resp.text
+
+
+def test_admin_status_filters_by_status(client, make_file, db_conn):
+    done_id = make_file(filename="status-filter-done.stl")
+    failed_id = make_file(filename="status-filter-failed.stl")
+    with db_conn.cursor() as cur:
+        cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'render', 'done')", (done_id,))
+        cur.execute(
+            "INSERT INTO jobs (file_id, job_type, status, error) VALUES (%s, 'render', 'failed', 'boom')",
+            (failed_id,),
+        )
+
+    resp = client.get("/admin/status", params={"status": "failed", "q": "status-filter"})
+    assert resp.status_code == 200
+    assert "status-filter-failed.stl" in resp.text
+    assert "status-filter-done.stl" not in resp.text
+
+
+def test_admin_status_filters_by_job_type(client, make_file, db_conn):
+    file_id = make_file(filename="jobtype-filter-unique.stl")
+    with db_conn.cursor() as cur:
+        cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'ingest', 'done')", (file_id,))
+        cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'render', 'done')", (file_id,))
+
+    resp = client.get("/admin/status", params={"q": "jobtype-filter-unique", "job_type": "ingest"})
+    assert resp.status_code == 200
+    text = resp.text
+    # Both rows share the same target name, so assert on the row count
+    # instead of substring presence — the ingest row should render, the
+    # render row (same file, different job_type) should not.
+    assert text.count("jobtype-filter-unique.stl") == 1
+
+
+def test_admin_status_invalid_filter_values_ignored(client):
+    resp = client.get("/admin/status", params={"status": "not-a-real-status", "job_type": "not-a-real-type"})
+    assert resp.status_code == 200  # falls back to unfiltered rather than erroring
 
 
 def test_admin_status_shows_running_job_target_name(client, make_file, db_conn):
