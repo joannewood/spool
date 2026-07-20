@@ -730,6 +730,15 @@ button.app-icon-btn {
   text-decoration: none;
 }
 
+/* Flex-wrap (not a fixed 2-column grid) since this stat row's item count
+   doesn't divide evenly into pairs — same .footer-item dt+dd-grouping
+   pattern as .detail-footer, reused for the /admin/status ingestion-
+   totals panel. */
+.panel dl.stats { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: var(--fs-xs); margin: 0; }
+.panel dl.stats .footer-item { display: flex; gap: 6px; }
+.panel dl.stats dt { color: var(--ink-muted); }
+.panel dl.stats dd { margin: 0; font-weight: 600; }
+
 .panel dl.tight {
   display: grid;
   grid-template-columns: auto 1fr auto 1fr;

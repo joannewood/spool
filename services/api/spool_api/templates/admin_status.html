@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Processing status — SPOOL{% endblock %}
+{% block content %}
+
+<a class="back" href="/admin">← admin</a>
+<h1>Processing status</h1>
+<p class="note">Live view of the ingestion pipeline — refreshes automatically every few seconds.</p>
+
+{# Self-polling htmx pattern (distinct from the library page's user-triggered
+   refresh) — this whole block re-fetches its own route on a timer and swaps
+   itself, since there's no user input driving updates here. #}
+<div id="status-content" hx-get="/admin/status" hx-trigger="every 4s" hx-select="#status-content" hx-swap="outerHTML">
+
+<div class="admin-sections">
+
+<section class="panel">
+  <h2>Currently running</h2>
+  {% if running_jobs %}
+  <table class="admin-table">
+    <thead><tr><th>Job</th><th>Target</th><th>Started</th></tr></thead>
+    <tbody>
+      {% for j in running_jobs %}
+      <tr>
+        <td>{{ j.job_type }}</td>
+        <td>{{ j.target_name or "—" }}</td>
+        <td>{{ j.created_at }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty-inline">idle — nothing currently processing</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <h2>Ingestion totals</h2>
+  <dl class="stats">
+    <div class="footer-item"><dt>Total files</dt><dd>{{ totals.total_files }}</dd></div>
+    <div class="footer-item"><dt>Unhashed</dt><dd>{{ totals.unhashed }}</dd></div>
+    <div class="footer-item"><dt>Render pending</dt><dd>{{ totals.render_pending }}</dd></div>
+    <div class="footer-item"><dt>Render done</dt><dd>{{ totals.render_done }}</dd></div>
+    <div class="footer-item"><dt>Render failed</dt><dd>{{ totals.render_failed }}</dd></div>
+  </dl>
+</section>
+
+<section class="panel">
+  <h2>Job queue</h2>
+  <table class="admin-table">
+    <thead><tr><th>Type</th><th>Status</th><th>Count</th></tr></thead>
+    <tbody>
+      {% for row in job_summary %}
+      <tr>
+        <td>{{ row.job_type }}</td>
+        <td><span class="badge {{ 'warn' if row.status == 'failed' else ('ok' if row.status == 'done' else '') }}">{{ row.status }}</span></td>
+        <td>{{ row.n }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="panel">
+  <h2>Watched roots</h2>
+  <table class="admin-table">
+    <thead><tr><th>Label</th><th>Files</th><th>Last scanned</th></tr></thead>
+    <tbody>
+      {% for r in roots %}
+      <tr>
+        <td>{{ r.label }}</td>
+        <td>{{ r.file_count }}</td>
+        <td>{{ r.last_scanned_at if r.last_scanned_at else "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="panel">
+  <h2>Recent activity</h2>
+  {% if recent_activity %}
+  <div class="table-wrap">
+    <table class="admin-table">
+      <thead><tr><th>Type</th><th>Target</th><th>Status</th><th>Error</th><th>Completed</th></tr></thead>
+      <tbody>
+        {% for j in recent_activity %}
+        <tr>
+          <td>{{ j.job_type }}</td>
+          <td>{{ j.target_name or "—" }}</td>
+          <td><span class="badge {{ 'warn' if j.status == 'failed' else 'ok' }}">{{ j.status }}</span></td>
+          <td>
+            {% if j.error %}
+            <span title="{{ j.error }}">{{ j.error[:70] }}{% if j.error|length > 70 %}…{% endif %}</span>
+            {% endif %}
+          </td>
+          <td>{{ j.completed_at if j.completed_at else "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty-inline">no recent activity</p>
+  {% endif %}
+</section>
+
+</div>
+</div>
+
+{% endblock %}

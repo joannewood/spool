@@ -548,3 +548,38 @@ def test_index_filter_panel_lists_every_model_extension(client):
     assert resp.status_code == 200
     for ext in MODEL_EXTENSIONS:
         assert f'value="{ext}"' in resp.text, f"{ext} missing from the rendered filter panel"
+
+
+# ---- processing status dashboard (/admin/status) --------------------------
+
+def test_admin_status_page_loads(client):
+    resp = client.get("/admin/status")
+    assert resp.status_code == 200
+    assert "Processing status" in resp.text
+    assert "Currently running" in resp.text
+    assert "Job queue" in resp.text
+    assert "Recent activity" in resp.text
+
+
+def test_admin_status_page_self_polls_via_htmx(client):
+    resp = client.get("/admin/status")
+    assert resp.status_code == 200
+    assert 'hx-trigger="every 4s"' in resp.text
+    assert 'hx-select="#status-content"' in resp.text
+
+
+def test_admin_status_shows_running_job_target_name(client, make_file, db_conn):
+    file_id = make_file(filename="route-status-running.stl")
+    with db_conn.cursor() as cur:
+        cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'render', 'running')", (file_id,))
+
+    resp = client.get("/admin/status")
+    assert resp.status_code == 200
+    assert "route-status-running.stl" in resp.text
+    assert "idle — nothing currently processing" not in resp.text
+
+
+def test_admin_page_links_to_status_page(client):
+    resp = client.get("/admin")
+    assert resp.status_code == 200
+    assert 'href="/admin/status"' in resp.text

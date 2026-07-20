@@ -408,6 +408,21 @@ def admin(request: Request):
     )
 
 
+@app.get("/admin/status", response_class=HTMLResponse)
+def admin_status(request: Request):
+    return templates.TemplateResponse(
+        request,
+        "admin_status.html",
+        {
+            "job_summary": queries.get_job_queue_summary(),
+            "running_jobs": queries.get_running_jobs(),
+            "recent_activity": queries.get_recent_job_activity(),
+            "totals": queries.get_ingestion_totals(),
+            "roots": queries.list_watched_roots(),
+        },
+    )
+
+
 @app.get("/admin/pending-archives", response_class=HTMLResponse)
 def admin_pending_archives(request: Request):
     return templates.TemplateResponse(

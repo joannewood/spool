@@ -260,3 +260,55 @@ def test_search_files_attaches_render_error_only_for_failed(make_file, db_conn):
 
     rows, _ = queries.search_files(q="fine", extensions=None, tags=None, page=1)
     assert rows[0]["render_error"] is None
+
+
+# ---- processing status dashboard (/admin/status) --------------------------
+# Session-scoped test DB means other tests' job rows may already be present,
+# so these check deltas/presence of specifically-inserted rows rather than
+# exact whole-table counts.
+
+def test_get_job_queue_summary_reflects_a_new_job(make_file, db_conn):
+    file_id = make_file(filename="status-summary.stl")
+
+    def count_for(job_type, status):
+        return next(
+            (row["n"] for row in queries.get_job_queue_summary() if row["job_type"] == job_type and row["status"] == status),
+            0,
+        )
+
+    before = count_for("ingest", "done")
+    with db_conn.cursor() as cur:
+        cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'ingest', 'done')", (file_id,))
+    assert count_for("ingest", "done") == before + 1
+
+
+def test_get_running_jobs_includes_a_running_job_with_target_name(make_file, db_conn):
+    file_id = make_file(filename="status-running-unique.stl")
+    with db_conn.cursor() as cur:
+        cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'render', 'running')", (file_id,))
+
+    running = queries.get_running_jobs()
+    assert any(j["target_name"] == "status-running-unique.stl" for j in running)
+
+
+def test_get_recent_job_activity_includes_a_finished_job_with_error(make_file, db_conn):
+    file_id = make_file(filename="status-activity-unique.stl")
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO jobs (file_id, job_type, status, error, completed_at) "
+            "VALUES (%s, 'render', 'failed', %s, now())",
+            (file_id, "status dashboard test error"),
+        )
+
+    recent = queries.get_recent_job_activity(limit=200)
+    match = next((j for j in recent if j["target_name"] == "status-activity-unique.stl"), None)
+    assert match is not None
+    assert match["error"] == "status dashboard test error"
+
+
+def test_get_ingestion_totals_reflects_an_unhashed_file(make_file):
+    before = queries.get_ingestion_totals()
+    make_file(filename="status-totals-unique.stl", content_hash=None)
+    after = queries.get_ingestion_totals()
+    assert after["total_files"] == before["total_files"] + 1
+    assert after["unhashed"] == before["unhashed"] + 1

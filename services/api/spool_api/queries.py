@@ -705,6 +705,97 @@ def update_watched_root(root_id, label, ingest_mode, active):
             )
 
 
+# ---- processing status dashboard -------------------------------------------
+# Backs /admin/status — a live view of the ingestion pipeline (job queue,
+# what's running right now, recent activity, per-root progress) built after
+# a session of manually re-deriving this exact picture via ad hoc `psql`
+# queries and `docker compose logs` while chasing a real incident (a worker
+# crash-loop, then a large bulk-import backlog). Same data, just surfaced in
+# the app itself instead of typed out fresh each time.
+
+def get_job_queue_summary():
+    """job_type x status counts — the same shape as the `SELECT job_type,
+    status, count(*) FROM jobs GROUP BY job_type, status` used by hand
+    throughout the crash-loop/bulk-import incidents."""
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                SELECT job_type, status, count(*) AS n
+                FROM jobs
+                GROUP BY job_type, status
+                ORDER BY job_type, status
+                """
+            )
+            return cur.fetchall()
+
+
+def get_running_jobs():
+    """Job(s) currently claimed (status='running') — normally 0 or 1 per
+    lane (worker/worker-step each process one job at a time), but not
+    assumed to be exactly one: a job orphaned by a crash sits at 'running'
+    until the next startup's requeue_orphaned_jobs runs, so more than one
+    showing here (or one stuck for a long time — see started_at) is itself
+    a useful signal, not just "what's active right now."""
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                SELECT j.id, j.job_type, j.created_at,
+                       COALESCE(f.filename, z.filename) AS target_name
+                FROM jobs j
+                LEFT JOIN files f ON f.id = j.file_id
+                LEFT JOIN zip_files z ON z.id = j.zip_file_id
+                WHERE j.status = 'running'
+                ORDER BY j.created_at
+                """
+            )
+            return cur.fetchall()
+
+
+def get_recent_job_activity(limit=40):
+    """Most recently finished jobs (done or failed), newest first, with a
+    human-readable target name and the raw error text for failures — the
+    live "what just happened" feed."""
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                SELECT j.id, j.job_type, j.status, j.error, j.completed_at,
+                       COALESCE(f.filename, z.filename) AS target_name
+                FROM jobs j
+                LEFT JOIN files f ON f.id = j.file_id
+                LEFT JOIN zip_files z ON z.id = j.zip_file_id
+                WHERE j.status IN ('done', 'failed')
+                ORDER BY j.completed_at DESC NULLS LAST, j.id DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            return cur.fetchall()
+
+
+def get_ingestion_totals():
+    """Library-wide counts across the hash/render pipeline — the same
+    numbers checked by hand via `SELECT count(*) FROM files WHERE
+    content_hash IS NULL` etc. during the bulk-import incident."""
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                SELECT
+                    count(*) AS total_files,
+                    count(*) FILTER (WHERE content_hash IS NULL) AS unhashed,
+                    count(*) FILTER (WHERE render_status = 'pending') AS render_pending,
+                    count(*) FILTER (WHERE render_status = 'done') AS render_done,
+                    count(*) FILTER (WHERE render_status = 'failed') AS render_failed
+                FROM files
+                WHERE status = 'active'
+                """
+            )
+            return cur.fetchone()
+
+
 # ---- pending zip archives -----------------------------------------------
 
 def list_pending_zips():
