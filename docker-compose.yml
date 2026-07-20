@@ -61,6 +61,18 @@ services:
     build:
       context: ./services
       dockerfile: worker/Dockerfile
+    # pyrender's OffscreenRenderer (EGL/llvmpipe software rendering)
+    # leaks memory across many render calls within one long-lived
+    # process — confirmed live during a 2600-file bulk import: OOM-
+    # killed twice within minutes of each other under sustained render
+    # load, having rendered 800+ files without issue beforehand. The
+    # real fix (recycling the process periodically, or finding/patching
+    # the actual leak) is more involved; auto-restart is the immediate
+    # mitigation so a crash mid-bulk-import self-heals in seconds
+    # instead of silently stalling every job behind it until someone
+    # notices and restarts it by hand. Paired with main.py's startup
+    # requeue of any 'running' job left behind by the crash.
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       THUMBNAILS_DIR: /data/thumbnails
@@ -84,6 +96,11 @@ services:
     build:
       context: ./services
       dockerfile: worker/Dockerfile
+    # Same rendering code path as `worker` (see its own restart comment) —
+    # STEP tessellation is if anything more memory-hungry per file, so
+    # the same mitigation applies here even though this lane hasn't
+    # actually crashed yet.
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       THUMBNAILS_DIR: /data/thumbnails

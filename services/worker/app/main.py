@@ -1,4 +1,5 @@
 import os
+import resource
 import time
 from datetime import datetime, timezone
 
@@ -13,6 +14,7 @@ from .backfill import run_backfill
 from .bambu_metadata import extract_bambu_metadata, upsert_extracted_metadata
 from .gcode_metadata import extract_gcode_metadata
 from .gcode_thumbnail import extract_gcode_thumbnail
+from .job_queue import JOB_TYPES, claim_next_job, mark_job_done, mark_job_failed, requeue_orphaned_jobs
 from .relationship_suggest import suggest_folder_project, suggest_for_file
 from .render import render_svg_thumbnail, render_thumbnail
 from .rescan import RESCAN_INTERVAL_SECONDS, run_rescan
@@ -20,31 +22,21 @@ from .zip_extract import process_extract_zip_job
 
 POLL_INTERVAL_SECONDS = 1.0
 
-# Which job_types this worker instance consumes — lets the slow STEP lane
-# run in a separate container (worker-step) from the fast ingest/mesh lane
-# (worker), so a backlog of CAD renders never blocks quick mesh renders.
-JOB_TYPES = tuple(t.strip() for t in os.environ.get("JOB_TYPES", "ingest,render").split(","))
-
 RUN_BACKFILL = os.environ.get("RUN_BACKFILL", "true").lower() == "true"
 
-
-def claim_next_job(conn):
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            UPDATE jobs SET status = 'running'
-            WHERE id = (
-                SELECT id FROM jobs
-                WHERE status = 'queued' AND job_type = ANY(%s)
-                ORDER BY created_at
-                FOR UPDATE SKIP LOCKED
-                LIMIT 1
-            )
-            RETURNING id, file_id, zip_file_id, job_type
-            """,
-            (list(JOB_TYPES),),
-        )
-        return cur.fetchone()
+# pyrender's OffscreenRenderer (EGL/llvmpipe software rendering) grows this
+# process's memory over many render calls — confirmed live during a bulk
+# import: fine for hours under normal trickle-load, but a large backlog
+# processed back-to-back gives the OS no gap to reclaim anything between
+# jobs, and this process got OOM-killed within minutes under that load
+# (twice). Rather than wait for the kernel to kill us mid-job (losing that
+# job to requeue_orphaned_jobs's recovery instead of finishing cleanly),
+# self-exit once our own peak RSS crosses a safe threshold — `restart:
+# unless-stopped` (docker-compose.yml) brings up a fresh, near-zero-memory
+# process immediately. ru_maxrss is the process's all-time peak, in KB on
+# Linux (this always runs in a Linux container) — checked after every
+# completed job, never mid-job.
+MAX_RSS_KB = int(os.environ.get("MAX_RSS_KB", 1_500_000))  # ~1.5GB
 
 
 def process_ingest_job(conn, file_id):
@@ -154,24 +146,10 @@ def process_render_job(conn, file_id):
             upsert_extracted_metadata(conn, file_id, bambu_metadata)
 
 
-def mark_job_done(conn, job_id):
-    with conn.cursor() as cur:
-        cur.execute("UPDATE jobs SET status = 'done', completed_at = now() WHERE id = %s", (job_id,))
-
-
-def mark_job_failed(conn, job_id, file_id, job_type, error):
-    with conn.cursor() as cur:
-        cur.execute(
-            "UPDATE jobs SET status = 'failed', error = %s, completed_at = now() WHERE id = %s",
-            (error, job_id),
-        )
-        if job_type in ("render", "render_step"):
-            cur.execute("UPDATE files SET render_status = 'failed' WHERE id = %s", (file_id,))
-
-
 def main():
     conn = get_connection()
     print(f"[worker] consuming job types: {JOB_TYPES}", flush=True)
+    requeue_orphaned_jobs(conn)
 
     if RUN_BACKFILL:
         print("[worker] running backfill...", flush=True)
@@ -212,6 +190,15 @@ def main():
         except Exception as exc:
             mark_job_failed(conn, job_id, file_id, job_type, str(exc))
             print(f"[worker] {job_type} job {job_id} (file {file_id}) failed: {exc}", flush=True)
+
+        rss_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        if rss_kb > MAX_RSS_KB:
+            print(
+                f"[worker] peak memory {rss_kb}KB exceeds MAX_RSS_KB={MAX_RSS_KB} — "
+                "exiting cleanly for a fresh restart rather than waiting for an OOM kill",
+                flush=True,
+            )
+            return
 
 
 if __name__ == "__main__":
