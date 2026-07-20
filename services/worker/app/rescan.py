@@ -122,27 +122,45 @@ def run_rescan(conn):
         # disrupt os.walk's still-in-progress traversal of that same tree.
         for dirpath, model_paths, sidecar_paths, zip_paths in list(_walk_project_folders(root.container_path)):
             for zip_path in zip_paths:
-                stage_zip_if_relevant(conn, root, zip_path)
+                try:
+                    stage_zip_if_relevant(conn, root, zip_path)
+                except Exception as exc:
+                    print(f"[worker] rescan: skipping zip {zip_path} due to error: {exc}", flush=True)
 
             for container_path in model_paths:
                 host_path = to_host_path(root, container_path)
                 seen_paths.add(host_path)
                 existing = known_by_path.get(host_path)
-                if existing is None:
-                    moved_from = _find_move_source(container_path, active_by_hash, seen_paths)
-                    if moved_from is not None:
-                        ingest.repoint_file(conn, moved_from["id"], root, container_path)
-                        seen_paths.add(moved_from["path"])
-                        moved_count += 1
+                try:
+                    if existing is None:
+                        moved_from = _find_move_source(container_path, active_by_hash, seen_paths)
+                        if moved_from is not None:
+                            ingest.repoint_file(conn, moved_from["id"], root, container_path)
+                            seen_paths.add(moved_from["path"])
+                            moved_count += 1
+                            continue
+                        if _ingest_new_path(conn, root, dropfolder_root, container_path):
+                            new_count += 1
                         continue
-                    if _ingest_new_path(conn, root, dropfolder_root, container_path):
-                        new_count += 1
-                    continue
-                outcome = _reconcile_known_file(conn, existing, container_path)
-                if outcome == "rehashed":
-                    rehashed_count += 1
-                elif outcome == "revived":
-                    revived_count += 1
+                    outcome = _reconcile_known_file(conn, existing, container_path)
+                    if outcome == "rehashed":
+                        rehashed_count += 1
+                    elif outcome == "revived":
+                        revived_count += 1
+                except Exception as exc:
+                    # A single unreadable file (confirmed live: OSError
+                    # [Errno 35] Resource deadlock avoided on a subset of
+                    # files from a ~2800-file bulk move out of iCloud
+                    # Drive) must never abort the rest of this pass — with
+                    # no try/except here, one bad file early in the walk
+                    # order silently blocked every other file's drift-check/
+                    # rehash for that entire 5-minute cycle, every cycle,
+                    # since run_rescan itself has no per-file recovery
+                    # (only main()'s own try/except around the *whole*
+                    # run_rescan call, which just skips the whole pass).
+                    # Skipping here just means this file gets retried next
+                    # pass, exactly like backfill's equivalent fix.
+                    print(f"[worker] rescan: skipping {container_path} due to error: {exc}", flush=True)
 
             # See backfill.run_backfill for why relocate_to_dropfolder roots
             # skip sidecar staging here — their sidecars either already
@@ -150,20 +168,23 @@ def run_rescan(conn):
             # shows up in the drop folder's own walk.
             if model_paths and root.ingest_mode != "relocate_to_dropfolder":
                 for sidecar_path in sidecar_paths:
-                    host_sidecar_path = to_host_path(root, sidecar_path)
-                    seen_sidecar_paths.add(host_sidecar_path)
-                    existing_sidecar = known_sidecars_by_path.get(host_sidecar_path)
-                    if existing_sidecar is not None and existing_sidecar["status"] == "missing":
-                        with conn.cursor() as cur:
-                            cur.execute(
-                                "UPDATE sidecar_files SET status = 'active' WHERE id = %s",
-                                (existing_sidecar["id"],),
-                            )
-                    else:
-                        # already-known-and-active sidecars are a no-op here
-                        # (ON CONFLICT DO NOTHING) — this only ever inserts a
-                        # genuinely new one.
-                        ingest.stage_sidecar(conn, root, sidecar_path)
+                    try:
+                        host_sidecar_path = to_host_path(root, sidecar_path)
+                        seen_sidecar_paths.add(host_sidecar_path)
+                        existing_sidecar = known_sidecars_by_path.get(host_sidecar_path)
+                        if existing_sidecar is not None and existing_sidecar["status"] == "missing":
+                            with conn.cursor() as cur:
+                                cur.execute(
+                                    "UPDATE sidecar_files SET status = 'active' WHERE id = %s",
+                                    (existing_sidecar["id"],),
+                                )
+                        else:
+                            # already-known-and-active sidecars are a no-op
+                            # here (ON CONFLICT DO NOTHING) — this only ever
+                            # inserts a genuinely new one.
+                            ingest.stage_sidecar(conn, root, sidecar_path)
+                    except Exception as exc:
+                        print(f"[worker] rescan: skipping sidecar {sidecar_path} due to error: {exc}", flush=True)
 
         missing_count = 0
         sidecar_missing_count = 0

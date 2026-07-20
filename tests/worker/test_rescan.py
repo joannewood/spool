@@ -264,3 +264,34 @@ def test_run_rescan_updates_last_scanned_at(conn, make_root):
     with conn.cursor() as cur:
         cur.execute("SELECT last_scanned_at FROM watched_roots WHERE id = %s", (dropfolder.id,))
         assert cur.fetchone()[0] is not None
+
+
+def test_run_rescan_skips_unreadable_file_without_aborting_the_pass(conn, make_root, monkeypatch):
+    # Same regression class as backfill's equivalent fix: run_rescan has no
+    # per-file try/except of its own (only main()'s try/except around the
+    # *whole* run_rescan call, which just skips the entire pass on the
+    # first error) — so one unreadable file early in the walk order used
+    # to silently block every other file's new-file ingestion/drift-check
+    # for that entire cycle. A bad file must be skipped, logged, and the
+    # rest of the walk (including brand-new files discovered the same
+    # pass) must still be processed.
+    import common.ingest as ingest_module
+
+    dropfolder = make_root(kind="drop_folder")
+    library = make_root(kind="existing_library", ingest_mode="index_in_place")
+    bad_path = _touch(os.path.join(library.container_path, "corrupted.stl"))
+    _touch(os.path.join(library.container_path, "good.stl"))
+
+    real_sha256_file = ingest_module.sha256_file
+
+    def flaky_sha256_file(path):
+        if path == bad_path:
+            raise OSError(35, "Resource deadlock avoided")
+        return real_sha256_file(path)
+
+    monkeypatch.setattr(ingest_module, "sha256_file", flaky_sha256_file)
+
+    run_rescan(conn)  # must not raise
+
+    assert _get_file(conn, "good.stl") is not None
+    assert _get_file(conn, "corrupted.stl") is None  # skipped, retried next pass

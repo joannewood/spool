@@ -145,3 +145,37 @@ def test_run_backfill_creates_suggested_project_for_single_file_folder(conn, mak
         )
         row = cur.fetchone()
     assert row == ("SoloWidget", "suggested")
+
+
+def test_run_backfill_skips_unreadable_file_without_crashing(conn, make_root, monkeypatch):
+    # Regression coverage for a real incident: a handful of files out of a
+    # ~2800-file bulk move transiently raised OSError (Resource deadlock
+    # avoided — a stuck Docker file-sharing/iCloud interaction, not a SPOOL
+    # bug) when hashed. Before this fix, run_backfill had no per-file
+    # try/except, so hitting one bad file crashed run_backfill entirely —
+    # under `restart: unless-stopped`, the worker just retried the whole
+    # backfill from scratch and hit the same file again, forever. A bad
+    # file must be skipped (logged, not indexed) without stopping the rest
+    # of the walk from being processed.
+    import common.ingest as ingest_module
+
+    dropfolder = make_root(kind="drop_folder")
+    library = make_root(kind="existing_library", ingest_mode="index_in_place")
+    bad_path = _touch(os.path.join(library.container_path, "corrupted.stl"))
+    _touch(os.path.join(library.container_path, "good.stl"))
+
+    real_sha256_file = ingest_module.sha256_file
+
+    def flaky_sha256_file(path):
+        if path == bad_path:
+            raise OSError(35, "Resource deadlock avoided")
+        return real_sha256_file(path)
+
+    monkeypatch.setattr(ingest_module, "sha256_file", flaky_sha256_file)
+
+    run_backfill(conn)  # must not raise
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT filename FROM files ORDER BY filename")
+        filenames = [row[0] for row in cur.fetchall()]
+    assert filenames == ["good.stl"]  # bad.stl skipped, good.stl still indexed
