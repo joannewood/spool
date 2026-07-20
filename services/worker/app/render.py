@@ -1,55 +1,13 @@
 import os
 import shutil
-import zipfile
 
 import numpy as np
 import pyrender
 import trimesh
 from PIL import Image
 
+from .mesh_safety import check_3mf_is_safe_to_render
 from .step_loader import load_step_mesh
-
-# A .3mf's *compressed* file size is a poor proxy for how expensive it is
-# to render — confirmed live during a 2600-file bulk import: several
-# files, each an unremarkable few MB on disk, carried a single inner
-# 3D/Objects/*.model XML entry of 25-108MB *uncompressed* (a very
-# high-poly mesh/scan), and parsing+rendering that reliably exhausted
-# available memory and OOM-killed the whole worker process every time,
-# regardless of the self-recycle/restart safeguards elsewhere. Rejecting
-# by *uncompressed* mesh size before ever attempting trimesh.load — which
-# is cheap, since zipfile.infolist() reads the zip's central directory,
-# not the entries themselves — avoids repeating that crash for every
-# future oversized file in a large, varied import instead of relying on
-# OOM recovery after the fact.
-#
-# First deployed at 30MB; a 25MB file still crashed the process under
-# this same burst-load (many jobs processed back-to-back, no gap for the
-# OS to reclaim anything in between) before the threshold was lowered —
-# 30MB wasn't "wrong", it just didn't leave enough margin for how much
-# *more* expensive rendering the same uncompressed byte count is under
-# sustained load vs. normal trickle-load. 12MB is deliberately
-# conservative, not a tightly-fitted number from more data points.
-MAX_UNCOMPRESSED_3MF_MESH_BYTES = 12_000_000  # ~12MB uncompressed XML
-
-
-class OversizedMeshError(Exception):
-    """Raised instead of attempting to load/render a mesh known in
-    advance to be dangerously large for this process's available memory."""
-
-
-def _check_3mf_mesh_size(container_path):
-    with zipfile.ZipFile(container_path) as zf:
-        total = sum(
-            info.file_size
-            for info in zf.infolist()
-            if info.filename.startswith("3D/") and info.filename.endswith(".model")
-        )
-    if total > MAX_UNCOMPRESSED_3MF_MESH_BYTES:
-        raise OversizedMeshError(
-            f"3MF's inner mesh data is {total:,} bytes uncompressed, over the "
-            f"{MAX_UNCOMPRESSED_3MF_MESH_BYTES:,}-byte safety limit — skipped without "
-            "attempting to render (see render.py's MAX_UNCOMPRESSED_3MF_MESH_BYTES comment)"
-        )
 
 THUMBNAIL_SIZE = 512
 MARGIN = 1.10  # ~10% margin around the bounding sphere
@@ -105,7 +63,7 @@ def load_mesh(container_path):
     if ext in (".step", ".stp"):
         return load_step_mesh(container_path)
     if ext == ".3mf":
-        _check_3mf_mesh_size(container_path)
+        check_3mf_is_safe_to_render(container_path)
     return trimesh.load(container_path, force="mesh")
 
 
