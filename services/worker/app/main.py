@@ -109,6 +109,23 @@ def process_render_job(conn, file_id):
             upsert_extracted_metadata(conn, file_id, gcode_metadata, source="auto_extracted_gcode")
         return
 
+    if ext == ".3mf":
+        # Metadata lives in Metadata/project_settings.config and
+        # slice_info.config — separate zip entries from the 3D/*.model
+        # mesh data, so it's readable even when the mesh itself is
+        # rejected by mesh_safety's guards (or fails to render for any
+        # other reason) below. Extracted unconditionally, before the
+        # render attempt, so a file that never gets a thumbnail still
+        # gets its material/printer/nozzle/etc. populated — wrapped in
+        # its own try/except so a problem here can never block, or be
+        # blocked by, the render step.
+        try:
+            bambu_metadata = extract_bambu_metadata(container_path)
+            if bambu_metadata is not None:
+                upsert_extracted_metadata(conn, file_id, bambu_metadata)
+        except Exception as exc:
+            print(f"[worker] bambu metadata extraction failed for file {file_id}: {exc}", flush=True)
+
     thumbnail_filename, mesh = render_thumbnail(container_path, file_id)
 
     is_manifold = bool(mesh.is_watertight)
@@ -139,11 +156,6 @@ def process_render_job(conn, file_id):
                 file_id,
             ),
         )
-
-    if os.path.splitext(container_path)[1].lower() == ".3mf":
-        bambu_metadata = extract_bambu_metadata(container_path)
-        if bambu_metadata is not None:
-            upsert_extracted_metadata(conn, file_id, bambu_metadata)
 
 
 def main():
