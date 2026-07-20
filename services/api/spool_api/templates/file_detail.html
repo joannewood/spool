@@ -230,7 +230,10 @@
     <h2>Print metadata</h2>
     {% if print_metadata and print_metadata.source != 'manual' and print_metadata.settings_json %}
     {% set s = print_metadata.settings_json %}
-    <p class="note">Auto-extracted from the Bambu Studio project file.</p>
+    <p class="note">
+      {% if print_metadata.source == 'auto_extracted_gcode' %}Auto-extracted from the gcode file's own slicer settings.
+      {% else %}Auto-extracted from the Bambu Studio project file.{% endif %}
+    </p>
     <dl class="tight">
       <dt>Nozzle</dt><dd>{{ (s.nozzle_diameter_mm ~ " mm") if s.nozzle_diameter_mm is not none else "—" }}</dd>
       <dt>Layer height</dt><dd>{{ (s.layer_height_mm ~ " mm") if s.layer_height_mm is not none else "—" }}</dd>

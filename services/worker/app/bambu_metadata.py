@@ -88,14 +88,19 @@ def extract_bambu_metadata(container_path):
     }
 
 
-def upsert_extracted_metadata(conn, file_id, metadata):
+def upsert_extracted_metadata(conn, file_id, metadata, source="auto_extracted_3mf"):
     """Never clobbers a manual edit — source != 'manual' is the whole
-    point of the source column (Sheet 04 of the spec)."""
+    point of the source column (Sheet 04 of the spec). Shared by every
+    auto-extraction path (3MF here, gcode in gcode_metadata.py) rather
+    than each maintaining its own copy of this upsert — only the
+    `source` value (a metadata_source enum member — see migration 001,
+    which already anticipated 'auto_extracted_gcode' alongside
+    'auto_extracted_3mf') actually differs between them."""
     with conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO print_metadata (file_id, material, printer_profile, slicer, settings_json, source)
-            VALUES (%s, %s, %s, %s, %s, 'auto_extracted_3mf')
+            VALUES (%s, %s, %s, %s, %s, %s)
             ON CONFLICT (file_id) DO UPDATE SET
                 material = EXCLUDED.material,
                 printer_profile = EXCLUDED.printer_profile,
@@ -110,5 +115,6 @@ def upsert_extracted_metadata(conn, file_id, metadata):
                 metadata["printer_profile"],
                 metadata["slicer"],
                 json.dumps(metadata["settings_json"]),
+                source,
             ),
         )

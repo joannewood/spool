@@ -11,6 +11,7 @@ from common.roots import fetch_root_by_id
 
 from .backfill import run_backfill
 from .bambu_metadata import extract_bambu_metadata, upsert_extracted_metadata
+from .gcode_metadata import extract_gcode_metadata
 from .gcode_thumbnail import extract_gcode_thumbnail
 from .relationship_suggest import suggest_folder_project, suggest_for_file
 from .render import render_svg_thumbnail, render_thumbnail
@@ -111,6 +112,9 @@ def process_render_job(conn, file_id):
                 )
             else:
                 cur.execute("UPDATE files SET render_status = 'done' WHERE id = %s", (file_id,))
+        gcode_metadata = extract_gcode_metadata(container_path)
+        if gcode_metadata is not None:
+            upsert_extracted_metadata(conn, file_id, gcode_metadata, source="auto_extracted_gcode")
         return
 
     thumbnail_filename, mesh = render_thumbnail(container_path, file_id)
