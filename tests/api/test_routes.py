@@ -23,6 +23,19 @@ def test_file_detail_thumbnail_url_is_content_hash_versioned(client, make_file):
     assert '/thumbnails/widget.png?v=abcdef12"' in resp.text
 
 
+def test_file_detail_shows_render_error_reason_not_bare_failed(client, make_file, db_conn):
+    file_id = make_file(filename="broken.3mf", render_status="failed")
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO jobs (file_id, job_type, status, error) VALUES (%s, 'render', 'failed', %s)",
+            (file_id, "3MF has 166 <item>/<component> build references, over the 60-reference safety limit"),
+        )
+    resp = client.get(f"/files/{file_id}")
+    assert resp.status_code == 200
+    assert "Too complex to render" in resp.text
+    assert "60-reference safety limit" in resp.text  # raw reason surfaced in the footer too
+
+
 def test_cached_static_files_sets_long_cache_control(tmp_path):
     # Tested against a standalone Starlette app rather than the real
     # /thumbnails mount, so this doesn't depend on a real thumbnail

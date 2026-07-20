@@ -12,7 +12,7 @@
     {% else %}
       <div class="thumb-placeholder large status-{{ file.render_status }}">
         <span class="ext-label">{{ file.ext }}</span>
-        <span class="status-label">{{ file.render_status }}</span>
+        <span class="status-label">{% if file.render_status == 'failed' %}{{ render_error | render_error_label }}{% else %}{{ file.render_status }}{% endif %}</span>
       </div>
     {% endif %}
     {% if file.bbox_x is not none %}
@@ -262,6 +262,9 @@
 <footer class="detail-footer">
   <dl>
     <div class="footer-item"><dt>Render status</dt><dd>{{ file.render_status }}</dd></div>
+    {% if file.render_status == 'failed' and render_error %}
+    <div class="footer-item footer-item-wide"><dt>Render error</dt><dd>{{ render_error }}</dd></div>
+    {% endif %}
     <div class="footer-item">
       <dt>Manifold</dt>
       <dd>

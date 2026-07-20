@@ -10,7 +10,7 @@ from fastapi.templating import Jinja2Templates
 from common.config import MODEL_EXTENSIONS
 
 from . import host_helper_client, queries
-from .filters import clean_name, ext_class, format_size, thumb_url
+from .filters import clean_name, ext_class, format_size, render_error_label, thumb_url
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 THUMBNAILS_DIR = os.environ.get("THUMBNAILS_DIR", "/data/thumbnails")
@@ -66,6 +66,7 @@ templates = Jinja2Templates(directory=os.path.join(APP_DIR, "templates"))
 templates.env.filters["filesizeformat"] = format_size
 templates.env.filters["ext_class"] = ext_class
 templates.env.filters["clean_name"] = clean_name
+templates.env.filters["render_error_label"] = render_error_label
 templates.env.globals["thumb_url"] = thumb_url
 
 
@@ -159,6 +160,9 @@ def file_detail(request: Request, file_id: int):
         "file_detail.html",
         {
             "file": file,
+            "render_error": (
+                queries.get_latest_render_error(file_id) if file["render_status"] == "failed" else None
+            ),
             "tags": queries.get_file_tags(file_id),
             "projects": queries.get_file_projects(file_id),
             "suggested_projects": queries.get_suggested_file_projects(file_id),

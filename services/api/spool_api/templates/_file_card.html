@@ -11,9 +11,9 @@
     {% if f.thumbnail_path %}
       <img src="{{ thumb_url(f.thumbnail_path, f.content_hash) }}" alt="{{ f.filename }}" loading="lazy">
     {% else %}
-      <div class="thumb-placeholder status-{{ f.render_status }}">
+      <div class="thumb-placeholder status-{{ f.render_status }}" {% if f.render_status == 'failed' and f.render_error %}title="{{ f.render_error }}"{% endif %}>
         <span class="ext-label">{{ f.ext }}</span>
-        <span class="status-label">{{ f.render_status }}</span>
+        <span class="status-label">{% if f.render_status == 'failed' %}{{ f.render_error | render_error_label }}{% else %}{{ f.render_status }}{% endif %}</span>
       </div>
     {% endif %}
     {% if f.bbox_x is not none %}

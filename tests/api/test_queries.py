@@ -222,3 +222,41 @@ def test_get_project_files_attaches_project_memberships(make_file, db_conn):
     finally:
         with db_conn.cursor() as cur:
             cur.execute("DELETE FROM projects WHERE id IN (%s, %s)", (project_a, project_b))
+
+
+# ---- render error surfacing -------------------------------------------------
+
+def test_get_latest_render_error_returns_none_when_no_failed_job(make_file):
+    file_id = make_file()
+    assert queries.get_latest_render_error(file_id) is None
+
+
+def test_get_latest_render_error_returns_most_recent(make_file, db_conn):
+    file_id = make_file(render_status="failed")
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO jobs (file_id, job_type, status, error, completed_at) "
+            "VALUES (%s, 'render', 'failed', %s, now() - interval '1 hour')",
+            (file_id, "first, older failure"),
+        )
+        cur.execute(
+            "INSERT INTO jobs (file_id, job_type, status, error, completed_at) "
+            "VALUES (%s, 'render', 'failed', %s, now())",
+            (file_id, "second, newer failure"),
+        )
+    assert queries.get_latest_render_error(file_id) == "second, newer failure"
+
+
+def test_search_files_attaches_render_error_only_for_failed(make_file, db_conn):
+    failed_id = make_file(filename="broken.3mf", render_status="failed")
+    ok_id = make_file(filename="fine.stl", render_status="done")
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO jobs (file_id, job_type, status, error) VALUES (%s, 'render', 'failed', %s)",
+            (failed_id, "3MF's inner mesh data is 99,000,000 bytes uncompressed, over the 12,000,000-byte safety limit"),
+        )
+    rows, _ = queries.search_files(q="broken", extensions=None, tags=None, page=1)
+    assert rows[0]["render_error"].startswith("3MF's inner mesh data")
+
+    rows, _ = queries.search_files(q="fine", extensions=None, tags=None, page=1)
+    assert rows[0]["render_error"] is None

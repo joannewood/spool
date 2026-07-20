@@ -373,6 +373,8 @@ main {
   gap: 4px;
   color: var(--ink-muted);
   font-size: var(--fs-sm);
+  text-align: center;
+  padding: 0 8px;
 }
 .thumb-placeholder .ext-label {
   font-weight: 700;
@@ -590,6 +592,10 @@ main {
   color: var(--ink-muted);
 }
 .footer-item { display: flex; gap: 6px; white-space: nowrap; }
+/* Render error text is a full raw exception/reason string, unlike the
+   other footer fields' short fixed values — let it wrap and take its own
+   full-width row instead of squeezing into the flex row's nowrap items. */
+.footer-item-wide { flex-basis: 100%; justify-content: center; white-space: normal; text-align: center; }
 .detail-footer dt { color: var(--ink-muted); font-weight: 600; }
 .detail-footer dd { margin: 0; }
 .detail-footer code {

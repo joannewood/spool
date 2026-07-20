@@ -35,6 +35,51 @@ def _attach_project_memberships(cur, rows):
         r["projects"] = projects_by_file[r["id"]]
 
 
+def _attach_render_errors(cur, rows):
+    """Attaches the most recent failed render job's error text as
+    row['render_error'] for any row with render_status == 'failed' — the
+    card placeholder shows a short category derived from this (see
+    filters.py::render_error_label) instead of the bare word "failed",
+    plus the raw text as a hover tooltip. Only queries file ids that are
+    actually failed, since most rows in a healthy library never need
+    this. Shared by search_files/get_project_files, same reasoning as
+    _attach_project_memberships."""
+    failed_ids = [r["id"] for r in rows if r.get("render_status") == "failed"]
+    errors_by_file = {}
+    if failed_ids:
+        cur.execute(
+            """
+            SELECT DISTINCT ON (file_id) file_id, error
+            FROM jobs
+            WHERE file_id = ANY(%s) AND job_type IN ('render', 'render_step') AND status = 'failed'
+            ORDER BY file_id, completed_at DESC NULLS LAST, id DESC
+            """,
+            (failed_ids,),
+        )
+        for row in cur.fetchall():
+            errors_by_file[row["file_id"]] = row["error"]
+    for r in rows:
+        r["render_error"] = errors_by_file.get(r["id"])
+
+
+def get_latest_render_error(file_id):
+    """Single-file equivalent of _attach_render_errors, for the file
+    detail page (which fetches one row at a time, not a batch)."""
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                SELECT error FROM jobs
+                WHERE file_id = %s AND job_type IN ('render', 'render_step') AND status = 'failed'
+                ORDER BY completed_at DESC NULLS LAST, id DESC
+                LIMIT 1
+                """,
+                (file_id,),
+            )
+            row = cur.fetchone()
+            return row["error"] if row else None
+
+
 # ---- search / browse ----------------------------------------------------
 
 SORT_CLAUSES = {
@@ -208,6 +253,7 @@ def search_files(
             )
             rows = cur.fetchall()
             _attach_project_memberships(cur, rows)
+            _attach_render_errors(cur, rows)
     return rows, total
 
 
@@ -330,6 +376,7 @@ def get_project_files(project_id):
             # than one project, so this page should be able to show that
             # too, not just assume "none, we're already on its project."
             _attach_project_memberships(cur, rows)
+            _attach_render_errors(cur, rows)
             return rows
 
 

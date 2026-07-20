@@ -27,6 +27,23 @@ def thumb_url(thumbnail_path, content_hash=None):
     return f"/thumbnails/{thumbnail_path}"
 
 
+def render_error_label(error_text):
+    """Short, human-readable category for a failed render's raw jobs.error
+    text, shown in the thumbnail placeholder instead of the bare word
+    "failed" — see worker/app/mesh_safety.py for the two safety-guard
+    error shapes this recognizes (an oversized mesh vs. a 3MF component
+    tree that would blow up into far more geometry than its file size
+    suggests). Anything else (a real bug, a malformed file) falls back to
+    a generic label; the raw text is still available via the
+    placeholder's title tooltip / the detail page's footer."""
+    text = error_text or ""
+    if "uncompressed" in text and "safety limit" in text:
+        return "Mesh too large to render"
+    if "build references" in text and "safety limit" in text:
+        return "Too complex to render"
+    return "Render failed"
+
+
 def format_size(num_bytes):
     if num_bytes is None:
         return "—"
