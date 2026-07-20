@@ -7,12 +7,27 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from common.config import MODEL_EXTENSIONS
+
 from . import host_helper_client, queries
 from .filters import clean_name, ext_class, format_size, thumb_url
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 THUMBNAILS_DIR = os.environ.get("THUMBNAILS_DIR", "/data/thumbnails")
-ALL_EXTENSIONS = [".stl", ".3mf", ".step", ".stp", ".svg", ".scad"]
+# A curated display order (raw mesh formats, then CAD source, then vector/
+# parametric source, then sliced output) rather than MODEL_EXTENSIONS' set
+# order, which Python doesn't guarantee stable across runs. The assertion
+# is the actual fix, not the ordering — this list previously drifted out
+# of sync with MODEL_EXTENSIONS silently (gcode/obj support landed in
+# common/config.py without anyone remembering this second, separate list
+# existed), so two new formats were invisible in the filter panel despite
+# being fully ingested/searchable. Now a mismatch fails loudly at import
+# time instead of silently under-listing filters again.
+ALL_EXTENSIONS = [".stl", ".3mf", ".obj", ".step", ".stp", ".svg", ".scad", ".gcode"]
+assert set(ALL_EXTENSIONS) == MODEL_EXTENSIONS, (
+    f"ALL_EXTENSIONS {sorted(ALL_EXTENSIONS)} is out of sync with "
+    f"common.config.MODEL_EXTENSIONS {sorted(MODEL_EXTENSIONS)}"
+)
 INGEST_MODES = ["index_in_place", "relocate_to_dropfolder"]
 RELATIONSHIP_TYPES = ["derived_from", "new_version_of", "variant_of", "duplicate_of"]
 SORT_OPTIONS = [

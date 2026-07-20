@@ -415,3 +415,22 @@ def test_index_filter_panel_no_longer_at_top(client):
     assert resp.status_code == 200
     assert 'id="filter-panel"' in resp.text
     assert 'id="filter-toggle"' in resp.text
+
+
+def test_index_filter_panel_lists_every_model_extension(client):
+    # Regression test: main.py's ALL_EXTENSIONS (the filter panel's file
+    # type checkboxes) is a separate, hand-maintained list from
+    # common.config.MODEL_EXTENSIONS (the actual set of extensions SPOOL
+    # ingests) — these drifted out of sync once already (gcode/.obj
+    # support landed in MODEL_EXTENSIONS without this second list being
+    # updated, so both were fully ingested/searchable but invisible in
+    # the filter panel). main.py now asserts the two stay in sync at
+    # import time; this confirms the checkboxes a user actually sees
+    # cover every recognized extension, not just that the assertion
+    # exists.
+    from common.config import MODEL_EXTENSIONS
+
+    resp = client.get("/")
+    assert resp.status_code == 200
+    for ext in MODEL_EXTENSIONS:
+        assert f'value="{ext}"' in resp.text, f"{ext} missing from the rendered filter panel"
