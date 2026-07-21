@@ -1,9 +1,17 @@
+import os
 import re
 
 from psycopg.rows import dict_row
 
 from common.db import get_connection
 from common.text import clean_name
+
+# Independently re-reads the same env var (with the same fallback) that
+# main.py and common/ingest.py already each define their own copy of,
+# rather than importing main.py's THUMBNAILS_DIR here — main.py already
+# imports this module, so the reverse import would be circular. Same
+# already-established pattern as common/ingest.py's own copy.
+THUMBNAILS_DIR = os.environ.get("THUMBNAILS_DIR", "/data/thumbnails")
 
 PAGE_SIZE = 60
 # The bulk-review admin pages (suggested projects/relationships, duplicates,
@@ -1093,7 +1101,46 @@ def list_duplicate_groups(page=1, page_size=BULK_REVIEW_PAGE_SIZE_DEFAULT):
     return groups, total
 
 
-def delete_file_record(file_id):
+def get_files_bulk(file_ids):
+    """Same shape as calling get_file once per id, but one connection for
+    the whole batch — see confirm_file_projects_bulk's docstring for why
+    that matters at scale. Returns a dict keyed by id (only ids that
+    actually still exist) rather than a list, so a caller doing per-id
+    work afterward (e.g. a host-helper delete request per file — that
+    part genuinely can't be batched, host-helper's API is one file at a
+    time) can look each one up directly."""
+    if not file_ids:
+        return {}
     with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("DELETE FROM files WHERE id = %s", (file_id,))
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("SELECT * FROM files WHERE id = ANY(%s)", (file_ids,))
+            return {row["id"]: row for row in cur.fetchall()}
+
+
+def delete_files_bulk(file_ids):
+    """Deletes every one of these files rows *and* their rendered
+    thumbnails, in one connection for the whole batch — the only place a
+    files row is ever actually removed (duplicate-file deletion), and
+    until this fix never cleaned up the thumbnails it left behind
+    (confirmed live: thousands of orphaned thumbnails had accumulated
+    over the feature's whole history) nor batched its connections
+    (confirmed live: the exact same N-fresh-connections problem already
+    fixed for the bulk-review suggestion pages, just not yet triggered
+    here since duplicate counts are typically much smaller). The DB
+    delete happens first — thumbnail removal is best-effort afterward
+    (wrapped so a filesystem hiccup can't undo an otherwise-successful
+    delete; a missed thumbnail is just a leftover orphan, recoverable by
+    re-sweeping, not a correctness problem)."""
+    if not file_ids:
+        return
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("SELECT thumbnail_path FROM files WHERE id = ANY(%s)", (file_ids,))
+            thumbnail_paths = [row["thumbnail_path"] for row in cur.fetchall() if row["thumbnail_path"]]
+            cur.execute("DELETE FROM files WHERE id = ANY(%s)", (file_ids,))
+
+    for thumbnail_path in thumbnail_paths:
+        try:
+            os.remove(os.path.join(THUMBNAILS_DIR, thumbnail_path))
+        except OSError:
+            pass

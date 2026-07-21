@@ -37,7 +37,13 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - thumbnails:/data/thumbnails:ro
+      # rw (not the original ro) so queries.delete_file_record can remove
+      # a deleted file's thumbnail — thumbnails are a pure rendering
+      # cache (always regeneratable from the source file), unlike the
+      # real model files api never touches, so this doesn't weaken the
+      # host-helper-only-writes-real-files boundary the rest of the app
+      # relies on.
+      - thumbnails:/data/thumbnails:rw
     depends_on:
       postgres:
         condition: service_healthy

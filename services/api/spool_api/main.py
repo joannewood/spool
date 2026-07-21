@@ -637,16 +637,25 @@ def admin_duplicates(request: Request, page: int = 1, page_size: str = None):
 
 @app.post("/admin/duplicates/delete")
 def delete_duplicates(file_ids: list[int] = Form([])):
+    # One connection to fetch every selected file's path/filename, one
+    # more to delete every successfully-removed-on-disk row (plus their
+    # thumbnails) — not one of each per file. The host-helper delete
+    # request itself is still necessarily one HTTP call per file (its API
+    # is one file at a time), so that part of the cost doesn't go away,
+    # but it was never the bottleneck the DB connections were.
+    files_by_id = queries.get_files_bulk(file_ids)
     errors = []
+    deleted_ids = []
     for file_id in file_ids:
-        file = queries.get_file(file_id)
+        file = files_by_id.get(file_id)
         if file is None:
             continue
         ok, error = host_helper_client.request_delete(file["path"])
         if ok:
-            queries.delete_file_record(file_id)
+            deleted_ids.append(file_id)
         else:
             errors.append(f"{file['filename']}: {error}")
+    queries.delete_files_bulk(deleted_ids)
 
     qs = urlencode({"delete_errors": "; ".join(errors)}) if errors else ""
     return RedirectResponse(f"/admin/duplicates{'?' + qs if qs else ''}", status_code=303)

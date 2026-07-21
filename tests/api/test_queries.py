@@ -515,3 +515,58 @@ def test_list_duplicate_groups_page_size_all_returns_every_group(make_file):
 
     groups, total = queries.list_duplicate_groups(page=1, page_size="all")
     assert len(groups) == total
+
+
+# ---- delete_files_bulk also removes thumbnails (orphan-cleanup fix) -------
+
+def test_delete_files_bulk_removes_thumbnails(make_file):
+    import os
+
+    os.makedirs(queries.THUMBNAILS_DIR, exist_ok=True)
+    thumbnail_filenames = ["delete-bulk-thumb-1.png", "delete-bulk-thumb-2.png"]
+    thumbnail_paths = [os.path.join(queries.THUMBNAILS_DIR, name) for name in thumbnail_filenames]
+    for path in thumbnail_paths:
+        with open(path, "wb") as f:
+            f.write(b"fake png bytes")
+
+    file_a = make_file(filename="delete-bulk-a.stl", thumbnail_path=thumbnail_filenames[0])
+    file_b = make_file(filename="delete-bulk-b.stl", thumbnail_path=thumbnail_filenames[1])
+    assert all(os.path.exists(p) for p in thumbnail_paths)
+
+    queries.delete_files_bulk([file_a, file_b])
+
+    assert queries.get_file(file_a) is None
+    assert queries.get_file(file_b) is None
+    assert not any(os.path.exists(p) for p in thumbnail_paths)
+
+
+def test_delete_files_bulk_tolerates_a_missing_thumbnail_file(make_file):
+    # thumbnail_path points at a file that was already gone from disk —
+    # the delete must still succeed (best-effort cleanup, not required).
+    file_id = make_file(filename="delete-bulk-no-thumb.stl", thumbnail_path="does-not-exist-on-disk.png")
+    queries.delete_files_bulk([file_id])
+    assert queries.get_file(file_id) is None
+
+
+def test_delete_files_bulk_handles_no_thumbnail_at_all(make_file):
+    file_id = make_file(filename="delete-bulk-null-thumb.stl")  # thumbnail_path defaults to NULL
+    queries.delete_files_bulk([file_id])
+    assert queries.get_file(file_id) is None
+
+
+def test_delete_files_bulk_handles_empty_list():
+    queries.delete_files_bulk([])  # must not raise
+
+
+def test_get_files_bulk_returns_dict_keyed_by_id(make_file):
+    file_a = make_file(filename="get-bulk-a.stl")
+    file_b = make_file(filename="get-bulk-b.stl")
+
+    result = queries.get_files_bulk([file_a, file_b, 999999999])
+
+    assert set(result.keys()) == {file_a, file_b}
+    assert result[file_a]["filename"] == "get-bulk-a.stl"
+
+
+def test_get_files_bulk_handles_empty_list():
+    assert queries.get_files_bulk([]) == {}

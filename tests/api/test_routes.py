@@ -703,3 +703,45 @@ def test_admin_suggested_projects_garbage_page_size_falls_back_to_default(client
     resp = client.get("/admin/suggested-projects", params={"page_size": "not-a-real-value"})
     assert resp.status_code == 200  # falls back rather than erroring
     assert 'value="100" selected' in resp.text
+
+
+# ---- duplicate-file bulk delete (batched connections + thumbnail cleanup) --
+
+def test_delete_duplicates_route_deletes_successes_and_reports_failures(client, make_file, monkeypatch):
+    import os
+
+    from spool_api import host_helper_client, queries
+
+    os.makedirs(queries.THUMBNAILS_DIR, exist_ok=True)
+    thumbnail_path = os.path.join(queries.THUMBNAILS_DIR, "route-delete-thumb.png")
+    with open(thumbnail_path, "wb") as f:
+        f.write(b"fake png bytes")
+
+    keep_id = make_file(filename="route-delete-keep.stl", path="/tmp/route-delete-keep.stl")
+    fail_id = make_file(filename="route-delete-fail.stl", path="/tmp/route-delete-fail.stl")
+    ok_id = make_file(filename="route-delete-ok.stl", path="/tmp/route-delete-ok.stl", thumbnail_path="route-delete-thumb.png")
+
+    def fake_request_delete(path):
+        if path == "/tmp/route-delete-fail.stl":
+            return False, "simulated host-helper failure"
+        return True, None
+
+    monkeypatch.setattr(host_helper_client, "request_delete", fake_request_delete)
+
+    resp = client.post(
+        "/admin/duplicates/delete",
+        data={"file_ids": [str(ok_id), str(fail_id)]},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert "delete_errors=" in resp.headers["location"]
+
+    assert queries.get_file(ok_id) is None  # deleted
+    assert queries.get_file(fail_id) is not None  # host-helper "failed", so kept
+    assert queries.get_file(keep_id) is not None  # never selected, untouched
+    assert not os.path.exists(thumbnail_path)  # its thumbnail went with it
+
+    # clean up the two rows this test didn't get SPOOL itself to delete
+    with queries.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM files WHERE id = ANY(%s)", ([fail_id, keep_id],))
