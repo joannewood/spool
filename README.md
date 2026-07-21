@@ -150,6 +150,25 @@ Tests run on the host (not in a container) against a real, separate
   to) — confirming a zip found there will fail with a permissions error in
   Admin, by design. Extract it yourself, or drop the zip in your drop
   folder instead.
+- **Don't point a watched root at a folder under iCloud Drive sync (e.g.
+  anywhere inside `~/Documents` or `~/Desktop` if "Desktop & Documents
+  Folders" is on) while "Optimize Mac Storage" is enabled.** iCloud will
+  periodically evict local copies of files you haven't touched recently
+  back to cloud-only placeholders to save disk space. Docker Desktop's
+  virtualized filesystem bridge doesn't trigger iCloud's on-demand
+  download for these the way native macOS file access does, so the
+  watcher/worker containers just get `OSError: [Errno 35] Resource
+  deadlock avoided` trying to even `stat()` the file — indefinitely, not
+  a transient error. Confirmed live: an affected file shows a real size
+  in `ls -la` but `stat -f "blocks=%b"` reports `0`. Reading the file
+  once from the host (Terminal, Finder, anything running directly on the
+  Mac, not in a container) reliably materializes it and unblocks the
+  container — but iCloud can evict it again later under storage
+  pressure, so this isn't a one-time fix, it can recur on a shifting set
+  of files indefinitely. The real fix is either turning off "Optimize Mac
+  Storage" (System Settings → your Apple ID → iCloud → iCloud Drive →
+  Options) so watched files always stay downloaded locally, or keeping
+  watched folders entirely outside any iCloud-synced directory.
 
 ## Status
 
