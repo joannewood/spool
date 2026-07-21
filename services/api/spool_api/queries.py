@@ -437,7 +437,7 @@ def get_project_children(project_id):
             return cur.fetchall()
 
 
-def get_project_files(project_id):
+def _get_project_files_by_status(project_id, status):
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
@@ -448,10 +448,10 @@ def get_project_files(project_id):
                 FROM files f
                 JOIN project_files pf ON pf.file_id = f.id
                 LEFT JOIN print_log ON print_log.file_id = f.id
-                WHERE pf.project_id = %s AND pf.status = 'confirmed'
+                WHERE pf.project_id = %s AND pf.status = %s
                 ORDER BY f.filename
                 """,
-                (project_id,),
+                (project_id, status),
             )
             rows = cur.fetchall()
             # Same file-card component as the library grid (see
@@ -461,6 +461,18 @@ def get_project_files(project_id):
             _attach_project_memberships(cur, rows)
             _attach_render_errors(cur, rows)
             return rows
+
+
+def get_project_files(project_id):
+    return _get_project_files_by_status(project_id, "confirmed")
+
+
+def get_project_suggested_files(project_id):
+    """Files the worker's folder-grouping heuristic proposed for this
+    project but nobody has confirmed or rejected yet — shown in their own
+    section on the project page (see project_detail.html) so a suggestion
+    doesn't require navigating to the file's own detail page to review."""
+    return _get_project_files_by_status(project_id, "suggested")
 
 
 def get_file_projects(file_id):

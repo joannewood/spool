@@ -63,4 +63,22 @@
   {% endfor %}
 </div>
 
+{% if suggested_files %}
+<h2>Suggested files</h2>
+<p class="note">
+  Heuristic folder-based suggestions for this project, waiting for you to confirm or reject.
+</p>
+<div class="grid">
+  {% for f in suggested_files %}
+  <div class="suggested-file-card">
+    {{ cards.file_card(f) }}
+    <div class="rel-actions">
+      <form method="POST" action="/projects/{{ project.id }}/files/{{ f.id }}/confirm"><button type="submit" class="rel-confirm" title="confirm">✓</button></form>
+      <form method="POST" action="/projects/{{ project.id }}/files/{{ f.id }}/reject"><button type="submit" class="rel-reject" title="dismiss">×</button></form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 {% endblock %}

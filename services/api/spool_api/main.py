@@ -319,12 +319,13 @@ def project_detail(request: Request, project_id: int, open_status: str = ""):
     if project is None:
         raise HTTPException(status_code=404, detail="project not found")
     files = queries.get_project_files(project_id)
+    suggested_files = queries.get_project_suggested_files(project_id)
     # The file card shows every confirmed project a file belongs to (same
     # component as the library grid) — but repeating *this* project's own
     # name on every card of its own page is pure noise, not information;
     # only other memberships (a file that's also in a second project) are
     # worth showing here.
-    for f in files:
+    for f in files + suggested_files:
         f["projects"] = [p for p in f["projects"] if p["id"] != project_id]
     return templates.TemplateResponse(
         request,
@@ -333,6 +334,7 @@ def project_detail(request: Request, project_id: int, open_status: str = ""):
             "project": project,
             "children": queries.get_project_children(project_id),
             "files": files,
+            "suggested_files": suggested_files,
             "parent": queries.get_project(project["parent_project_id"]) if project["parent_project_id"] else None,
             "sidecars": queries.get_project_sidecars(project_id),
             "open_status": open_status,
@@ -343,6 +345,23 @@ def project_detail(request: Request, project_id: int, open_status: str = ""):
 @app.post("/projects/{project_id}/name")
 def update_project_name(project_id: int, name: str = Form(...)):
     queries.set_project_name(project_id, name)
+    return RedirectResponse(f"/projects/{project_id}", status_code=303)
+
+
+# Same effect as the existing /files/{file_id}/projects/{project_id}/confirm
+# and /reject routes (reuses the same query functions) — a separate pair
+# scoped under /projects so confirming/rejecting a suggestion from the
+# project's own "Suggested files" section redirects back to that project
+# page, not to the file's page.
+@app.post("/projects/{project_id}/files/{file_id}/confirm")
+def confirm_suggested_project_file(project_id: int, file_id: int):
+    queries.confirm_file_project(file_id, project_id)
+    return RedirectResponse(f"/projects/{project_id}", status_code=303)
+
+
+@app.post("/projects/{project_id}/files/{file_id}/reject")
+def reject_suggested_project_file(project_id: int, file_id: int):
+    queries.reject_file_project(file_id, project_id)
     return RedirectResponse(f"/projects/{project_id}", status_code=303)
 
 

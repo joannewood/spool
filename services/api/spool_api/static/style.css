@@ -1005,6 +1005,14 @@ table.live-status-totals { width: auto; flex: 0 0 auto; white-space: nowrap; }
 .rel-confirm:hover { color: var(--accent); background: var(--accent-bg); }
 .rel-reject:hover { color: var(--warn); background: var(--warn-bg); }
 
+/* A project page's "Suggested files" grid item — the file_card macro's
+   own <a> can't also contain the confirm/reject buttons (nesting
+   interactive content inside an anchor is invalid HTML5, same reasoning
+   as the printed-badge/sidecar-card exceptions elsewhere), so they sit
+   as a sibling row underneath it instead. */
+.suggested-file-card { display: flex; flex-direction: column; gap: 6px; }
+.suggested-file-card .rel-actions { justify-content: center; }
+
 .rel-add-form { max-width: 480px; }
 .rel-search-results {
   display: flex;

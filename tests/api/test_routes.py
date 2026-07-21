@@ -163,6 +163,70 @@ def test_rename_project_via_route(client, db_conn):
             cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
 
 
+def test_project_detail_shows_suggested_files_section(client, make_file, db_conn):
+    from spool_api import queries
+
+    project_id = queries.create_project("Suggested Section Test", "", None)
+    file_id = make_file(filename="suggested-section-check.stl")
+    try:
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'suggested')",
+                (project_id, file_id),
+            )
+        resp = client.get(f"/projects/{project_id}")
+        assert resp.status_code == 200
+        assert "Suggested files" in resp.text
+        assert "suggested-section-check.stl" in resp.text
+        assert f'/projects/{project_id}/files/{file_id}/confirm' in resp.text
+        assert f'/projects/{project_id}/files/{file_id}/reject' in resp.text
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_confirm_suggested_project_file_via_project_route(client, make_file, db_conn):
+    from spool_api import queries
+
+    project_id = queries.create_project("Confirm Via Project Route", "", None)
+    file_id = make_file(filename="confirm-via-project-route.stl")
+    try:
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'suggested')",
+                (project_id, file_id),
+            )
+        resp = client.post(f"/projects/{project_id}/files/{file_id}/confirm", follow_redirects=False)
+        assert resp.status_code == 303
+        assert resp.headers["location"] == f"/projects/{project_id}"
+        assert {f["id"] for f in queries.get_project_files(project_id)} == {file_id}
+        assert queries.get_project_suggested_files(project_id) == []
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_reject_suggested_project_file_via_project_route(client, make_file, db_conn):
+    from spool_api import queries
+
+    project_id = queries.create_project("Reject Via Project Route", "", None)
+    file_id = make_file(filename="reject-via-project-route.stl")
+    try:
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'suggested')",
+                (project_id, file_id),
+            )
+        resp = client.post(f"/projects/{project_id}/files/{file_id}/reject", follow_redirects=False)
+        assert resp.status_code == 303
+        assert resp.headers["location"] == f"/projects/{project_id}"
+        assert queries.get_project_suggested_files(project_id) == []
+        assert queries.get_project_files(project_id) == []
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
 def test_add_file_to_existing_project_via_route(client, make_file, db_conn):
     from spool_api import queries
 

@@ -224,6 +224,30 @@ def test_get_project_files_attaches_project_memberships(make_file, db_conn):
             cur.execute("DELETE FROM projects WHERE id IN (%s, %s)", (project_a, project_b))
 
 
+# ---- suggested project files -------------------------------------------------
+
+def test_get_project_suggested_files_returns_only_suggested_not_confirmed(make_file, db_conn):
+    project_id = queries.create_project("Suggested Files Test", "", None)
+    confirmed_id = make_file(filename="already-confirmed.stl")
+    suggested_id = make_file(filename="still-suggested.stl")
+    try:
+        queries.add_file_to_project(confirmed_id, project_id)  # inserts as 'confirmed'
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'suggested')",
+                (project_id, suggested_id),
+            )
+
+        suggested = queries.get_project_suggested_files(project_id)
+        confirmed = queries.get_project_files(project_id)
+
+        assert {f["id"] for f in suggested} == {suggested_id}
+        assert {f["id"] for f in confirmed} == {confirmed_id}
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
 # ---- render error surfacing -------------------------------------------------
 
 def test_get_latest_render_error_returns_none_when_no_failed_job(make_file):
