@@ -14,6 +14,18 @@
 
 {% if delete_errors %}<p class="badge warn">⚠ {{ delete_errors }}</p>{% endif %}
 
+{% if total %}
+<form method="POST" action="/admin/duplicates/delete-all" class="inline-form">
+  <button type="submit">Delete all extra copies across {{ total }} group{{ "s" if total != 1 else "" }}</button>
+</form>
+<p class="note">
+  Runs as one server-side action, not a page-by-page selection — always keeps
+  the earliest copy in every group and deletes only the rest, the same rule
+  "select all" already applies per page. This still deletes real files from
+  disk; there's no undo.
+</p>
+{% endif %}
+
 {{ paging.controls("/admin/duplicates") }}
 
 {% if groups %}

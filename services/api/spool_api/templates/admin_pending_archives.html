@@ -11,6 +11,18 @@
   "Select all"/"Accept selected" only apply to what's on the current page.
 </p>
 
+{% if total %}
+<form method="POST" action="/admin/zips/accept-all" class="inline-form">
+  <button type="submit">Confirm and extract all {{ total }} pending archive{{ "s" if total != 1 else "" }}</button>
+</form>
+<p class="note">
+  Runs as one server-side action, not a page-by-page selection. This still
+  extracts and deletes the original zip for every one of them; there's no
+  undo, so use it only when you're happy accepting everything currently
+  pending.
+</p>
+{% endif %}
+
 {{ paging.controls("/admin/pending-archives") }}
 
 {% if zips %}

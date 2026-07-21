@@ -502,6 +502,32 @@ def test_accept_zips_bulk_confirms_each_and_redirects(client, db_conn, test_root
             cur.execute("DELETE FROM zip_files WHERE id = ANY(%s)", ([zip_a, zip_b],))
 
 
+def test_accept_all_zips_route_confirms_every_pending_one(client, db_conn, test_root_id):
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO zip_files (watched_root_id, path, filename, size_bytes) VALUES (%s, %s, %s, 100) RETURNING id",
+            (test_root_id, "/tmp/api-test-root/AcceptAllA.zip", "AcceptAllA.zip"),
+        )
+        zip_a = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO zip_files (watched_root_id, path, filename, size_bytes) VALUES (%s, %s, %s, 100) RETURNING id",
+            (test_root_id, "/tmp/api-test-root/AcceptAllB.zip", "AcceptAllB.zip"),
+        )
+        zip_b = cur.fetchone()[0]
+    try:
+        resp = client.post("/admin/zips/accept-all", follow_redirects=False)
+        assert resp.status_code == 303
+        assert resp.headers["location"] == "/admin/pending-archives"
+
+        with db_conn.cursor() as cur:
+            cur.execute("SELECT status FROM zip_files WHERE id = ANY(%s) ORDER BY id", ([zip_a, zip_b],))
+            statuses = [row[0] for row in cur.fetchall()]
+        assert statuses == ["confirmed", "confirmed"]
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM zip_files WHERE id = ANY(%s)", ([zip_a, zip_b],))
+
+
 def test_suggested_projects_page_has_no_nested_forms(client, make_file, db_conn):
     # Same regression as the pending-archives test above — this page had the
     # exact bug (Confirm silently submitted the bulk form instead of its own
@@ -952,6 +978,37 @@ def test_delete_duplicates_route_deletes_successes_and_reports_failures(client, 
             cur.execute("DELETE FROM files WHERE id = ANY(%s)", ([fail_id, keep_id],))
 
 
+def test_delete_all_duplicates_route_keeps_earliest_of_each_group(client, make_file, monkeypatch):
+    from spool_api import host_helper_client, queries
+
+    earliest_id = make_file(
+        filename="delete-all-dup-earliest.stl", path="/tmp/delete-all-dup-earliest.stl", content_hash="delete-all-dup-hash"
+    )
+    newer_id = make_file(
+        filename="delete-all-dup-newer.stl", path="/tmp/delete-all-dup-newer.stl", content_hash="delete-all-dup-hash"
+    )
+
+    deleted_paths = []
+
+    def fake_request_delete(path):
+        deleted_paths.append(path)
+        return True, None
+
+    monkeypatch.setattr(host_helper_client, "request_delete", fake_request_delete)
+
+    resp = client.post("/admin/duplicates/delete-all", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/admin/duplicates"
+
+    assert deleted_paths == ["/tmp/delete-all-dup-newer.stl"]  # only the non-earliest one
+    assert queries.get_file(earliest_id) is not None  # kept
+    assert queries.get_file(newer_id) is None  # deleted
+
+    with queries.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM files WHERE id = %s", (earliest_id,))
+
+
 # ---- bulk project-name cleanup ---------------------------------------------
 
 def test_projects_page_links_to_bulk_rename_when_cleanup_needed(client):
@@ -1002,3 +1059,17 @@ def test_bulk_rename_apply_only_renames_checked_rows(client):
     finally:
         with queries.get_connection() as conn, conn.cursor() as cur:
             cur.execute("DELETE FROM projects WHERE id = ANY(%s)", ([checked_id, unchecked_id],))
+
+
+def test_bulk_rename_accept_all_route_renames_everything(client):
+    from spool_api import queries
+
+    project_id = queries.create_project("route-accept-all-model_files", "", None)
+    try:
+        resp = client.post("/projects/bulk-rename/accept-all", follow_redirects=False)
+        assert resp.status_code == 303
+        assert resp.headers["location"] == "/projects/bulk-rename"
+        assert queries.get_project(project_id)["name"] == "Route Accept All"
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))

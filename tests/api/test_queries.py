@@ -923,3 +923,61 @@ def test_rename_projects_bulk_skips_blank_new_name():
 
 def test_rename_projects_bulk_handles_empty_list():
     queries.rename_projects_bulk([])  # must not raise
+
+
+def test_rename_projects_bulk_disambiguates_against_an_existing_project(db_conn):
+    # The real gap this guards against: rename_projects_bulk used to set
+    # the name with zero collision check, able to create two projects
+    # with the exact identical name.
+    existing_id = queries.create_project("Widget", "", None)
+    to_rename_id = _make_auto_project(db_conn, "/tmp/orphan-test/rename-collide/Widget")
+    try:
+        queries.rename_projects_bulk([(to_rename_id, "Widget")])
+        assert queries.get_project(to_rename_id)["name"] == "Widget (rename-collide)"
+        assert queries.get_project(existing_id)["name"] == "Widget"  # untouched
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id IN (%s, %s)", (existing_id, to_rename_id))
+
+
+def test_rename_projects_bulk_disambiguates_two_renames_in_the_same_batch(db_conn):
+    # No source_folder_path on either — so disambiguation for the second
+    # one processed has no parent folder to borrow context from and
+    # falls straight back to a numeric suffix.
+    project_a = queries.create_project("Project A", "", None)
+    project_b = queries.create_project("Project B", "", None)
+    try:
+        queries.rename_projects_bulk([(project_a, "Shared Name"), (project_b, "Shared Name")])
+        names = {queries.get_project(project_a)["name"], queries.get_project(project_b)["name"]}
+        assert names == {"Shared Name", "Shared Name (2)"}
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id IN (%s, %s)", (project_a, project_b))
+
+
+def test_rename_all_projects_needing_cleanup_renames_and_disambiguates(db_conn):
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO projects (name, source_folder_path) VALUES (%s, %s) RETURNING id",
+            ("widget-model_files", "/tmp/orphan-test/cleanup-all/widget-model_files"),
+        )
+        project_a = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO projects (name, source_folder_path) VALUES (%s, %s) RETURNING id",
+            ("widget-print_files", "/tmp/orphan-test/cleanup-all/widget-print_files"),
+        )
+        project_b = cur.fetchone()[0]
+    already_clean = queries.create_project("Already Clean", "", None)
+    try:
+        queries.rename_all_projects_needing_cleanup()
+        name_a = queries.get_project(project_a)["name"]
+        name_b = queries.get_project(project_b)["name"]
+        # Both clean to "Widget" — the second processed gets disambiguated
+        # with its parent folder's name (both share the same parent here,
+        # "cleanup-all", since that's the realistic collision case: the
+        # same kit's "-model_files"/"-print_files" folder pair).
+        assert {name_a, name_b} == {"Widget", "Widget (cleanup-all)"}
+        assert queries.get_project(already_clean)["name"] == "Already Clean"  # untouched
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id IN (%s, %s, %s)", (project_a, project_b, already_clean))

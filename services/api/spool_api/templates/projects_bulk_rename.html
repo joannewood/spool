@@ -13,6 +13,17 @@
   names this heuristic would actually change are listed here.
 </p>
 
+{% if total %}
+<form method="POST" action="/projects/bulk-rename/accept-all" class="inline-form">
+  <button type="submit">Apply all {{ total }} suggested rename{{ "s" if total != 1 else "" }}</button>
+</form>
+<p class="note">
+  Runs as one server-side action, not a page-by-page selection — names are
+  still disambiguated against each other and against every existing project,
+  so this can't create two projects with the same name.
+</p>
+{% endif %}
+
 {% if suggestions %}
 <form method="POST" action="/projects/bulk-rename">
   {{ paging.controls("/projects/bulk-rename") }}

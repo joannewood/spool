@@ -313,6 +313,14 @@ def projects_bulk_rename_apply(
     return RedirectResponse("/projects/bulk-rename", status_code=303)
 
 
+# Deliberately takes no ids from the client at all — same reasoning as
+# /admin/suggested-projects/accept-all.
+@app.post("/projects/bulk-rename/accept-all")
+def projects_bulk_rename_accept_all():
+    queries.rename_all_projects_needing_cleanup()
+    return RedirectResponse("/projects/bulk-rename", status_code=303)
+
+
 @app.get("/projects/{project_id}", response_class=HTMLResponse)
 def project_detail(request: Request, project_id: int, open_status: str = ""):
     project = queries.get_project(project_id)
@@ -609,6 +617,17 @@ def admin_accept_zips_bulk(zip_ids: list[int] = Form([])):
     return RedirectResponse("/admin/pending-archives", status_code=303)
 
 
+# Deliberately takes no ids from the client — same reasoning as the other
+# accept-all routes. Extraction is a real, irreversible action (deletes
+# the original zip after extracting), but is explicitly requested here,
+# same as the other three accept-all buttons.
+@app.post("/admin/zips/accept-all")
+def admin_accept_all_zips():
+    zips, _ = queries.list_pending_zips(page_size="all")
+    queries.enqueue_zip_extractions_bulk([z["id"] for z in zips])
+    return RedirectResponse("/admin/pending-archives", status_code=303)
+
+
 @app.get("/admin/rejected-archives", response_class=HTMLResponse)
 def admin_rejected_archives(request: Request):
     return templates.TemplateResponse(
@@ -745,14 +764,15 @@ def admin_duplicates(request: Request, page: int = 1, page_size: str = None):
     return response
 
 
-@app.post("/admin/duplicates/delete")
-def delete_duplicates(file_ids: list[int] = Form([])):
-    # One connection to fetch every selected file's path/filename, one
-    # more to delete every successfully-removed-on-disk row (plus their
-    # thumbnails) — not one of each per file. The host-helper delete
-    # request itself is still necessarily one HTTP call per file (its API
-    # is one file at a time), so that part of the cost doesn't go away,
-    # but it was never the bottleneck the DB connections were.
+def _delete_files_via_host_helper(file_ids):
+    """One connection to fetch every selected file's path/filename, one
+    more to delete every successfully-removed-on-disk row (plus their
+    thumbnails) — not one of each per file. The host-helper delete
+    request itself is still necessarily one HTTP call per file (its API
+    is one file at a time), so that part of the cost doesn't go away,
+    but it was never the bottleneck the DB connections were. Returns the
+    "; "-joined error string ready for the redirect query param, empty if
+    nothing failed."""
     files_by_id = queries.get_files_bulk(file_ids)
     errors = []
     deleted_ids = []
@@ -766,6 +786,26 @@ def delete_duplicates(file_ids: list[int] = Form([])):
         else:
             errors.append(f"{file['filename']}: {error}")
     queries.delete_files_bulk(deleted_ids)
+    return "; ".join(errors)
 
-    qs = urlencode({"delete_errors": "; ".join(errors)}) if errors else ""
+
+@app.post("/admin/duplicates/delete")
+def delete_duplicates(file_ids: list[int] = Form([])):
+    errors = _delete_files_via_host_helper(file_ids)
+    qs = urlencode({"delete_errors": errors}) if errors else ""
+    return RedirectResponse(f"/admin/duplicates{'?' + qs if qs else ''}", status_code=303)
+
+
+# Deliberately takes no ids from the client — same reasoning as the other
+# accept-all routes, but note this one is a real, irreversible deletion
+# (not just a status flip), so it always keeps the earliest file in each
+# duplicate group (list_duplicate_groups already orders each group's
+# files oldest-first) and only deletes the rest — never all copies of
+# anything.
+@app.post("/admin/duplicates/delete-all")
+def delete_all_duplicates():
+    groups, _ = queries.list_duplicate_groups(page_size="all")
+    file_ids = [f["id"] for g in groups for f in g["files"][1:]]
+    errors = _delete_files_via_host_helper(file_ids)
+    qs = urlencode({"delete_errors": errors}) if errors else ""
     return RedirectResponse(f"/admin/duplicates{'?' + qs if qs else ''}", status_code=303)

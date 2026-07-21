@@ -4,6 +4,7 @@ import re
 from psycopg.rows import dict_row
 
 from common.db import get_connection
+from common.project_naming import unique_project_name
 from common.text import clean_name, suggest_clean_project_name
 
 # Independently re-reads the same env var (with the same fallback) that
@@ -541,15 +542,51 @@ def rename_projects_bulk(renames):
     for the whole batch, same reasoning as confirm_file_projects_bulk. A
     blank/whitespace-only new_name is a silent no-op per row (mirrors
     set_project_name's own boundary-only-validation style) rather than a
-    hard failure for the whole batch."""
+    hard failure for the whole batch.
+
+    Runs every new name through unique_project_name — confirmed live this
+    was a real gap: two different projects can clean up to the identical
+    suggested name (e.g. the same kit's "-model_files"/"-print_files"
+    folder pair, both cleaning to the same string), and this function
+    previously just set the name with no collision check at all, able to
+    create two projects with the exact same name (there's no database
+    constraint preventing it either)."""
     if not renames:
         return
     with get_connection() as conn:
         with conn.cursor() as cur:
             for project_id, new_name in renames:
                 new_name = new_name.strip()
-                if new_name:
-                    cur.execute("UPDATE projects SET name = %s WHERE id = %s", (new_name, project_id))
+                if not new_name:
+                    continue
+                cur.execute("SELECT source_folder_path FROM projects WHERE id = %s", (project_id,))
+                row = cur.fetchone()
+                directory = row[0] if row else None
+                unique_name = unique_project_name(cur, new_name, directory=directory, exclude_id=project_id)
+                cur.execute("UPDATE projects SET name = %s WHERE id = %s", (unique_name, project_id))
+
+
+def rename_all_projects_needing_cleanup():
+    """Applies suggest_clean_project_name's suggestion to *every* project
+    that needs it, in one server-side action — no per-row id list for the
+    client to render/submit at all (same reasoning as confirm_all_
+    suggested_project_assignments). Disambiguates through the same
+    unique_project_name path rename_projects_bulk uses, which matters
+    more here than anywhere else: confirmed live, 10 of the current
+    cleanup suggestions collide pairwise (the same kit's "-model_files"/
+    "-print_files" folders both cleaning to the same string), so blindly
+    accepting everything without this would immediately create duplicate
+    project names."""
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("SELECT id, name, source_folder_path FROM projects ORDER BY name")
+            rows = cur.fetchall()
+            for row in rows:
+                suggested = suggest_clean_project_name(row["name"])
+                if not suggested or suggested == row["name"]:
+                    continue
+                unique_name = unique_project_name(cur, suggested, directory=row["source_folder_path"], exclude_id=row["id"])
+                cur.execute("UPDATE projects SET name = %s WHERE id = %s", (unique_name, row["id"]))
 
 
 def add_file_to_project(file_id, project_id):

@@ -4,6 +4,7 @@ import re
 from psycopg.rows import dict_row
 
 from common.config import MODEL_EXTENSIONS
+from common.project_naming import unique_project_name
 from common.text import clean_name
 
 STEP_EXTS = (".step", ".stp")
@@ -55,34 +56,6 @@ _ARCHIVE_FOLDER_RE = re.compile(r"^archive\s*\(?\s*\d*\s*\)?$", re.IGNORECASE)
 
 def _stem(filename):
     return os.path.splitext(filename)[0]
-
-
-def _unique_project_name(cur, name, directory):
-    """Project names should be unique — a second, unrelated real folder
-    that happens to produce the same cleaned name (e.g. two different
-    "Root" board game kits' "Woodland Alliance" faction folders, or a
-    generic piece name like "Bed" reused across two different dollhouse
-    kits) gets disambiguated with its parent folder's name in parentheses
-    instead of silently colliding with an existing, unrelated project of
-    the same name. Confirmed live this resolves every real duplicate name
-    in the library as of writing (25 distinct names, all disambiguated by
-    their immediate parent folder alone). Checked against every project
-    regardless of how it was created — a manually-created project with
-    the same name is just as real a collision as an auto-created one.
-    Falls back to a numeric suffix in the practically-never-happens case
-    where even the disambiguated name collides too."""
-    cur.execute("SELECT 1 FROM projects WHERE lower(name) = lower(%s)", (name,))
-    if cur.fetchone() is None:
-        return name
-    parent_name = clean_name(os.path.basename(os.path.dirname(directory)))
-    candidate = f"{name} ({parent_name})"
-    suffix = 2
-    while True:
-        cur.execute("SELECT 1 FROM projects WHERE lower(name) = lower(%s)", (candidate,))
-        if cur.fetchone() is None:
-            return candidate
-        candidate = f"{name} ({parent_name}) ({suffix})"
-        suffix += 1
 
 
 def _skip_archive_ancestors(directory, root_host_path):
@@ -152,7 +125,7 @@ def _maybe_group_under_wrapper(conn, project_id, match_directory, root):
             ]
             if len(siblings) < 2:
                 return  # not worth wrapping a single project
-            wrapper_name = _unique_project_name(
+            wrapper_name = unique_project_name(
                 cur, _wrapper_project_name(effective_parent, root.host_path), effective_parent
             )
             cur.execute(
@@ -314,7 +287,7 @@ def suggest_folder_project(conn, file_id, host_path, root):
         row = cur.fetchone()
         project_id = row["id"] if row else None
         if project_id is None:
-            unique_name = _unique_project_name(cur, folder_name, match_directory)
+            unique_name = unique_project_name(cur, folder_name, match_directory)
             cur.execute(
                 "INSERT INTO projects (name, source_folder_path) VALUES (%s, %s) RETURNING id",
                 (unique_name, match_directory),
