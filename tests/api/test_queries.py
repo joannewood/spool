@@ -649,6 +649,28 @@ def test_delete_files_bulk_deletes_now_empty_auto_created_project(make_file, db_
         assert cur.fetchone() is None
 
 
+def test_delete_files_bulk_deletes_project_whose_only_membership_was_never_confirmed(make_file, db_conn):
+    # The exact real-world sequence this guards against: suggest_folder_
+    # project creates the project with a 'suggested' (not 'confirmed')
+    # project_files row, and the file turns out to be a duplicate that
+    # gets deleted before anyone ever reviews/accepts that suggestion —
+    # the project must still be cleaned up, not just when the membership
+    # was confirmed first.
+    project_id = _make_auto_project(db_conn, "/tmp/orphan-test/auto-e")
+    file_id = make_file(filename="orphan-delete-bulk-suggested-only.stl")
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'suggested')",
+            (project_id, file_id),
+        )
+
+    queries.delete_files_bulk([file_id])
+
+    with db_conn.cursor() as cur:
+        cur.execute("SELECT id FROM projects WHERE id = %s", (project_id,))
+        assert cur.fetchone() is None
+
+
 def test_delete_files_bulk_keeps_auto_created_project_with_remaining_members(make_file, db_conn):
     project_id = _make_auto_project(db_conn, "/tmp/orphan-test/auto-d")
     file_a = make_file(filename="orphan-delete-bulk-sibling-a.stl")
