@@ -506,10 +506,35 @@ def add_file_to_project(file_id, project_id):
             )
 
 
+def _delete_project_if_empty_and_auto_created(cur, project_id):
+    """A project auto-created by suggest_folder_project (source_folder_path
+    NOT NULL) that's lost its last project_files row — via a manual
+    removal here, or via delete_files_bulk cascading one away — is dead
+    weight: nothing links to it and nothing will ever re-suggest it back
+    (matching by source_folder_path means a *new* file discovered in that
+    same folder later would just recreate an equivalent row anyway, no
+    suggestion is lost by removing the empty shell). Confirmed live this
+    was already happening silently: 349 real orphaned projects had
+    accumulated, mostly from duplicate-file cleanup deleting the only
+    file in a project created for what turned out to be a duplicate
+    download's folder. A manually-created project (source_folder_path
+    NULL) is deliberately never auto-deleted this way, even if empty —
+    the user made it on purpose and might want it waiting for files."""
+    cur.execute(
+        """
+        DELETE FROM projects
+        WHERE id = %s AND source_folder_path IS NOT NULL
+          AND NOT EXISTS (SELECT 1 FROM project_files WHERE project_id = %s)
+        """,
+        (project_id, project_id),
+    )
+
+
 def remove_file_from_project(file_id, project_id):
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM project_files WHERE file_id = %s AND project_id = %s", (file_id, project_id))
+            _delete_project_if_empty_and_auto_created(cur, project_id)
 
 
 # ---- relationships ------------------------------------------------------------
@@ -839,15 +864,22 @@ def update_watched_root(root_id, label, ingest_mode, active):
 # the app itself instead of typed out fresh each time.
 
 def get_job_queue_summary():
-    """job_type x status counts — the same shape as the `SELECT job_type,
-    status, count(*) FROM jobs GROUP BY job_type, status` used by hand
-    throughout the crash-loop/bulk-import incidents."""
+    """job_type x status counts for the two *live* statuses only (queued,
+    running) — jobs rows are never deleted once done/failed (only ever
+    CASCADEd away if their file/zip is later deleted), so a done/failed
+    count here would be an ever-growing lifetime total, not a snapshot of
+    current queue state, and isn't actually useful on a live dashboard
+    (confirmed via direct user feedback: the numbers "don't make sense"
+    for exactly this reason). Recent activity (get_recent_job_activity)
+    is the right place to look at done/failed jobs, since it shows the
+    actual target/error per job rather than a bare cumulative count."""
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
                 """
                 SELECT job_type, status, count(*) AS n
                 FROM jobs
+                WHERE status IN ('queued', 'running')
                 GROUP BY job_type, status
                 ORDER BY job_type, status
                 """
@@ -1130,14 +1162,26 @@ def delete_files_bulk(file_ids):
     delete happens first — thumbnail removal is best-effort afterward
     (wrapped so a filesystem hiccup can't undo an otherwise-successful
     delete; a missed thumbnail is just a leftover orphan, recoverable by
-    re-sweeping, not a correctness problem)."""
+    re-sweeping, not a correctness problem).
+
+    Also cleans up any project left with zero files as a result — a
+    deleted file was often the sole member of an auto-created project for
+    what turned out to be a duplicate download's own folder (confirmed
+    live: this exact pattern accounts for the bulk of 349 real orphaned
+    empty projects found in the wild). project_files rows CASCADE away
+    with the file, so the affected project ids have to be captured
+    *before* the delete, not after."""
     if not file_ids:
         return
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute("SELECT thumbnail_path FROM files WHERE id = ANY(%s)", (file_ids,))
             thumbnail_paths = [row["thumbnail_path"] for row in cur.fetchall() if row["thumbnail_path"]]
+            cur.execute("SELECT DISTINCT project_id FROM project_files WHERE file_id = ANY(%s)", (file_ids,))
+            affected_project_ids = [row["project_id"] for row in cur.fetchall()]
             cur.execute("DELETE FROM files WHERE id = ANY(%s)", (file_ids,))
+            for project_id in affected_project_ids:
+                _delete_project_if_empty_and_auto_created(cur, project_id)
 
     for thumbnail_path in thumbnail_paths:
         try:

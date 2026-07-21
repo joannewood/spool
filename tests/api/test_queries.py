@@ -276,10 +276,24 @@ def test_get_job_queue_summary_reflects_a_new_job(make_file, db_conn):
             0,
         )
 
-    before = count_for("ingest", "done")
+    before = count_for("ingest", "queued")
     with db_conn.cursor() as cur:
-        cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'ingest', 'done')", (file_id,))
-    assert count_for("ingest", "done") == before + 1
+        cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'ingest', 'queued')", (file_id,))
+    assert count_for("ingest", "queued") == before + 1
+
+
+def test_get_job_queue_summary_excludes_done_and_failed(make_file, db_conn):
+    # done/failed jobs are never deleted, so counting them here would be an
+    # ever-growing lifetime total, not useful live-queue state — confirmed
+    # via direct user feedback that the old done/failed columns "don't make
+    # sense" on a live dashboard. Only queued/running should ever appear.
+    file_id = make_file(filename="status-summary-lifetime.stl")
+    with db_conn.cursor() as cur:
+        cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'render', 'done')", (file_id,))
+        cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'render', 'failed')", (file_id,))
+    statuses = {row["status"] for row in queries.get_job_queue_summary()}
+    assert "done" not in statuses
+    assert "failed" not in statuses
 
 
 def test_get_running_jobs_includes_a_running_job_with_target_name(make_file, db_conn):
@@ -556,6 +570,101 @@ def test_delete_files_bulk_handles_no_thumbnail_at_all(make_file):
 
 def test_delete_files_bulk_handles_empty_list():
     queries.delete_files_bulk([])  # must not raise
+
+
+# ---- orphaned empty project cleanup ----------------------------------------
+# Deleting a file (or manually removing it from a project) can leave an
+# auto-created project with zero members — confirmed live as a real,
+# accumulating bug (349 orphaned projects), usually from duplicate-file
+# cleanup deleting the only file in a project created for what turned out
+# to be a duplicate download's own folder.
+
+def _make_auto_project(db_conn, source_folder_path):
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO projects (name, source_folder_path) VALUES (%s, %s) RETURNING id",
+            (source_folder_path, source_folder_path),
+        )
+        return cur.fetchone()[0]
+
+
+def test_remove_file_from_project_deletes_now_empty_auto_created_project(make_file, db_conn):
+    project_id = _make_auto_project(db_conn, "/tmp/orphan-test/auto-a")
+    file_id = make_file(filename="orphan-remove-auto.stl")
+    queries.add_file_to_project(file_id, project_id)
+
+    queries.remove_file_from_project(file_id, project_id)
+
+    with db_conn.cursor() as cur:
+        cur.execute("SELECT id FROM projects WHERE id = %s", (project_id,))
+        assert cur.fetchone() is None
+
+
+def test_remove_file_from_project_keeps_empty_manually_created_project(make_file, db_conn):
+    project_id = queries.create_project("Manually made project", "", None)
+    file_id = make_file(filename="orphan-remove-manual.stl")
+    queries.add_file_to_project(file_id, project_id)
+
+    queries.remove_file_from_project(file_id, project_id)
+
+    try:
+        assert queries.get_project(project_id) is not None
+    finally:
+        # db_conn is autocommit (no rollback), same as the app's own
+        # connection style — this test's whole point is that the project
+        # survives, so it has to clean up after itself explicitly rather
+        # than relying on transaction rollback, same as make_file's own
+        # teardown convention (tests/api/conftest.py).
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_remove_file_from_project_keeps_auto_created_project_with_remaining_members(make_file, db_conn):
+    project_id = _make_auto_project(db_conn, "/tmp/orphan-test/auto-b")
+    file_a = make_file(filename="orphan-remove-sibling-a.stl")
+    file_b = make_file(filename="orphan-remove-sibling-b.stl")
+    queries.add_file_to_project(file_a, project_id)
+    queries.add_file_to_project(file_b, project_id)
+
+    queries.remove_file_from_project(file_a, project_id)
+
+    try:
+        with db_conn.cursor() as cur:
+            cur.execute("SELECT id FROM projects WHERE id = %s", (project_id,))
+            assert cur.fetchone() is not None
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_delete_files_bulk_deletes_now_empty_auto_created_project(make_file, db_conn):
+    project_id = _make_auto_project(db_conn, "/tmp/orphan-test/auto-c")
+    file_id = make_file(filename="orphan-delete-bulk-auto.stl")
+    queries.add_file_to_project(file_id, project_id)
+
+    queries.delete_files_bulk([file_id])
+
+    with db_conn.cursor() as cur:
+        cur.execute("SELECT id FROM projects WHERE id = %s", (project_id,))
+        assert cur.fetchone() is None
+
+
+def test_delete_files_bulk_keeps_auto_created_project_with_remaining_members(make_file, db_conn):
+    project_id = _make_auto_project(db_conn, "/tmp/orphan-test/auto-d")
+    file_a = make_file(filename="orphan-delete-bulk-sibling-a.stl")
+    file_b = make_file(filename="orphan-delete-bulk-sibling-b.stl")
+    queries.add_file_to_project(file_a, project_id)
+    queries.add_file_to_project(file_b, project_id)
+
+    queries.delete_files_bulk([file_a])
+
+    try:
+        with db_conn.cursor() as cur:
+            cur.execute("SELECT id FROM projects WHERE id = %s", (project_id,))
+            assert cur.fetchone() is not None
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
 
 
 def test_get_files_bulk_returns_dict_keyed_by_id(make_file):

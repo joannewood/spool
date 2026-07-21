@@ -35,6 +35,11 @@ RELATIONSHIP_TYPES = ["derived_from", "new_version_of", "variant_of", "duplicate
 # via the jobs table) — omitted here so /admin/status's filter dropdown only
 # offers types real jobs can actually have.
 JOB_TYPES = ["ingest", "render", "render_step", "extract_zip"]
+# Only the two "live" job_status values — done/failed are lifetime totals
+# once a job leaves the queue (jobs rows are never deleted), not a useful
+# live-dashboard number, so the job-queue matrix only ever shows these two
+# columns. See get_job_queue_summary's docstring.
+JOB_STATUSES = ["queued", "running"]
 SORT_OPTIONS = [
     ("newest", "Newest first"),
     ("oldest", "Oldest first"),
@@ -429,6 +434,21 @@ def open_sidecar(project_id: int, sidecar_id: int):
 
 # ---- admin: watched roots -------------------------------------------------
 
+def _pivot_job_queue(rows):
+    """Turn the flat (job_type, status, n) rows from get_job_queue_summary
+    (queued/running only — see its docstring) into one row per job_type
+    with a count per status — the flat shape read confusingly as "two
+    ingest entries, two render entries" (one row per job_type *that
+    currently has that status*, not one row per job_type overall); a
+    matrix with a fixed column per JOB_STATUS makes that structure
+    visible instead of implicit."""
+    by_type = {jt: {s: 0 for s in JOB_STATUSES} for jt in JOB_TYPES}
+    for row in rows:
+        if row["job_type"] in by_type and row["status"] in by_type[row["job_type"]]:
+            by_type[row["job_type"]][row["status"]] = row["n"]
+    return [{"job_type": jt, "counts": by_type[jt]} for jt in JOB_TYPES]
+
+
 @app.get("/admin", response_class=HTMLResponse)
 def admin(request: Request):
     return templates.TemplateResponse(
@@ -441,6 +461,8 @@ def admin(request: Request):
             "duplicate_count": queries.count_duplicate_groups(),
             "suggested_project_count": queries.count_suggested_project_assignments(),
             "suggested_relationship_count": queries.count_suggested_relationships(),
+            "running_jobs": queries.get_running_jobs(),
+            "totals": queries.get_ingestion_totals(),
         },
     )
 
@@ -455,10 +477,9 @@ def admin_status(request: Request, q: str = "", status: str = "", job_type: str 
         request,
         "admin_status.html",
         {
-            "job_summary": queries.get_job_queue_summary(),
-            "running_jobs": queries.get_running_jobs(),
+            "job_matrix": _pivot_job_queue(queries.get_job_queue_summary()),
+            "job_statuses": JOB_STATUSES,
             "recent_activity": queries.get_recent_job_activity(q=q, status=status, job_type=job_type),
-            "totals": queries.get_ingestion_totals(),
             "roots": queries.list_watched_roots(),
             "job_types": JOB_TYPES,
             "q": q,

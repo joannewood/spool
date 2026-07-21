@@ -563,7 +563,6 @@ def test_admin_status_page_loads(client):
     resp = client.get("/admin/status")
     assert resp.status_code == 200
     assert "Processing status" in resp.text
-    assert "Currently running" in resp.text
     assert "Job queue" in resp.text
     assert "Recent activity" in resp.text
 
@@ -572,7 +571,39 @@ def test_admin_status_page_self_polls_via_htmx(client):
     resp = client.get("/admin/status")
     assert resp.status_code == 200
     assert "every 4s" in resp.text
-    assert 'hx-select="#status-content"' in resp.text
+    assert 'hx-select="#status-top"' in resp.text
+    assert 'hx-select="#recent-activity-panel"' in resp.text
+
+
+def test_admin_status_job_queue_is_a_type_by_status_matrix(client, make_file, db_conn):
+    file_id = make_file(filename="matrix-check.stl")
+    with db_conn.cursor() as cur:
+        cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'ingest', 'queued')", (file_id,))
+
+    resp = client.get("/admin/status")
+    assert resp.status_code == 200
+    # One row per job_type (not one row per job_type+status combination) —
+    # scoped to the Job queue table specifically, since Recent activity
+    # below it also renders an unrelated "ingest" cell for this same job.
+    job_queue_html = resp.text.split("Job queue")[1].split("Watched roots")[0]
+    assert job_queue_html.count("<td>ingest</td>") == 1
+    assert "Queued" in job_queue_html and "Running" in job_queue_html
+
+
+def test_admin_status_job_queue_omits_done_and_failed_lifetime_totals(client, make_file, db_conn):
+    # jobs rows are never deleted once done/failed, so those would be
+    # ever-growing lifetime totals, not live queue state — confirmed
+    # unhelpful by direct user feedback, so this matrix only ever shows
+    # the two genuinely "live" columns.
+    file_id = make_file(filename="matrix-no-lifetime-cols.stl")
+    with db_conn.cursor() as cur:
+        cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'ingest', 'done')", (file_id,))
+
+    resp = client.get("/admin/status")
+    assert resp.status_code == 200
+    job_queue_html = resp.text.split("Job queue")[1].split("Watched roots")[0]
+    assert "Done" not in job_queue_html
+    assert "Failed" not in job_queue_html
 
 
 def test_admin_status_filters_by_target_filename(client, make_file, db_conn):
@@ -624,21 +655,49 @@ def test_admin_status_invalid_filter_values_ignored(client):
     assert resp.status_code == 200  # falls back to unfiltered rather than erroring
 
 
-def test_admin_status_shows_running_job_target_name(client, make_file, db_conn):
-    file_id = make_file(filename="route-status-running.stl")
-    with db_conn.cursor() as cur:
-        cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'render', 'running')", (file_id,))
-
-    resp = client.get("/admin/status")
-    assert resp.status_code == 200
-    assert "route-status-running.stl" in resp.text
-    assert "idle — nothing currently processing" not in resp.text
-
-
 def test_admin_page_links_to_status_page(client):
     resp = client.get("/admin")
     assert resp.status_code == 200
     assert 'href="/admin/status"' in resp.text
+
+
+# ---- live status summary, moved to the top of /admin ----------------------
+
+def test_admin_page_shows_running_job_target_name(client, make_file, db_conn):
+    file_id = make_file(filename="admin-page-running.stl")
+    with db_conn.cursor() as cur:
+        cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'render', 'running')", (file_id,))
+
+    resp = client.get("/admin")
+    assert resp.status_code == 200
+    assert "admin-page-running.stl" in resp.text
+    assert "idle — nothing currently processing" not in resp.text
+    assert "status-dot-ok" in resp.text
+
+
+def test_admin_page_idle_shows_gray_dot_when_nothing_running(client):
+    resp = client.get("/admin")
+    assert resp.status_code == 200
+    assert "idle — nothing currently processing" in resp.text
+    assert "status-dot-idle" in resp.text
+
+
+def test_admin_page_self_polls_the_live_status_section(client):
+    resp = client.get("/admin")
+    assert resp.status_code == 200
+    assert "every 4s" in resp.text
+    assert 'hx-select="#live-status"' in resp.text
+
+
+def test_admin_page_shows_ingestion_totals_with_warn_dot_on_failures(client, make_file, db_conn):
+    file_id = make_file(filename="admin-page-render-failed.stl")
+    with db_conn.cursor() as cur:
+        cur.execute("UPDATE files SET render_status = 'failed' WHERE id = %s", (file_id,))
+
+    resp = client.get("/admin")
+    assert resp.status_code == 200
+    assert "Ingestion totals" in resp.text
+    assert "status-dot-warn" in resp.text
 
 
 # ---- library page pagination (top and bottom) ------------------------------

@@ -4,81 +4,52 @@
 
 <a class="back" href="/admin">← admin</a>
 <h1>Processing status</h1>
-<p class="note">Live view of the ingestion pipeline — refreshes automatically every few seconds.</p>
+<p class="note">
+  Live view of the ingestion pipeline. Currently-running jobs and library-wide
+  totals now live at the top of the <a href="/admin">Admin</a> page — this
+  page is the detail view: the full job queue, watched roots, and a
+  searchable history of recent activity.
+</p>
 
-{# The filter form drives both on-demand filtering (input/select changes)
-   and the periodic auto-refresh (every 4s) — a single hx-trigger list on
-   one element, rather than a separate self-polling div plus a separate
-   filter form, so a filter someone's applied stays in effect across every
-   auto-refresh tick instead of being reset by an unrelated poll. Same
-   hx-select/hx-swap="outerHTML" idiom as the library page's search bar. #}
-<form class="searchbar" id="status-filter-form" method="GET" action="/admin/status"
-      hx-get="/admin/status" hx-target="#status-content" hx-select="#status-content" hx-swap="outerHTML"
-      hx-trigger="input changed delay:250ms from:input[name='q'], change from:select, every 4s">
-  <input type="search" name="q" placeholder="Search recent activity by filename…" value="{{ q }}" autocomplete="off">
-  <select name="status">
-    <option value="" {% if not selected_status %}selected{% endif %}>Any status</option>
-    <option value="done" {% if selected_status == "done" %}selected{% endif %}>Done</option>
-    <option value="failed" {% if selected_status == "failed" %}selected{% endif %}>Failed</option>
-  </select>
-  <select name="job_type">
-    <option value="" {% if not selected_job_type %}selected{% endif %}>Any type</option>
-    {% for jt in job_types %}
-    <option value="{{ jt }}" {% if selected_job_type == jt %}selected{% endif %}>{{ jt }}</option>
-    {% endfor %}
-  </select>
-  <button type="submit">Search</button>
-</form>
-
-<div id="status-content">
+{# Job queue + watched roots self-refresh on their own timer, independent of
+   the recent-activity search below — splitting them out means the search
+   box's own debounced request only ever swaps the (much smaller) recent-
+   activity panel, not this whole block. #}
+<div id="status-top" hx-get="/admin/status" hx-trigger="every 4s" hx-select="#status-top" hx-swap="outerHTML">
 
 <div class="admin-sections">
 
 <section class="panel">
-  <h2>Currently running</h2>
-  {% if running_jobs %}
-  <table class="admin-table">
-    <thead><tr><th>Job</th><th>Target</th><th>Started</th></tr></thead>
-    <tbody>
-      {% for j in running_jobs %}
-      <tr>
-        <td>{{ j.job_type }}</td>
-        <td>{{ j.target_name or "—" }}</td>
-        <td>{{ j.created_at }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <p class="empty-inline">idle — nothing currently processing</p>
-  {% endif %}
-</section>
-
-<section class="panel">
-  <h2>Ingestion totals</h2>
-  <dl class="stats">
-    <div class="footer-item"><dt>Total files</dt><dd>{{ totals.total_files }}</dd></div>
-    <div class="footer-item"><dt>Unhashed</dt><dd>{{ totals.unhashed }}</dd></div>
-    <div class="footer-item"><dt>Render pending</dt><dd>{{ totals.render_pending }}</dd></div>
-    <div class="footer-item"><dt>Render done</dt><dd>{{ totals.render_done }}</dd></div>
-    <div class="footer-item"><dt>Render failed</dt><dd>{{ totals.render_failed }}</dd></div>
-  </dl>
-</section>
-
-<section class="panel">
   <h2>Job queue</h2>
-  <table class="admin-table">
-    <thead><tr><th>Type</th><th>Status</th><th>Count</th></tr></thead>
-    <tbody>
-      {% for row in job_summary %}
-      <tr>
-        <td>{{ row.job_type }}</td>
-        <td><span class="badge {{ 'warn' if row.status == 'failed' else ('ok' if row.status == 'done' else '') }}">{{ row.status }}</span></td>
-        <td>{{ row.n }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <p class="note">
+    Live queue depth by job type — <code>jobs</code> rows are never deleted once
+    finished, so a "done"/"failed" count here would just be an ever-growing
+    lifetime total, not current state. Look at <a href="#recent-activity-panel">Recent activity</a>
+    below for the done/failed history with actual filenames and errors.
+  </p>
+  <div class="table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Type</th>
+          {% for s in job_statuses %}<th>{{ s|capitalize }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in job_matrix %}
+        <tr>
+          <td>{{ row.job_type }}</td>
+          {% for s in job_statuses %}
+          <td>
+            {% if s == "running" and row.counts[s] > 0 %}<span class="status-dot status-dot-ok"></span>
+            {% endif %}{{ row.counts[s] }}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </section>
 
 <section class="panel">
@@ -97,7 +68,32 @@
   </table>
 </section>
 
-<section class="panel">
+</div>
+</div>
+
+{# Deliberately outside any auto-swapped container — the input field itself
+   must never be replaced mid-typing (see CLAUDE.md), only the results panel
+   below it. Positioned directly above Recent activity, the only section it
+   actually affects. #}
+<form class="searchbar" id="status-filter-form" method="GET" action="/admin/status"
+      hx-get="/admin/status" hx-target="#recent-activity-panel" hx-select="#recent-activity-panel" hx-swap="outerHTML"
+      hx-trigger="input changed delay:250ms from:input[name='q'], change from:select, every 4s">
+  <input type="search" name="q" placeholder="Search recent activity by filename…" value="{{ q }}" autocomplete="off">
+  <select name="status">
+    <option value="" {% if not selected_status %}selected{% endif %}>Any status</option>
+    <option value="done" {% if selected_status == "done" %}selected{% endif %}>Done</option>
+    <option value="failed" {% if selected_status == "failed" %}selected{% endif %}>Failed</option>
+  </select>
+  <select name="job_type">
+    <option value="" {% if not selected_job_type %}selected{% endif %}>Any type</option>
+    {% for jt in job_types %}
+    <option value="{{ jt }}" {% if selected_job_type == jt %}selected{% endif %}>{{ jt }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit">Search</button>
+</form>
+
+<section class="panel" id="recent-activity-panel">
   <h2>
     Recent activity
     {% if q or selected_status or selected_job_type %}<span class="note-inline">(filtered)</span>{% endif %}
@@ -129,8 +125,5 @@
   </p>
   {% endif %}
 </section>
-
-</div>
-</div>
 
 {% endblock %}

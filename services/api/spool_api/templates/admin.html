@@ -4,9 +4,108 @@
 
 <h1>Admin</h1>
 
-<p class="note"><a href="/admin/status">Processing status →</a> — live job queue, current activity, and recent errors.</p>
+{# Self-refreshing live glance at what the pipeline is doing right now —
+   the two panels the user watches most while a big import is running, so
+   they live here at the top rather than requiring a click through to the
+   full /admin/status detail page. #}
+<div id="live-status" hx-get="/admin" hx-trigger="every 4s" hx-select="#live-status" hx-swap="outerHTML">
+<div class="admin-sections">
+
+<section class="panel">
+  <div class="live-status-columns">
+    <div class="live-status-main">
+      {% if running_jobs %}
+      <p class="status-line">
+        <span class="status-dot status-dot-ok"></span>
+        <strong>Processing {{ running_jobs|length }} job{{ "s" if running_jobs|length != 1 else "" }}</strong>
+      </p>
+      <table class="admin-table">
+        <thead><tr><th>Job</th><th>Target</th><th>Started</th></tr></thead>
+        <tbody>
+          {% for j in running_jobs %}
+          <tr>
+            <td>{{ j.job_type }}</td>
+            <td>{{ j.target_name or "—" }}</td>
+            <td>{{ j.created_at }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="status-line">
+        <span class="status-dot status-dot-idle"></span>
+        <span class="empty-inline">idle — nothing currently processing</span>
+      </p>
+      {% endif %}
+
+      <p class="note-link"><a href="/admin/status">Processing status →</a> — full job queue, watched roots, and a searchable history of recent activity.</p>
+    </div>
+
+    <table class="admin-table live-status-totals">
+      <thead><tr><th colspan="2">Ingestion totals</th></tr></thead>
+      <tbody>
+        <tr><td>Total files</td><td>{{ totals.total_files }}</td></tr>
+        <tr>
+          <td><span class="status-dot {{ 'status-dot-danger' if totals.unhashed > 0 else 'status-dot-ok' }}"></span> Unhashed</td>
+          <td>{{ totals.unhashed }}</td>
+        </tr>
+        <tr>
+          <td><span class="status-dot {{ 'status-dot-ok' if totals.render_pending > 0 else 'status-dot-idle' }}"></span> Render pending</td>
+          <td>{{ totals.render_pending }}</td>
+        </tr>
+        <tr>
+          <td><span class="status-dot status-dot-ok"></span> Render done</td>
+          <td>{{ totals.render_done }}</td>
+        </tr>
+        <tr>
+          <td><span class="status-dot {{ 'status-dot-warn' if totals.render_failed > 0 else 'status-dot-ok' }}"></span> Render failed</td>
+          <td>{{ totals.render_failed }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+</div>
+</div>
 
 <div class="admin-sections">
+
+<section class="panel">
+  <h2>Archives</h2>
+  <p class="note">
+    Zip files found in watched roots that contain a recognized model file inside — nothing is
+    extracted until you confirm. Rejecting one means it's never asked about again on later scans.
+  </p>
+  {% if pending_zip_count %}
+  <p><a class="note-link" href="/admin/pending-archives">Review {{ pending_zip_count }} pending archive{{ "s" if pending_zip_count != 1 else "" }} →</a></p>
+  {% endif %}
+  <p><a class="note-link" href="/admin/rejected-archives">View rejected archives →</a></p>
+</section>
+
+{% if duplicate_count %}
+<section class="panel">
+  <h2>Duplicate files</h2>
+  <p class="note">{{ duplicate_count }} group{{ "s" if duplicate_count != 1 else "" }} with byte-identical content, ready to review and clean up.</p>
+  <p><a class="note-link" href="/admin/duplicates">Review duplicate files →</a></p>
+</section>
+{% endif %}
+
+{% if suggested_project_count or suggested_relationship_count %}
+<section class="panel">
+  <h2>Suggestions</h2>
+  <p class="note">
+    Heuristic proposals from the worker — folder-based project groupings and
+    filename/hash-based relationships — waiting for you to confirm or reject.
+  </p>
+  {% if suggested_project_count %}
+  <p><a class="note-link" href="/admin/suggested-projects">Review {{ suggested_project_count }} suggested project assignment{{ "s" if suggested_project_count != 1 else "" }} →</a></p>
+  {% endif %}
+  {% if suggested_relationship_count %}
+  <p><a class="note-link" href="/admin/suggested-relationships">Review {{ suggested_relationship_count }} suggested relationship{{ "s" if suggested_relationship_count != 1 else "" }} →</a></p>
+  {% endif %}
+</section>
+{% endif %}
 
 <section class="panel">
   <h2>Watched roots</h2>
@@ -49,42 +148,6 @@
     </table>
   </div>
 </section>
-
-<section class="panel">
-  <h2>Archives</h2>
-  <p class="note">
-    Zip files found in watched roots that contain a recognized model file inside — nothing is
-    extracted until you confirm. Rejecting one means it's never asked about again on later scans.
-  </p>
-  {% if pending_zip_count %}
-  <p><a href="/admin/pending-archives">Review {{ pending_zip_count }} pending archive{{ "s" if pending_zip_count != 1 else "" }} →</a></p>
-  {% endif %}
-  <p><a href="/admin/rejected-archives">View rejected archives →</a></p>
-</section>
-
-{% if duplicate_count %}
-<section class="panel">
-  <h2>Duplicate files</h2>
-  <p class="note">{{ duplicate_count }} group{{ "s" if duplicate_count != 1 else "" }} with byte-identical content, ready to review and clean up.</p>
-  <a href="/admin/duplicates">Review duplicate files →</a>
-</section>
-{% endif %}
-
-{% if suggested_project_count or suggested_relationship_count %}
-<section class="panel">
-  <h2>Suggestions</h2>
-  <p class="note">
-    Heuristic proposals from the worker — folder-based project groupings and
-    filename/hash-based relationships — waiting for you to confirm or reject.
-  </p>
-  {% if suggested_project_count %}
-  <p><a href="/admin/suggested-projects">Review {{ suggested_project_count }} suggested project assignment{{ "s" if suggested_project_count != 1 else "" }} →</a></p>
-  {% endif %}
-  {% if suggested_relationship_count %}
-  <p><a href="/admin/suggested-relationships">Review {{ suggested_relationship_count }} suggested relationship{{ "s" if suggested_relationship_count != 1 else "" }} →</a></p>
-  {% endif %}
-</section>
-{% endif %}
 
 </div>
 

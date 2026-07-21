@@ -10,6 +10,12 @@
   --warn-bg: #fdf1e6;
   --ok: #1a7a4c;
   --ok-bg: #e9f7ef;
+  /* A true red, distinct from --warn's amber — used sparingly (currently
+     just the Unhashed status dot) for the one metric that's a direct
+     proxy for the iCloud-deadlock class of issue this app has real
+     history with, where amber didn't read as urgent enough. */
+  --danger: #c0392b;
+  --danger-bg: #fbeae8;
   /* Categorical, fixed order (dataviz skill's default palette, slots 1-4) —
      text stays --ink-muted always; these are accent-only (border + tint),
      never the label's own text color, since slots 3/4 fail light-mode text
@@ -51,6 +57,8 @@
     --warn-bg: #2c2418;
     --ok: #4cd08a;
     --ok-bg: #123524;
+    --danger: #e5645a;
+    --danger-bg: #3a1f1c;
     --ext-stl: #3987e5;
     --ext-3mf: #008300;
     --ext-step: #d55181;
@@ -151,6 +159,10 @@ main {
   gap: 12px;
   margin-bottom: 18px;
 }
+/* Sits directly below the Job queue/Watched roots panels on
+   /admin/status, outside their own .panel card — without this it reads
+   as glued to the Watched roots table right above it. */
+#status-filter-form { margin-top: 24px; }
 .searchbar input[type="search"] {
   flex: 1 1 260px;
   padding: 9px 12px;
@@ -745,14 +757,50 @@ button.app-icon-btn {
   text-decoration: none;
 }
 
-/* Flex-wrap (not a fixed 2-column grid) since this stat row's item count
-   doesn't divide evenly into pairs — same .footer-item dt+dd-grouping
-   pattern as .detail-footer, reused for the /admin/status ingestion-
-   totals panel. */
-.panel dl.stats { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: var(--fs-xs); margin: 0; }
-.panel dl.stats .footer-item { display: flex; gap: 6px; }
-.panel dl.stats dt { color: var(--ink-muted); }
-.panel dl.stats dd { margin: 0; font-weight: 600; }
+/* admin.html's top live-status card: Currently running on the left (the
+   thing that grows — a table of active jobs), Ingestion totals as a
+   small fixed-width table on the right rather than stretching full-width
+   below it. Stacks under the main column once the two can't sit side by
+   side comfortably. */
+.live-status-columns { display: flex; gap: 24px; align-items: flex-start; }
+.live-status-main { flex: 1 1 auto; min-width: 0; }
+/* .admin-table's own `width: 100%` (same 0-1-0 specificity) would
+   otherwise win on source order alone and blow this table up to fill the
+   whole flex row — the compound selector (0-1-1) beats it unconditionally
+   instead of depending on which rule happens to come later in the file. */
+table.live-status-totals { width: auto; flex: 0 0 auto; white-space: nowrap; }
+.live-status-totals th { text-align: left; }
+.live-status-totals td:last-child { text-align: right; font-weight: 600; padding-left: 24px; }
+@media (max-width: 700px) {
+  .live-status-columns { flex-direction: column; }
+  table.live-status-totals { width: 100%; }
+}
+
+/* Small colored circle giving an at-a-glance health read, used on the
+   live-status dashboard (admin.html's top section, admin_status.html's
+   job queue matrix) — reuses the same --ok/--warn tokens as .badge.ok/
+   .badge.warn rather than inventing a separate red, so "problem" always
+   reads the same color throughout the app. Not a status text replacement
+   (the text/count next to it still says what's actually going on) —
+   just a faster-to-scan accent. */
+.status-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+/* Same solid-fill circle for all three — idle deliberately isn't a faded/
+   washed-out version of the others (that read as broken rather than
+   "nothing to report"), just its own consistent gray in the same family
+   as the ok/warn dots. */
+.status-dot-ok { background: var(--ok); }
+.status-dot-warn { background: var(--warn); }
+.status-dot-danger { background: var(--danger); }
+.status-dot-idle { background: var(--ink-muted); }
+
+.status-line { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: var(--fs-sm); }
+.status-line strong { font-weight: 600; }
 
 .panel dl.tight {
   display: grid;
