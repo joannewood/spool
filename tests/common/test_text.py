@@ -54,3 +54,17 @@ def test_suggest_clean_project_name_leaves_already_clean_names_alone():
 
 def test_suggest_clean_project_name_combines_with_percent_decoding():
     assert suggest_clean_project_name("Anker%20Nano-model_files") == "Anker Nano"
+
+
+def test_suggest_clean_project_name_expands_scale_notation():
+    assert suggest_clean_project_name("1_12_US_Mail_box_3520864") == "1/12 scale US Mail box"
+
+
+def test_suggest_clean_project_name_scale_notation_does_not_double_up_the_word_scale():
+    assert suggest_clean_project_name("1_12_scale_bookshelf_4218879 (1)") == "1/12 scale bookshelf (1)"
+
+
+def test_suggest_clean_project_name_fused_digits_are_not_treated_as_scale_notation():
+    # No separator between "1" and "12" here — genuinely ambiguous (could
+    # be a part number, a size), so left alone rather than guessed at.
+    assert suggest_clean_project_name("doll-house-kitchen-sink-112-model_files") == "doll house kitchen sink 112"
