@@ -44,6 +44,41 @@ _GENERIC_CONTAINER_NAMES = {"files", "file", "cad", "cad file", "cad files"} | {
 # underscore form and was missed until this normalization was added).
 _SEPARATOR_TO_SPACE_RE = re.compile(r"[_\-]+")
 
+# "<kit>-model_files"/"<kit>-print_files" — a distinct Printables download
+# convention from the generic-container-name one above: the *whole kit*
+# (not just an export subfolder) is split into two sibling top-level
+# folders by file type, so "<kit>-model_files/Widget" and
+# "<kit>-print_files/Widget" are really the same "Widget" grouping,
+# discovered from two different physical folders. Detected purely by path
+# shape (see _sibling_model_print_path) — no schema change needed, since
+# whichever side is discovered *second* just reuses the project already
+# created for the first side rather than getting a source_folder_path row
+# of its own. Confirmed live: 6 real kits split this way, one of them
+# (a "Root" board game expansion) alone producing 13 duplicate leaf-folder
+# pairs plus the two top-level container projects.
+_MODEL_PRINT_SUFFIX_RE = re.compile(r"^(.*)-(model|print)_files$", re.IGNORECASE)
+
+
+def _sibling_model_print_path(directory):
+    """If any single path component of `directory` ends in
+    -model_files/-print_files, return the path with that one component's
+    suffix swapped (model<->print) and everything else — including any
+    nested subfolder name after it — unchanged; else None. Works
+    identically for the top-level kit folder itself and for a leaf
+    subfolder nested underneath it, since it just swaps whichever
+    component matches, wherever it sits in the path."""
+    parts = directory.split(os.sep)
+    for i, part in enumerate(parts):
+        m = _MODEL_PRINT_SUFFIX_RE.match(part)
+        if m:
+            stem, kind = m.group(1), m.group(2).lower()
+            other = "print" if kind == "model" else "model"
+            swapped = list(parts)
+            swapped[i] = f"{stem}-{other}_files"
+            return os.sep.join(swapped)
+    return None
+
+
 # "Archive"/"Archive 2"/"Archive(2)" — the generic name macOS/zip tools
 # (or a person manually organizing downloads) give a folder that exists
 # purely to hold a batch of unrelated zips together for compression, not
@@ -254,6 +289,14 @@ def suggest_folder_project(conn, file_id, host_path, root):
     groups with its real siblings in that same `files` folder, just under
     a project keyed to the "<ProjectName>" folder and named after it
     instead of "files".
+
+    A "<kit>-model_files"/"<kit>-print_files" sibling pair (see
+    _sibling_model_print_path) is treated as one project too: before
+    creating a brand-new project for `match_directory`, the mirrored
+    sibling path is checked first, and its project (if one already
+    exists) is reused instead — so the two halves of a kit split this way
+    end up with one shared project rather than two, with neither side's
+    project ever getting disambiguated against the other.
     """
     directory = os.path.dirname(host_path)
     if os.path.normpath(directory) == os.path.normpath(root.host_path):
@@ -286,6 +329,15 @@ def suggest_folder_project(conn, file_id, host_path, root):
         )
         row = cur.fetchone()
         project_id = row["id"] if row else None
+        if project_id is None:
+            sibling_directory = _sibling_model_print_path(match_directory)
+            if sibling_directory:
+                cur.execute(
+                    "SELECT id FROM projects WHERE source_folder_path = %s",
+                    (sibling_directory,),
+                )
+                row = cur.fetchone()
+                project_id = row["id"] if row else None
         if project_id is None:
             unique_name = unique_project_name(cur, folder_name, match_directory)
             cur.execute(

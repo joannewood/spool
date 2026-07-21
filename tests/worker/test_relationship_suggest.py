@@ -2,7 +2,7 @@ import os
 
 from psycopg.rows import dict_row
 
-from app.relationship_suggest import suggest_folder_project, suggest_for_file
+from app.relationship_suggest import _sibling_model_print_path, suggest_folder_project, suggest_for_file
 
 
 def _insert_file(conn, root, filename, ext, content_hash, subdir=None):
@@ -234,6 +234,99 @@ def test_folder_project_leaves_real_spaces_and_plusses_alone(conn, make_root):
             (file_id,),
         )
         assert cur.fetchone()[0] == "C++ Project"  # already has real spaces — left untouched
+
+
+# ---- model_files/print_files sibling merge --------------------------------
+
+def test_sibling_model_print_path_swaps_top_level_component():
+    assert (
+        _sibling_model_print_path("/root/kit-model_files")
+        == "/root/kit-print_files"
+    )
+    assert (
+        _sibling_model_print_path("/root/kit-print_files")
+        == "/root/kit-model_files"
+    )
+
+
+def test_sibling_model_print_path_swaps_ancestor_component_keeping_leaf_intact():
+    assert (
+        _sibling_model_print_path("/root/kit-model_files/Widget/Sub")
+        == "/root/kit-print_files/Widget/Sub"
+    )
+
+
+def test_sibling_model_print_path_returns_none_when_no_component_matches():
+    assert _sibling_model_print_path("/root/some/normal/kit") is None
+
+
+def test_folder_project_merges_top_level_model_and_print_folders(conn, make_root):
+    root = make_root()
+    model_id, model_path = _insert_file(conn, root, "widget.stl", ".stl", "hash-a", subdir="kit-model_files")
+    print_id, print_path = _insert_file(conn, root, "widget.gcode", ".gcode", "hash-b", subdir="kit-print_files")
+
+    suggest_folder_project(conn, model_id, model_path, root)
+    suggest_folder_project(conn, print_id, print_path, root)
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM projects")
+        assert cur.fetchone()[0] == 1  # one shared project, not two
+        cur.execute("SELECT count(*) FROM project_files")
+        assert cur.fetchone()[0] == 2  # both files attached to it
+
+
+def test_folder_project_merges_nested_leaf_subfolders_across_model_print_split(conn, make_root):
+    root = make_root()
+    model_id, model_path = _insert_file(
+        conn, root, "part.stl", ".stl", "hash-a", subdir="kit-model_files/Widget"
+    )
+    print_id, print_path = _insert_file(
+        conn, root, "part.gcode", ".gcode", "hash-b", subdir="kit-print_files/Widget"
+    )
+
+    suggest_folder_project(conn, model_id, model_path, root)
+    suggest_folder_project(conn, print_id, print_path, root)
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM projects WHERE name = 'Widget'")
+        assert cur.fetchone()[0] == 1  # no "Widget (kit-print_files)"-style disambiguation
+        cur.execute(
+            "SELECT count(*) FROM project_files pf JOIN projects p ON p.id = pf.project_id WHERE p.name = 'Widget'"
+        )
+        assert cur.fetchone()[0] == 2
+
+
+def test_folder_project_merge_order_independent(conn, make_root):
+    # Same as above but print_files discovered first — the merge must not
+    # depend on which side happens to be walked/ingested first.
+    root = make_root()
+    print_id, print_path = _insert_file(
+        conn, root, "part.gcode", ".gcode", "hash-b", subdir="kit-print_files/Widget"
+    )
+    model_id, model_path = _insert_file(
+        conn, root, "part.stl", ".stl", "hash-a", subdir="kit-model_files/Widget"
+    )
+
+    suggest_folder_project(conn, print_id, print_path, root)
+    suggest_folder_project(conn, model_id, model_path, root)
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM projects WHERE name = 'Widget'")
+        assert cur.fetchone()[0] == 1
+
+
+def test_folder_project_does_not_merge_folders_with_no_real_sibling(conn, make_root):
+    # A plain "-model_files" folder with no matching "-print_files"
+    # sibling on disk must behave exactly as before — no merge attempted,
+    # no error either.
+    root = make_root()
+    file_id, path = _insert_file(conn, root, "widget.stl", ".stl", "hash", subdir="kit-model_files")
+
+    suggest_folder_project(conn, file_id, path, root)
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT p.name FROM projects p JOIN project_files pf ON pf.project_id = p.id WHERE pf.file_id = %s", (file_id,))
+        assert cur.fetchone()[0] == "kit-model_files"
 
 
 def test_folder_project_uses_parent_name_for_format_named_export_folders(conn, make_root):
