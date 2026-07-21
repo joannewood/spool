@@ -19,18 +19,20 @@
         <span class="status-dot status-dot-ok"></span>
         <strong>Processing {{ running_jobs|length }} job{{ "s" if running_jobs|length != 1 else "" }}</strong>
       </p>
-      <table class="admin-table">
-        <thead><tr><th>Job</th><th>Target</th><th>Started</th></tr></thead>
-        <tbody>
-          {% for j in running_jobs %}
-          <tr>
-            <td>{{ j.job_type }}</td>
-            <td>{{ j.target_name or "—" }}</td>
-            <td>{{ j.created_at }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Job</th><th>Target</th><th>Started</th></tr></thead>
+          <tbody>
+            {% for j in running_jobs %}
+            <tr>
+              <td>{{ j.job_type }}</td>
+              <td>{{ j.target_name or "—" }}</td>
+              <td>{{ j.created_at }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
       {% else %}
       <p class="status-line">
         <span class="status-dot status-dot-idle"></span>

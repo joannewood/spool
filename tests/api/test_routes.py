@@ -655,6 +655,17 @@ def test_admin_status_invalid_filter_values_ignored(client):
     assert resp.status_code == 200  # falls back to unfiltered rather than erroring
 
 
+def test_admin_status_recent_activity_is_paginated(client, make_file, db_conn):
+    file_id = make_file(filename="paginated-status-check.stl")
+    with db_conn.cursor() as cur:
+        cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'render', 'done')", (file_id,))
+
+    resp = client.get("/admin/status", params={"q": "paginated-status-check", "page_size": 100})
+    assert resp.status_code == 200
+    assert "paginated-status-check.stl" in resp.text
+    assert "1 total" in resp.text
+
+
 def test_admin_page_links_to_status_page(client):
     resp = client.get("/admin")
     assert resp.status_code == 200

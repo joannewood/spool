@@ -314,7 +314,7 @@ def test_get_recent_job_activity_includes_a_finished_job_with_error(make_file, d
             (file_id, "status dashboard test error"),
         )
 
-    recent = queries.get_recent_job_activity(limit=200)
+    recent, _ = queries.get_recent_job_activity(page_size=200)
     match = next((j for j in recent if j["target_name"] == "status-activity-unique.stl"), None)
     assert match is not None
     assert match["error"] == "status dashboard test error"
@@ -327,7 +327,7 @@ def test_get_recent_job_activity_filters_by_q(make_file, db_conn):
         cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'render', 'done')", (match_id,))
         cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'render', 'done')", (other_id,))
 
-    recent = queries.get_recent_job_activity(limit=200, q="query-filter-unique")
+    recent, _ = queries.get_recent_job_activity(page_size=200, q="query-filter-unique")
     target_names = {j["target_name"] for j in recent}
     assert target_names == {"query-filter-unique.stl"}
 
@@ -341,7 +341,7 @@ def test_get_recent_job_activity_filters_by_status(make_file, db_conn):
             (file_id,),
         )
 
-    recent = queries.get_recent_job_activity(limit=200, q="query-filter-status", status="failed")
+    recent, _ = queries.get_recent_job_activity(page_size=200, q="query-filter-status", status="failed")
     assert len(recent) == 1
     assert recent[0]["job_type"] == "ingest"
     assert recent[0]["status"] == "failed"
@@ -353,7 +353,7 @@ def test_get_recent_job_activity_filters_by_job_type(make_file, db_conn):
         cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'render', 'done')", (file_id,))
         cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'ingest', 'done')", (file_id,))
 
-    recent = queries.get_recent_job_activity(limit=200, q="query-filter-jobtype", job_type="render")
+    recent, _ = queries.get_recent_job_activity(page_size=200, q="query-filter-jobtype", job_type="render")
     assert len(recent) == 1
     assert recent[0]["job_type"] == "render"
 

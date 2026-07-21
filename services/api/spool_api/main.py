@@ -468,18 +468,29 @@ def admin(request: Request):
 
 
 @app.get("/admin/status", response_class=HTMLResponse)
-def admin_status(request: Request, q: str = "", status: str = "", job_type: str = ""):
+def admin_status(
+    request: Request, q: str = "", status: str = "", job_type: str = "", page: int = 1, page_size: str = None
+):
     if status not in ("", "done", "failed"):
         status = ""
     if job_type not in ("", *JOB_TYPES):
         job_type = ""
-    return templates.TemplateResponse(
+    page, page_size = _resolve_bulk_review_paging(request, page, page_size)
+    recent_activity, total = queries.get_recent_job_activity(
+        page=page, page_size=page_size, q=q, status=status, job_type=job_type
+    )
+    response = templates.TemplateResponse(
         request,
         "admin_status.html",
         {
             "job_matrix": _pivot_job_queue(queries.get_job_queue_summary()),
             "job_statuses": JOB_STATUSES,
-            "recent_activity": queries.get_recent_job_activity(q=q, status=status, job_type=job_type),
+            "recent_activity": recent_activity,
+            "total": total,
+            "page": page,
+            "total_pages": _bulk_review_total_pages(total, page_size),
+            "page_size": page_size,
+            "page_sizes": queries.BULK_REVIEW_PAGE_SIZES,
             "roots": queries.list_watched_roots(),
             "job_types": JOB_TYPES,
             "q": q,
@@ -487,6 +498,8 @@ def admin_status(request: Request, q: str = "", status: str = "", job_type: str 
             "selected_job_type": job_type,
         },
     )
+    response.set_cookie(BULK_REVIEW_PAGE_SIZE_COOKIE, str(page_size), max_age=31536000)
+    return response
 
 
 @app.get("/admin/pending-archives", response_class=HTMLResponse)

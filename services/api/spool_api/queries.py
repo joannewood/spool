@@ -910,14 +910,17 @@ def get_running_jobs():
             return cur.fetchall()
 
 
-def get_recent_job_activity(limit=100, q="", status="", job_type=""):
+def get_recent_job_activity(page=1, page_size=BULK_REVIEW_PAGE_SIZE_DEFAULT, q="", status="", job_type=""):
     """Most recently finished jobs (done or failed), newest first, with a
     human-readable target name and the raw error text for failures — the
     live "what just happened" feed. `q` matches against the target's
     filename (ILIKE substring, same convention as the main library
     search); `status`/`job_type` narrow to an exact value when set,
     otherwise every done/failed job is eligible — this is the filtering
-    the /admin/status page's search bar drives."""
+    the /admin/status page's search bar drives. Paginated the same way as
+    the other bulk-review lists (page/page_size, `count(*) OVER()` for the
+    total) — this feed grows unbounded over a library's lifetime, so a
+    fixed `limit=100` with no way to look further back doesn't scale."""
     conditions = ["j.status IN ('done', 'failed')"]
     params = []
     if status:
@@ -930,23 +933,27 @@ def get_recent_job_activity(limit=100, q="", status="", job_type=""):
         conditions.append("COALESCE(f.filename, z.filename) ILIKE %s")
         params.append(f"%{q}%")
     where = " AND ".join(conditions)
+    limit_sql, limit_params = _limit_offset(page, page_size)
 
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
                 f"""
                 SELECT j.id, j.job_type, j.status, j.error, j.completed_at,
-                       COALESCE(f.filename, z.filename) AS target_name
+                       COALESCE(f.filename, z.filename) AS target_name,
+                       count(*) OVER() AS total_count
                 FROM jobs j
                 LEFT JOIN files f ON f.id = j.file_id
                 LEFT JOIN zip_files z ON z.id = j.zip_file_id
                 WHERE {where}
                 ORDER BY j.completed_at DESC NULLS LAST, j.id DESC
-                LIMIT %s
+                {limit_sql}
                 """,
-                (*params, limit),
+                (*params, *limit_params),
             )
-            return cur.fetchall()
+            rows = cur.fetchall()
+            total = rows[0]["total_count"] if rows else 0
+            return rows, total
 
 
 def get_ingestion_totals():
