@@ -82,11 +82,25 @@ def test_suggest_clean_project_name_expands_fused_ordinal_scale_notation():
     assert suggest_clean_project_name("110th-scale-fire-hydrant-model_files") == "1/10th Scale Fire Hydrant"
 
 
-def test_suggest_clean_project_name_leaves_fused_ordinal_alone_without_scale_anchor():
+def test_suggest_clean_project_name_expands_fused_plain_scale_notation():
+    # No ordinal suffix this time — "125" fused directly against "scale".
+    assert suggest_clean_project_name("125-scale-boat-for-the-bathtub-model_files") == "1/25 Scale Boat For The Bathtub"
+
+
+def test_suggest_clean_project_name_leaves_fused_number_alone_without_scale_anchor():
     # No literal "scale" following — too ambiguous to touch (could be a
-    # real ordinal, e.g. an anniversary), so left exactly as-is (beyond
-    # the first-letter capitalization already applied to every word).
+    # real ordinal, e.g. an anniversary, or an unrelated part number), so
+    # left exactly as-is (beyond the first-letter capitalization already
+    # applied to every word).
     assert suggest_clean_project_name("110th anniversary model") == "110th Anniversary Model"
+    assert suggest_clean_project_name("125 widget mount") == "125 Widget Mount"
+
+
+def test_suggest_clean_project_name_fused_scale_rejects_zero_denominator():
+    # "10 scale" parsed as "1" + "0" would give the nonsensical
+    # "1/0 scale" — a real 1/10 scale is written fused as "110", not "10",
+    # so this is correctly left untouched rather than guessed at.
+    assert suggest_clean_project_name("10 scale model") == "10 Scale Model"
 
 
 def test_suggest_clean_project_name_fused_digits_are_not_treated_as_scale_notation():
