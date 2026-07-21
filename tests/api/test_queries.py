@@ -679,3 +679,52 @@ def test_get_files_bulk_returns_dict_keyed_by_id(make_file):
 
 def test_get_files_bulk_handles_empty_list():
     assert queries.get_files_bulk([]) == {}
+
+
+# ---- bulk project-name cleanup ---------------------------------------------
+
+def test_list_projects_needing_name_cleanup_includes_a_messy_name():
+    project_id = queries.create_project("bulk-rename-messy-model_files", "", None)
+    try:
+        suggestions, total = queries.list_projects_needing_name_cleanup(page_size="all")
+        match = next((s for s in suggestions if s["id"] == project_id), None)
+        assert match is not None
+        assert match["suggested_name"] == "bulk rename messy"
+        assert total >= 1
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_list_projects_needing_name_cleanup_excludes_already_clean_names():
+    project_id = queries.create_project("Already Clean Name", "", None)
+    try:
+        suggestions, _ = queries.list_projects_needing_name_cleanup(page_size="all")
+        assert not any(s["id"] == project_id for s in suggestions)
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_rename_projects_bulk_applies_selected_renames():
+    project_id = queries.create_project("rename-me-model_files", "", None)
+    try:
+        queries.rename_projects_bulk([(project_id, "Renamed Project")])
+        assert queries.get_project(project_id)["name"] == "Renamed Project"
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_rename_projects_bulk_skips_blank_new_name():
+    project_id = queries.create_project("keep-original-model_files", "", None)
+    try:
+        queries.rename_projects_bulk([(project_id, "   ")])
+        assert queries.get_project(project_id)["name"] == "keep-original-model_files"
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_rename_projects_bulk_handles_empty_list():
+    queries.rename_projects_bulk([])  # must not raise

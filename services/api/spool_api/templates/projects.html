@@ -4,6 +4,10 @@
 
 <h1>Projects</h1>
 
+{% if cleanup_count %}
+<p class="note"><a href="/projects/bulk-rename">Clean up {{ cleanup_count }} messy project name{{ "s" if cleanup_count != 1 else "" }} →</a></p>
+{% endif %}
+
 <section class="panel">
   <h2>Create a new project</h2>
   <form class="stack-form" method="POST" action="/projects">

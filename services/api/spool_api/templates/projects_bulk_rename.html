@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% import "_bulk_review_paging.html" as paging with context %}
+{% block title %}Bulk rename projects — SPOOL{% endblock %}
+{% block content %}
+
+<a class="back" href="/projects">← projects</a>
+<h1>Bulk rename projects</h1>
+<p class="note">
+  Suggested cleanups for project names that came straight from a downloaded
+  kit's own folder name — hyphens/underscores standing in for spaces, a
+  "model_files"/"print_files" container suffix, a long asset id. Edit any
+  suggestion before applying, or uncheck rows you don't want changed. Only
+  names this heuristic would actually change are listed here.
+</p>
+
+{% if suggestions %}
+<form method="POST" action="/projects/bulk-rename">
+  {{ paging.controls("/projects/bulk-rename") }}
+
+  <label class="dup-select-all">
+    <input type="checkbox" class="select-all-checkbox" data-target=".bulk-rename-checkbox">
+    Select all on this page
+  </label>
+
+  <div class="table-wrap">
+    <table class="admin-table">
+      <thead><tr><th></th><th>Current name</th><th>New name</th></tr></thead>
+      <tbody>
+        {% for s in suggestions %}
+        <tr>
+          <td>
+            <input type="hidden" name="project_ids" value="{{ s.id }}">
+            <input type="checkbox" class="bulk-rename-checkbox" name="checked_ids" value="{{ s.id }}">
+          </td>
+          <td>{{ s.name }}</td>
+          <td><input type="text" name="new_names" value="{{ s.suggested_name }}"></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <button type="submit">Apply selected renames</button>
+
+  {{ paging.controls("/projects/bulk-rename") }}
+</form>
+{% else %}
+<p class="empty-inline">No project names need cleanup — everything already looks clean.</p>
+{% endif %}
+
+{% endblock %}

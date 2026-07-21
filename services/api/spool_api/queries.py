@@ -4,7 +4,7 @@ import re
 from psycopg.rows import dict_row
 
 from common.db import get_connection
-from common.text import clean_name
+from common.text import clean_name, suggest_clean_project_name
 
 # Independently re-reads the same env var (with the same fallback) that
 # main.py and common/ingest.py already each define their own copy of,
@@ -492,6 +492,52 @@ def set_project_name(project_id, name):
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("UPDATE projects SET name = %s WHERE id = %s", (name.strip(), project_id))
+
+
+def count_projects_needing_name_cleanup():
+    _, total = list_projects_needing_name_cleanup(page_size="all")
+    return total
+
+
+def list_projects_needing_name_cleanup(page=1, page_size=BULK_REVIEW_PAGE_SIZE_DEFAULT):
+    """Every project whose name suggest_clean_project_name() would actually
+    change, for the bulk-rename review page — most project names come
+    straight from a downloaded kit's own folder name (hyphens/underscores,
+    a "model_files" container suffix, a long asset id), which is exactly
+    what that heuristic targets. The suggestion is computed in Python, not
+    SQL, so filtering/pagination happens here rather than in the query —
+    fine at this app's scale (a couple thousand projects, one cheap query)."""
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("SELECT id, name FROM projects ORDER BY name")
+            rows = cur.fetchall()
+    suggestions = [
+        {"id": row["id"], "name": row["name"], "suggested_name": suggested}
+        for row in rows
+        for suggested in [suggest_clean_project_name(row["name"])]
+        if suggested and suggested != row["name"]
+    ]
+    total = len(suggestions)
+    if page_size == "all":
+        return suggestions, total
+    start = (page - 1) * page_size
+    return suggestions[start : start + page_size], total
+
+
+def rename_projects_bulk(renames):
+    """`renames` is a list of (project_id, new_name) pairs — one connection
+    for the whole batch, same reasoning as confirm_file_projects_bulk. A
+    blank/whitespace-only new_name is a silent no-op per row (mirrors
+    set_project_name's own boundary-only-validation style) rather than a
+    hard failure for the whole batch."""
+    if not renames:
+        return
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            for project_id, new_name in renames:
+                new_name = new_name.strip()
+                if new_name:
+                    cur.execute("UPDATE projects SET name = %s WHERE id = %s", (new_name, project_id))
 
 
 def add_file_to_project(file_id, project_id):

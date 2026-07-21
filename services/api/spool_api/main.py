@@ -263,7 +263,13 @@ def _build_project_tree(rows):
 def projects_index(request: Request):
     projects = queries.list_projects()
     return templates.TemplateResponse(
-        request, "projects.html", {"projects": projects, "tree": _build_project_tree(projects)}
+        request,
+        "projects.html",
+        {
+            "projects": projects,
+            "tree": _build_project_tree(projects),
+            "cleanup_count": queries.count_projects_needing_name_cleanup(),
+        },
     )
 
 
@@ -272,6 +278,39 @@ def create_project(name: str = Form(...), description: str = Form(""), parent_pr
     parent_id = int(parent_project_id) if parent_project_id else None
     project_id = queries.create_project(name, description, parent_id)
     return RedirectResponse(f"/projects/{project_id}", status_code=303)
+
+
+# Registered before /projects/{project_id} — a static path has to come
+# first, or FastAPI tries (and fails) to parse "bulk-rename" as that
+# route's int project_id instead of ever reaching this one.
+@app.get("/projects/bulk-rename", response_class=HTMLResponse)
+def projects_bulk_rename(request: Request, page: int = 1, page_size: str = None):
+    page, page_size = _resolve_bulk_review_paging(request, page, page_size)
+    suggestions, total = queries.list_projects_needing_name_cleanup(page=page, page_size=page_size)
+    response = templates.TemplateResponse(
+        request,
+        "projects_bulk_rename.html",
+        {
+            "suggestions": suggestions,
+            "total": total,
+            "page": page,
+            "total_pages": _bulk_review_total_pages(total, page_size),
+            "page_size": page_size,
+            "page_sizes": queries.BULK_REVIEW_PAGE_SIZES,
+        },
+    )
+    response.set_cookie(BULK_REVIEW_PAGE_SIZE_COOKIE, str(page_size), max_age=31536000)
+    return response
+
+
+@app.post("/projects/bulk-rename")
+def projects_bulk_rename_apply(
+    project_ids: list[int] = Form([]), new_names: list[str] = Form([]), checked_ids: list[int] = Form([])
+):
+    checked_set = set(checked_ids)
+    renames = [(pid, name) for pid, name in zip(project_ids, new_names) if pid in checked_set]
+    queries.rename_projects_bulk(renames)
+    return RedirectResponse("/projects/bulk-rename", status_code=303)
 
 
 @app.get("/projects/{project_id}", response_class=HTMLResponse)

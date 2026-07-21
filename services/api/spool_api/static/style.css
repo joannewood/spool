@@ -1136,6 +1136,10 @@ button.card {
   color: var(--ink);
   font-size: var(--fs-sm);
 }
+/* The bulk-rename page's "New name" column needs to actually fit a name,
+   not the browser's default ~20-character text input width. */
+.bulk-rename-checkbox { width: auto; }
+input[name="new_names"] { width: 100%; min-width: 220px; }
 .admin-table select {
   padding-right: 24px;
   background-color: var(--bg);

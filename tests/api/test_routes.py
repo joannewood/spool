@@ -815,3 +815,55 @@ def test_delete_duplicates_route_deletes_successes_and_reports_failures(client, 
     with queries.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM files WHERE id = ANY(%s)", ([fail_id, keep_id],))
+
+
+# ---- bulk project-name cleanup ---------------------------------------------
+
+def test_projects_page_links_to_bulk_rename_when_cleanup_needed(client):
+    from spool_api import queries
+
+    project_id = queries.create_project("route-check-messy-model_files", "", None)
+    try:
+        resp = client.get("/projects")
+        assert resp.status_code == 200
+        assert 'href="/projects/bulk-rename"' in resp.text
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_bulk_rename_page_shows_suggested_name(client):
+    from spool_api import queries
+
+    project_id = queries.create_project("route-bulk-rename-model_files", "", None)
+    try:
+        resp = client.get("/projects/bulk-rename", params={"page_size": "all"})
+        assert resp.status_code == 200
+        assert "route-bulk-rename-model_files" in resp.text
+        assert 'value="route bulk rename"' in resp.text
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_bulk_rename_apply_only_renames_checked_rows(client):
+    from spool_api import queries
+
+    checked_id = queries.create_project("route-checked-model_files", "", None)
+    unchecked_id = queries.create_project("route-unchecked-model_files", "", None)
+    try:
+        resp = client.post(
+            "/projects/bulk-rename",
+            data={
+                "project_ids": [str(checked_id), str(unchecked_id)],
+                "new_names": ["Route Checked", "Route Unchecked"],
+                "checked_ids": [str(checked_id)],
+            },
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert queries.get_project(checked_id)["name"] == "Route Checked"
+        assert queries.get_project(unchecked_id)["name"] == "route-unchecked-model_files"
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = ANY(%s)", ([checked_id, unchecked_id],))
