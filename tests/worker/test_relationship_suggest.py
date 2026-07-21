@@ -1,5 +1,7 @@
 import os
 
+from psycopg.rows import dict_row
+
 from app.relationship_suggest import suggest_folder_project, suggest_for_file
 
 
@@ -413,3 +415,151 @@ def test_folder_project_never_matches_a_manually_created_project(conn, make_root
         assert cur.fetchone()[0] == 1
         cur.execute("SELECT name FROM projects WHERE id != %s AND name LIKE 'Kit (%%'", (manual_project_id,))
         assert cur.fetchone() is not None
+
+
+# ---- wrapper-project grouping (2+ children get a shared parent) -----------
+
+def test_folder_project_wraps_two_sibling_leaf_projects_under_a_new_parent(conn, make_root):
+    root = make_root()
+    id_a, path_a = _insert_file(conn, root, "a.stl", ".stl", "hash-a", subdir="World Map/1_Europe")
+    id_b, path_b = _insert_file(conn, root, "b.stl", ".stl", "hash-b", subdir="World Map/2_Asia")
+
+    suggest_folder_project(conn, id_a, path_a, root)
+    suggest_folder_project(conn, id_b, path_b, root)
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute("SELECT id, parent_project_id FROM projects WHERE name = '1_Europe'")
+        europe = cur.fetchone()
+        cur.execute("SELECT id, parent_project_id FROM projects WHERE name = '2_Asia'")
+        asia = cur.fetchone()
+        assert europe["parent_project_id"] is not None
+        assert europe["parent_project_id"] == asia["parent_project_id"]
+        cur.execute("SELECT name FROM projects WHERE id = %s", (europe["parent_project_id"],))
+        assert cur.fetchone()["name"] == "World Map"
+
+
+def test_folder_project_does_not_wrap_a_single_leaf_project(conn, make_root):
+    root = make_root()
+    file_id, path = _insert_file(conn, root, "a.stl", ".stl", "hash-a", subdir="Solo Kit/OnlyPart")
+
+    suggest_folder_project(conn, file_id, path, root)
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute("SELECT parent_project_id FROM projects WHERE name = 'OnlyPart'")
+        assert cur.fetchone()["parent_project_id"] is None
+        cur.execute("SELECT count(*) FROM projects WHERE name = 'Solo Kit'")
+        assert cur.fetchone()["count"] == 0
+
+
+def test_folder_project_wraps_a_third_sibling_under_the_same_existing_wrapper(conn, make_root):
+    root = make_root()
+    id_a, path_a = _insert_file(conn, root, "a.stl", ".stl", "hash-a", subdir="World Map/1_Europe")
+    id_b, path_b = _insert_file(conn, root, "b.stl", ".stl", "hash-b", subdir="World Map/2_Asia")
+    suggest_folder_project(conn, id_a, path_a, root)
+    suggest_folder_project(conn, id_b, path_b, root)
+
+    id_c, path_c = _insert_file(conn, root, "c.stl", ".stl", "hash-c", subdir="World Map/3_Africa")
+    suggest_folder_project(conn, id_c, path_c, root)
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute("SELECT count(*) FROM projects WHERE name = 'World Map'")
+        assert cur.fetchone()["count"] == 1  # no duplicate wrapper created
+        cur.execute(
+            "SELECT p.parent_project_id FROM projects p WHERE p.name IN ('1_Europe', '2_Asia', '3_Africa')"
+        )
+        parent_ids = {row["parent_project_id"] for row in cur.fetchall()}
+        assert len(parent_ids) == 1  # all three share the same parent
+
+
+def test_folder_project_wrapper_uses_grandparent_name_when_immediate_folder_is_generic(conn, make_root):
+    # A kit's own export folder can itself be generic (e.g. literally
+    # called "files") — confirmed live with a real "Monopoly Board" kit
+    # whose 20 per-tile subfolders all live directly inside a "files"
+    # folder. The wrapper must be named from the grandparent, not "Files".
+    root = make_root()
+    id_a, path_a = _insert_file(conn, root, "a.stl", ".stl", "hash-a", subdir="Board Game/files/Tile_1")
+    id_b, path_b = _insert_file(conn, root, "b.stl", ".stl", "hash-b", subdir="Board Game/files/Tile_2")
+
+    suggest_folder_project(conn, id_a, path_a, root)
+    suggest_folder_project(conn, id_b, path_b, root)
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute("SELECT id, parent_project_id FROM projects WHERE name = 'Tile_1'")
+        tile1 = cur.fetchone()
+        cur.execute("SELECT name FROM projects WHERE id = %s", (tile1["parent_project_id"],))
+        assert cur.fetchone()["name"] == "Board Game"  # not "Files"
+
+
+def test_folder_project_skips_archive_folders_when_finding_a_wrapper_parent(conn, make_root):
+    # "Archive"/"Archive 2" is just a zip-batch container, not a real kit
+    # boundary — two unrelated kits that happen to share an "Archive 2"
+    # ancestor must not get wrapped together under it.
+    root = make_root()
+    id_a, path_a = _insert_file(conn, root, "a.stl", ".stl", "hash-a", subdir="Archive 2/Kit One/Part A")
+    id_b, path_b = _insert_file(conn, root, "b.stl", ".stl", "hash-b", subdir="Archive 2/Kit One/Part B")
+    id_c, path_c = _insert_file(conn, root, "c.stl", ".stl", "hash-c", subdir="Archive 2/Kit Two/Part A")
+
+    suggest_folder_project(conn, id_a, path_a, root)
+    suggest_folder_project(conn, id_b, path_b, root)
+    suggest_folder_project(conn, id_c, path_c, root)
+
+    def project_for(file_id):
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                "SELECT p.id, p.parent_project_id FROM projects p JOIN project_files pf ON pf.project_id = p.id WHERE pf.file_id = %s",
+                (file_id,),
+            )
+            return cur.fetchone()
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute("SELECT count(*) FROM projects WHERE lower(name) LIKE 'archive%%'")
+        assert cur.fetchone()["count"] == 0  # no wrapper named after "Archive 2" itself
+
+    part_a_one = project_for(id_a)
+    part_b = project_for(id_b)
+    assert part_a_one["parent_project_id"] is not None
+    assert part_a_one["parent_project_id"] == part_b["parent_project_id"]  # Kit One's two parts share a wrapper
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute("SELECT name FROM projects WHERE id = %s", (part_a_one["parent_project_id"],))
+        assert cur.fetchone()["name"] == "Kit One"
+
+    part_a_two = project_for(id_c)
+    assert part_a_two["parent_project_id"] is None  # Kit Two has only one part — not wrapped
+
+
+def test_folder_project_wrapper_name_disambiguates_on_collision(conn, make_root):
+    root_a = make_root()
+    root_b = make_root()
+    for root, kit in ((root_a, "Kit"), (root_b, "Kit")):
+        id_x, path_x = _insert_file(conn, root, "a.stl", ".stl", f"hash-{root.id}-a", subdir=f"{kit}/PartOne")
+        id_y, path_y = _insert_file(conn, root, "b.stl", ".stl", f"hash-{root.id}-b", subdir=f"{kit}/PartTwo")
+        suggest_folder_project(conn, id_x, path_x, root)
+        suggest_folder_project(conn, id_y, path_y, root)
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute("SELECT count(*) FROM projects WHERE name = 'Kit'")
+        assert cur.fetchone()["count"] == 1  # only the first keeps the plain name
+        cur.execute("SELECT count(*) FROM projects WHERE name LIKE 'Kit (%%'")
+        assert cur.fetchone()["count"] == 1  # the second is disambiguated
+
+
+def test_folder_project_never_overrides_a_manually_set_parent(conn, make_root):
+    root = make_root()
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute("INSERT INTO projects (name) VALUES ('Manually Chosen Parent') RETURNING id")
+        manual_parent_id = cur.fetchone()["id"]
+
+    id_a, path_a = _insert_file(conn, root, "a.stl", ".stl", "hash-a", subdir="World Map/1_Europe")
+    suggest_folder_project(conn, id_a, path_a, root)
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE projects SET parent_project_id = %s WHERE name = '1_Europe'",
+            (manual_parent_id,),
+        )
+
+    id_b, path_b = _insert_file(conn, root, "b.stl", ".stl", "hash-b", subdir="World Map/2_Asia")
+    suggest_folder_project(conn, id_b, path_b, root)
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute("SELECT parent_project_id FROM projects WHERE name = '1_Europe'")
+        assert cur.fetchone()["parent_project_id"] == manual_parent_id  # untouched

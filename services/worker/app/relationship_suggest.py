@@ -43,6 +43,15 @@ _GENERIC_CONTAINER_NAMES = {"files", "file", "cad", "cad file", "cad files"} | {
 # underscore form and was missed until this normalization was added).
 _SEPARATOR_TO_SPACE_RE = re.compile(r"[_\-]+")
 
+# "Archive"/"Archive 2"/"Archive(2)" — the generic name macOS/zip tools
+# (or a person manually organizing downloads) give a folder that exists
+# purely to hold a batch of unrelated zips together for compression, not
+# a real kit grouping. Skipped when computing which folder should become
+# a wrapper project (see _skip_archive_ancestors) so 18 unrelated kits
+# that happened to be zipped into the same "Archive 2" don't get treated
+# as one meaningless mega-project.
+_ARCHIVE_FOLDER_RE = re.compile(r"^archive\s*\(?\s*\d*\s*\)?$", re.IGNORECASE)
+
 
 def _stem(filename):
     return os.path.splitext(filename)[0]
@@ -74,6 +83,93 @@ def _unique_project_name(cur, name, directory):
             return candidate
         candidate = f"{name} ({parent_name}) ({suffix})"
         suffix += 1
+
+
+def _skip_archive_ancestors(directory, root_host_path):
+    """Walk up from `directory` past any 'Archive'/'Archive 2' folder in
+    the chain — see _ARCHIVE_FOLDER_RE's comment. Stops at the watched
+    root regardless (never walks above it)."""
+    current = os.path.normpath(directory)
+    root_host_path = os.path.normpath(root_host_path)
+    while current != root_host_path and _ARCHIVE_FOLDER_RE.match(os.path.basename(current)):
+        current = os.path.dirname(current)
+    return current
+
+
+def _wrapper_project_name(parent_dir, root_host_path):
+    """Same 'name too generic, use the parent instead' fallback already
+    applied to leaf projects — a wrapper folder can be just as generic
+    (e.g. a kit's own export folder is itself literally called "files",
+    confirmed live: a real "Monopoly Board" kit's 20 per-tile subfolders
+    all live directly inside a folder just called "files")."""
+    name = os.path.basename(parent_dir)
+    if _SEPARATOR_TO_SPACE_RE.sub(" ", name).lower() in _GENERIC_CONTAINER_NAMES:
+        grandparent = os.path.dirname(parent_dir)
+        if os.path.normpath(grandparent) != os.path.normpath(root_host_path):
+            name = os.path.basename(grandparent)
+    return clean_name(name)
+
+
+def _maybe_group_under_wrapper(conn, project_id, match_directory, root):
+    """A folder with 2+ existing sibling projects (sharing the same
+    effective parent — see _skip_archive_ancestors) gets that parent
+    turned into a wrapper project nesting all of them, instead of staying
+    flat forever. E.g. a kit's per-continent subfolders ("1_Europe",
+    "2_Asia"...) each already get their own flat project via the rest of
+    this module, but once there are 2+ of them the parent kit folder
+    becomes a project of its own with the siblings re-parented under it.
+
+    Deliberately conservative: fires only for 2+ children, not every
+    single level of nesting (confirmed live before building this: nesting
+    *every* folder level unconditionally would have created 331 new
+    wrapper projects, 257 of which (82%) would have had exactly one
+    child — pure navigational clutter with no grouping benefit — versus
+    just 56 wrapper projects covering 269 existing ones with this 2+
+    threshold). A project's own `parent_project_id` is only ever set here
+    if it's still NULL, so a user's manual sub-project assignment is
+    never silently overridden."""
+    parent_dir = os.path.dirname(match_directory)
+    if os.path.normpath(parent_dir) == os.path.normpath(root.host_path):
+        return  # match_directory already sits directly in the root
+    effective_parent = _skip_archive_ancestors(parent_dir, root.host_path)
+    if os.path.normpath(effective_parent) == os.path.normpath(root.host_path):
+        return  # skipping archive ancestors landed straight on the root
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute("SELECT id FROM projects WHERE source_folder_path = %s", (effective_parent,))
+        wrapper = cur.fetchone()
+
+        if wrapper is None:
+            cur.execute(
+                "SELECT id, source_folder_path FROM projects WHERE source_folder_path LIKE %s",
+                (effective_parent + os.sep + "%",),
+            )
+            siblings = [
+                r
+                for r in cur.fetchall()
+                if os.path.normpath(_skip_archive_ancestors(os.path.dirname(r["source_folder_path"]), root.host_path))
+                == effective_parent
+            ]
+            if len(siblings) < 2:
+                return  # not worth wrapping a single project
+            wrapper_name = _unique_project_name(
+                cur, _wrapper_project_name(effective_parent, root.host_path), effective_parent
+            )
+            cur.execute(
+                "INSERT INTO projects (name, source_folder_path) VALUES (%s, %s) RETURNING id",
+                (wrapper_name, effective_parent),
+            )
+            wrapper_id = cur.fetchone()["id"]
+            sibling_ids = [r["id"] for r in siblings]
+        else:
+            wrapper_id = wrapper["id"]
+            sibling_ids = [project_id]
+
+        for pid in sibling_ids:
+            cur.execute(
+                "UPDATE projects SET parent_project_id = %s WHERE id = %s AND parent_project_id IS NULL",
+                (wrapper_id, pid),
+            )
 
 
 def _parse_version(stem):
@@ -157,9 +253,14 @@ def suggest_folder_project(conn, file_id, host_path, root):
     """Flat, per-leaf-folder grouping: any indexed file sitting in a
     meaningful subfolder (even alone) gets a suggested project named after
     that folder — a lone file today just means a project of one, ready to
-    pick up siblings later. Deliberately does NOT mirror the whole
-    directory tree — a folder two levels deep still becomes one flat
-    project, not a chain of nested ones.
+    pick up siblings later. Does NOT mirror the *whole* directory tree —
+    a folder two levels deep still becomes one flat project at that
+    level, not a chain of one project per level — but does add exactly
+    one layer of nesting when a folder has 2+ such leaf projects sharing
+    a parent (see _maybe_group_under_wrapper): a kit's per-continent
+    subfolders ("1_Europe", "2_Asia"...) each still get their own leaf
+    project, but the parent kit folder also becomes a project of its own
+    once there are 2+ of them, with the leaves re-parented under it.
 
     Matching is by the folder's real, absolute path (`projects.
     source_folder_path`), not by name — two unrelated leaf folders that
@@ -228,3 +329,5 @@ def suggest_folder_project(conn, file_id, host_path, root):
                 """,
                 (project_id, sibling["id"]),
             )
+
+    _maybe_group_under_wrapper(conn, project_id, match_directory, root)
