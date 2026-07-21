@@ -69,6 +69,25 @@ def test_suggest_clean_project_name_combines_with_percent_decoding():
     assert suggest_clean_project_name("Anker%20Nano-model_files") == "Anker Nano"
 
 
+def test_suggest_clean_project_name_capitalizes_after_an_opening_paren():
+    # Matters for re-cleaning a name that already has a parenthetical
+    # qualifier from an earlier disambiguation — there's no space inside
+    # "(ikea" to split on, so a naive space-based capitalizer misses it.
+    assert suggest_clean_project_name("Other (ikea-mini-kallax-collection-model_files)") == "Other (Ikea Mini Kallax Collection)"
+
+
+def test_suggest_clean_project_name_strips_stray_space_before_closing_paren():
+    # The "model files" suffix-strip is a blind substitution that can
+    # land right next to a paren — confirmed live producing "... Collection )"
+    # with a trailing space the whitespace-collapse step didn't catch
+    # (that step only handles runs of 2+ spaces / the string's own outer
+    # ends, not a lone space sitting next to punctuation mid-string).
+    assert (
+        suggest_clean_project_name("Other Containers (gridfinity-master-collection-model_files)")
+        == "Other Containers (Gridfinity Master Collection)"
+    )
+
+
 def test_suggest_clean_project_name_expands_scale_notation_without_inventing_the_word_scale():
     # "scale" doesn't appear anywhere in the source name, so it isn't added.
     assert suggest_clean_project_name("1_12_US_Mail_box_3520864") == "1/12 US Mail Box"

@@ -1,6 +1,6 @@
 import os
 
-from common.text import clean_name
+from common.text import suggest_clean_project_name
 
 
 def unique_project_name(cur, name, directory=None, exclude_id=None):
@@ -42,7 +42,11 @@ def unique_project_name(cur, name, directory=None, exclude_id=None):
 
     base_candidate = None
     if directory:
-        parent_name = clean_name(os.path.basename(os.path.dirname(directory)))
+        # suggest_clean_project_name, not just clean_name — the qualifier
+        # reads inconsistently next to an already-cleaned name otherwise
+        # (confirmed live: "Other (ikea-mini-kallax-collection-model_
+        # files)" instead of "Other (Ikea Mini Kallax Collection)").
+        parent_name = suggest_clean_project_name(os.path.basename(os.path.dirname(directory)))
         base_candidate = f"{name} ({parent_name})"
         if not taken(base_candidate):
             return base_candidate

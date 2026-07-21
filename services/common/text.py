@@ -27,6 +27,23 @@ _WHITESPACE_RUN_RE = re.compile(r"\s+")
 # preserved when already present, never invented when it isn't:
 # "1_12_US_Mail_box" -> "1/12 US Mail box", "1_12_scale_x" -> "1/12 scale x".
 _SCALE_RE = re.compile(r"\b1( ?)(\d{1,3})(st|nd|rd|th)?( scale)?\b", re.IGNORECASE)
+# The "model files"/"print files" suffix-strip above is a blind
+# substitution — if it happens to land right next to a parenthesis
+# (confirmed live: re-cleaning an already-qualified name like "Other
+# (ikea-mini-kallax-collection-model_files)" strips "model files" right
+# before the closing paren), it leaves a stray space there that the
+# whitespace-collapse step doesn't catch (that step only collapses
+# *runs* of 2+ spaces / trims the string's own outer ends, not a single
+# space sitting next to punctuation in the middle). Tightens "( x" -> "(x"
+# and "x )" -> "x)".
+_SPACE_NEAR_PAREN_RE = re.compile(r"\(\s+|\s+\)")
+# Capitalizes the first letter after *any* non-alphanumeric boundary
+# (start of string, or any punctuation), not just after a plain space —
+# the naive "capitalize each space-split word" approach misses a letter
+# directly following an opening paren (confirmed live: "(ikea..." stayed
+# lowercase, since "(ikea" has no space inside it to split on). Digits
+# don't count as a boundary — "110th" must stay "110th", not "110Th".
+_CAPITALIZE_AFTER_BOUNDARY_RE = re.compile(r"(^|[^a-zA-Z0-9])([a-z])")
 
 
 def _replace_scale(match):
@@ -76,17 +93,23 @@ def suggest_clean_project_name(name):
     fused number isn't. A standalone run of 5+ digits, which reads
     unambiguously as an asset id, gets stripped outright regardless.
     Finally, the first letter of each word is uppercased — but only the
-    first letter; the rest of each word is left
-    exactly as it already was, so an existing acronym or mixed-case brand
-    token ("USB", "SaberPack4") isn't lowercased into something wrong the
-    way a full title-case pass would. This is a *suggestion* a human
-    reviews before applying (see the /projects/bulk-rename page), not an
-    automatic rewrite — the heuristic will occasionally be wrong for a
-    given name, same as any pattern-based text cleanup."""
+    first letter; the rest of each word is left exactly as it already
+    was, so an existing acronym or mixed-case brand token ("USB",
+    "SaberPack4") isn't lowercased into something wrong the way a full
+    title-case pass would. Capitalizes after *any* non-letter boundary,
+    not just a space, so a letter directly after an opening paren still
+    gets capitalized (matters when re-cleaning a name that already has a
+    parenthetical qualifier from an earlier disambiguation — "(ikea..."
+    stayed lowercase until this was fixed, since there's no space inside
+    "(ikea" to split on). This is a *suggestion* a human reviews before
+    applying (see the /projects/bulk-rename page), not an automatic
+    rewrite — the heuristic will occasionally be wrong for a given name,
+    same as any pattern-based text cleanup."""
     text = clean_name(name)
     text = _SEPARATOR_RUN_RE.sub(" ", text)
     text = _SCALE_RE.sub(_replace_scale, text)
     text = _KIT_SUFFIX_RE.sub(" ", text)
     text = _STANDALONE_ID_RE.sub(" ", text)
     text = _WHITESPACE_RUN_RE.sub(" ", text).strip()
-    return " ".join(word[:1].upper() + word[1:] for word in text.split(" "))
+    text = _SPACE_NEAR_PAREN_RE.sub(lambda m: "(" if m.group(0).startswith("(") else ")", text)
+    return _CAPITALIZE_AFTER_BOUNDARY_RE.sub(lambda m: m.group(1) + m.group(2).upper(), text)
