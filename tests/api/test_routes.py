@@ -663,3 +663,43 @@ def test_index_no_pagination_shown_for_a_single_page(client, make_file):
     assert resp.status_code == 200
     assert "pagination-top" not in resp.text
     assert "pagination-bottom" not in resp.text
+
+
+# ---- bulk-review "all" page size + page-size cookie persistence -----------
+
+def test_admin_suggested_projects_page_size_all_shows_everything_on_one_page(client, make_file, db_conn):
+    from spool_api import queries as q
+
+    project_id = q.create_project("All Page Size Route Project", "", None)
+    file_id = make_file(filename="all-page-size-route.stl")
+    try:
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'suggested')",
+                (project_id, file_id),
+            )
+        resp = client.get("/admin/suggested-projects", params={"page_size": "all"})
+        assert resp.status_code == 200
+        assert "all-page-size-route.stl" in resp.text
+        assert '<nav class="pagination">' not in resp.text  # everything fits on the one page
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_admin_suggested_projects_remembers_page_size_via_cookie(client):
+    first = client.get("/admin/suggested-projects", params={"page_size": "500"})
+    assert first.status_code == 200
+    assert first.cookies.get("bulk_review_page_size") == "500"
+
+    # No explicit page_size this time — the cookie set above should carry
+    # forward instead of resetting to the 100 default.
+    second = client.get("/admin/suggested-projects")
+    assert second.status_code == 200
+    assert 'value="500" selected' in second.text
+
+
+def test_admin_suggested_projects_garbage_page_size_falls_back_to_default(client):
+    resp = client.get("/admin/suggested-projects", params={"page_size": "not-a-real-value"})
+    assert resp.status_code == 200  # falls back rather than erroring
+    assert 'value="100" selected' in resp.text

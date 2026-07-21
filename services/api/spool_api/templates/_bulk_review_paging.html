@@ -11,7 +11,7 @@
       Page size
       <select name="page_size" onchange="this.form.submit()">
         {% for size in page_sizes %}
-        <option value="{{ size }}" {% if size == page_size %}selected{% endif %}>{{ size }}</option>
+        <option value="{{ size }}" {% if size == page_size %}selected{% endif %}>{{ "All" if size == "all" else size }}</option>
         {% endfor %}
       </select>
     </label>

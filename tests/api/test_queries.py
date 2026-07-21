@@ -486,3 +486,32 @@ def test_enqueue_zip_extractions_bulk_queues_every_zip_in_one_call(db_conn, test
     finally:
         with db_conn.cursor() as cur:
             cur.execute("DELETE FROM zip_files WHERE id = ANY(%s)", (zip_ids,))
+
+
+# ---- "all" page size (no LIMIT/OFFSET) --------------------------------------
+
+def test_list_suggested_project_assignments_page_size_all_returns_everything(make_file, db_conn):
+    project_id = queries.create_project("All Page Size Project", "", None)
+    try:
+        file_ids = [make_file(filename=f"all-page-size-{i}.stl") for i in range(3)]
+        with db_conn.cursor() as cur:
+            for file_id in file_ids:
+                cur.execute(
+                    "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'suggested')",
+                    (project_id, file_id),
+                )
+
+        rows, total = queries.list_suggested_project_assignments(page=1, page_size="all")
+        assert len(rows) == total  # every suggested row in the library, not just a page
+        assert total >= 3
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_list_duplicate_groups_page_size_all_returns_every_group(make_file):
+    make_file(filename="all-dup-a1.stl", content_hash="all-dup-hash-1")
+    make_file(filename="all-dup-a2.stl", content_hash="all-dup-hash-1")
+
+    groups, total = queries.list_duplicate_groups(page=1, page_size="all")
+    assert len(groups) == total

@@ -19,11 +19,27 @@ PAGE_SIZE = 60
 # once: a page only ever renders/submits at most this many rows. Once the
 # bulk-accept routes batch onto one connection per request (see
 # confirm_file_projects_bulk et al.) the connection-count problem is fixed
-# regardless of page size, so the page-size *selector* (100/200/500/1000)
-# is offered mainly to bound how many rows get rendered/submitted at once,
-# not because bigger pages are dangerous anymore — 100 stays the default.
-BULK_REVIEW_PAGE_SIZES = [100, 200, 500, 1000]
+# regardless of page size, so the page-size *selector* (100/200/500/1000/
+# all) is offered mainly to bound how many rows get rendered/submitted at
+# once, not because bigger pages are dangerous anymore — 100 stays the
+# default. "all" (a string, not a number — every list_* function below
+# checks for it explicitly) skips LIMIT/OFFSET entirely; safe now that a
+# single-connection bulk-confirm no longer scales with row count, but
+# still opt-in rather than the default, since rendering thousands of
+# table rows in one response is still real work for the browser.
+BULK_REVIEW_PAGE_SIZES = [100, 200, 500, 1000, "all"]
 BULK_REVIEW_PAGE_SIZE_DEFAULT = BULK_REVIEW_PAGE_SIZES[0]
+
+
+def _limit_offset(page, page_size):
+    """(sql_fragment, params) for a LIMIT/OFFSET clause, shared by every
+    paginated bulk-review list function — empty string/no params when
+    page_size is the "all" sentinel, so a query can always interpolate
+    this fragment and append these params regardless of whether
+    pagination is actually being applied."""
+    if page_size == "all":
+        return "", ()
+    return "LIMIT %s OFFSET %s", (page_size, (page - 1) * page_size)
 
 
 def count_pending_zips():
@@ -620,13 +636,13 @@ def list_suggested_relationships_all(page=1, page_size=BULK_REVIEW_PAGE_SIZE_DEF
     files are shown side by side here rather than relative to "this" file
     the way the per-file panel works. Paginated for the same reason as
     list_suggested_project_assignments. Returns (rows, total)."""
-    offset = (page - 1) * page_size
+    limit_sql, limit_params = _limit_offset(page, page_size)
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute("SELECT count(*) AS n FROM relationships WHERE status = 'suggested'")
             total = cur.fetchone()["n"]
             cur.execute(
-                """
+                f"""
                 SELECT r.id, r.type, r.confidence,
                        f1.id AS from_id, f1.filename AS from_filename, f1.display_name AS from_display_name,
                        f1.ext AS from_ext, f1.thumbnail_path AS from_thumbnail_path,
@@ -637,9 +653,9 @@ def list_suggested_relationships_all(page=1, page_size=BULK_REVIEW_PAGE_SIZE_DEF
                 JOIN files f2 ON f2.id = r.to_file_id
                 WHERE r.status = 'suggested'
                 ORDER BY r.created_at DESC
-                LIMIT %s OFFSET %s
+                {limit_sql}
                 """,
-                (page_size, offset),
+                limit_params,
             )
             rows = cur.fetchall()
     for r in rows:
@@ -707,13 +723,13 @@ def list_suggested_project_assignments(page=1, page_size=BULK_REVIEW_PAGE_SIZE_D
     at once and the "select all" + bulk-accept flow submitting all of
     them at once become impractically slow well before that scale.
     Returns (rows, total), same shape as search_files."""
-    offset = (page - 1) * page_size
+    limit_sql, limit_params = _limit_offset(page, page_size)
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute("SELECT count(*) AS n FROM project_files WHERE status = 'suggested'")
             total = cur.fetchone()["n"]
             cur.execute(
-                """
+                f"""
                 SELECT p.id AS project_id, p.name AS project_name,
                        f.id AS file_id, f.filename, f.display_name, f.ext,
                        f.thumbnail_path, f.render_status
@@ -722,9 +738,9 @@ def list_suggested_project_assignments(page=1, page_size=BULK_REVIEW_PAGE_SIZE_D
                 JOIN files f ON f.id = pf.file_id
                 WHERE pf.status = 'suggested'
                 ORDER BY p.name, f.filename
-                LIMIT %s OFFSET %s
+                {limit_sql}
                 """,
-                (page_size, offset),
+                limit_params,
             )
             return cur.fetchall(), total
 
@@ -921,15 +937,15 @@ def list_pending_zips(page=1, page_size=BULK_REVIEW_PAGE_SIZE_DEFAULT):
     though pending archives rarely reach the scale that made this matter
     for suggested projects — see BULK_REVIEW_PAGE_SIZES' comment. Returns
     (rows, total)."""
-    offset = (page - 1) * page_size
+    limit_sql, limit_params = _limit_offset(page, page_size)
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute("SELECT count(*) AS n FROM zip_files WHERE status = 'suggested'")
             total = cur.fetchone()["n"]
             cur.execute(
-                "SELECT id, filename, path, size_bytes, error FROM zip_files "
-                "WHERE status = 'suggested' ORDER BY created_at LIMIT %s OFFSET %s",
-                (page_size, offset),
+                f"SELECT id, filename, path, size_bytes, error FROM zip_files "
+                f"WHERE status = 'suggested' ORDER BY created_at {limit_sql}",
+                limit_params,
             )
             return cur.fetchall(), total
 
@@ -1037,11 +1053,11 @@ def list_duplicate_groups(page=1, page_size=BULK_REVIEW_PAGE_SIZE_DEFAULT):
     other bulk-review pages. `count(*) OVER()` gets the total group count
     in the same query as the page of groups, rather than a separate
     COUNT(*) round trip. Returns (groups, total)."""
-    offset = (page - 1) * page_size
+    limit_sql, limit_params = _limit_offset(page, page_size)
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
-                """
+                f"""
                 SELECT content_hash, array_agg(id ORDER BY first_seen_at) AS file_ids,
                        count(*) OVER() AS total_groups
                 FROM files
@@ -1049,9 +1065,9 @@ def list_duplicate_groups(page=1, page_size=BULK_REVIEW_PAGE_SIZE_DEFAULT):
                 GROUP BY content_hash
                 HAVING count(*) > 1
                 ORDER BY min(first_seen_at) DESC
-                LIMIT %s OFFSET %s
+                {limit_sql}
                 """,
-                (page_size, offset),
+                limit_params,
             )
             groups_raw = cur.fetchall()
             total = groups_raw[0]["total_groups"] if groups_raw else 0

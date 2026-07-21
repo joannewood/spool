@@ -45,14 +45,36 @@ SORT_OPTIONS = [
 ]
 
 
-def _clamp_bulk_review_paging(page, page_size):
+BULK_REVIEW_PAGE_SIZE_COOKIE = "bulk_review_page_size"
+
+
+def _resolve_bulk_review_paging(request, page, page_size_param):
     """Shared by the four bulk-review admin pages (suggested projects/
-    relationships, duplicates, pending archives) — garbage query-string
-    values fall back to sane defaults rather than erroring, matching this
-    app's general boundary-only-validation style."""
-    if page_size not in queries.BULK_REVIEW_PAGE_SIZES:
-        page_size = queries.BULK_REVIEW_PAGE_SIZE_DEFAULT
+    relationships, duplicates, pending archives). An explicit `page_size`
+    query value wins; otherwise falls back to a previously-saved cookie
+    (see the route bodies for where that cookie gets set) so a chosen
+    page size survives navigating away and back, instead of resetting to
+    the default every time; otherwise the default. Garbage/tampered
+    values (a stale cookie, a hand-edited URL) fall back silently rather
+    than erroring, matching this app's general boundary-only-validation
+    style. Returns (page, page_size) — page_size is either an int or the
+    "all" sentinel string."""
+    raw = page_size_param if page_size_param is not None else request.cookies.get(BULK_REVIEW_PAGE_SIZE_COOKIE)
+    if raw == "all":
+        page_size = "all"
+    else:
+        try:
+            candidate = int(raw)
+        except (TypeError, ValueError):
+            candidate = None
+        page_size = candidate if candidate in queries.BULK_REVIEW_PAGE_SIZES else queries.BULK_REVIEW_PAGE_SIZE_DEFAULT
     return max(page, 1), page_size
+
+
+def _bulk_review_total_pages(total, page_size):
+    if page_size == "all":
+        return 1
+    return max(1, -(-total // page_size))  # ceil division
 
 APP_DIR = os.path.dirname(__file__)
 os.makedirs(THUMBNAILS_DIR, exist_ok=True)
@@ -447,21 +469,23 @@ def admin_status(request: Request, q: str = "", status: str = "", job_type: str 
 
 
 @app.get("/admin/pending-archives", response_class=HTMLResponse)
-def admin_pending_archives(request: Request, page: int = 1, page_size: int = queries.BULK_REVIEW_PAGE_SIZE_DEFAULT):
-    page, page_size = _clamp_bulk_review_paging(page, page_size)
+def admin_pending_archives(request: Request, page: int = 1, page_size: str = None):
+    page, page_size = _resolve_bulk_review_paging(request, page, page_size)
     zips, total = queries.list_pending_zips(page=page, page_size=page_size)
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         request,
         "admin_pending_archives.html",
         {
             "zips": zips,
             "total": total,
             "page": page,
-            "total_pages": max(1, -(-total // page_size)),
+            "total_pages": _bulk_review_total_pages(total, page_size),
             "page_size": page_size,
             "page_sizes": queries.BULK_REVIEW_PAGE_SIZES,
         },
     )
+    response.set_cookie(BULK_REVIEW_PAGE_SIZE_COOKIE, str(page_size), max_age=31536000)
+    return response
 
 
 @app.post("/admin/roots/{root_id}")
@@ -509,21 +533,23 @@ def unreject_zip(zip_id: int):
 # ---- admin: bulk review of suggestions -------------------------------------
 
 @app.get("/admin/suggested-projects", response_class=HTMLResponse)
-def admin_suggested_projects(request: Request, page: int = 1, page_size: int = queries.BULK_REVIEW_PAGE_SIZE_DEFAULT):
-    page, page_size = _clamp_bulk_review_paging(page, page_size)
+def admin_suggested_projects(request: Request, page: int = 1, page_size: str = None):
+    page, page_size = _resolve_bulk_review_paging(request, page, page_size)
     assignments, total = queries.list_suggested_project_assignments(page=page, page_size=page_size)
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         request,
         "admin_suggested_projects.html",
         {
             "assignments": assignments,
             "total": total,
             "page": page,
-            "total_pages": max(1, -(-total // page_size)),
+            "total_pages": _bulk_review_total_pages(total, page_size),
             "page_size": page_size,
             "page_sizes": queries.BULK_REVIEW_PAGE_SIZES,
         },
     )
+    response.set_cookie(BULK_REVIEW_PAGE_SIZE_COOKIE, str(page_size), max_age=31536000)
+    return response
 
 
 @app.post("/admin/suggested-projects/{project_id}/{file_id}/confirm")
@@ -549,21 +575,23 @@ def admin_accept_project_assignments_bulk(pairs: list[str] = Form([])):
 
 
 @app.get("/admin/suggested-relationships", response_class=HTMLResponse)
-def admin_suggested_relationships(request: Request, page: int = 1, page_size: int = queries.BULK_REVIEW_PAGE_SIZE_DEFAULT):
-    page, page_size = _clamp_bulk_review_paging(page, page_size)
+def admin_suggested_relationships(request: Request, page: int = 1, page_size: str = None):
+    page, page_size = _resolve_bulk_review_paging(request, page, page_size)
     relationships, total = queries.list_suggested_relationships_all(page=page, page_size=page_size)
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         request,
         "admin_suggested_relationships.html",
         {
             "relationships": relationships,
             "total": total,
             "page": page,
-            "total_pages": max(1, -(-total // page_size)),
+            "total_pages": _bulk_review_total_pages(total, page_size),
             "page_size": page_size,
             "page_sizes": queries.BULK_REVIEW_PAGE_SIZES,
         },
     )
+    response.set_cookie(BULK_REVIEW_PAGE_SIZE_COOKIE, str(page_size), max_age=31536000)
+    return response
 
 
 @app.post("/admin/suggested-relationships/{rel_id}/confirm")
@@ -587,22 +615,24 @@ def admin_accept_relationships_bulk(rel_ids: list[int] = Form([])):
 # ---- admin: duplicate files ------------------------------------------------
 
 @app.get("/admin/duplicates", response_class=HTMLResponse)
-def admin_duplicates(request: Request, page: int = 1, page_size: int = queries.BULK_REVIEW_PAGE_SIZE_DEFAULT):
-    page, page_size = _clamp_bulk_review_paging(page, page_size)
+def admin_duplicates(request: Request, page: int = 1, page_size: str = None):
+    page, page_size = _resolve_bulk_review_paging(request, page, page_size)
     groups, total = queries.list_duplicate_groups(page=page, page_size=page_size)
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         request,
         "admin_duplicates.html",
         {
             "groups": groups,
             "total": total,
             "page": page,
-            "total_pages": max(1, -(-total // page_size)),
+            "total_pages": _bulk_review_total_pages(total, page_size),
             "page_size": page_size,
             "page_sizes": queries.BULK_REVIEW_PAGE_SIZES,
             "delete_errors": request.query_params.get("delete_errors", ""),
         },
     )
+    response.set_cookie(BULK_REVIEW_PAGE_SIZE_COOKIE, str(page_size), max_age=31536000)
+    return response
 
 
 @app.post("/admin/duplicates/delete")
