@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_bulk_review_paging.html" as paging with context %}
 {% block title %}Suggested relationships — SPOOL{% endblock %}
 {% block content %}
 
@@ -7,14 +8,17 @@
 <p class="note">
   Filename/version and duplicate-hash heuristics the worker has proposed but not yet
   confirmed. Accept the ones that look right (individually or in bulk) or reject the
-  rest — nothing here links files until you do.
+  rest — nothing here links files until you do. "Select all"/"Accept selected" only
+  apply to what's on the current page.
 </p>
+
+{{ paging.controls("/admin/suggested-relationships") }}
 
 {% if relationships %}
 <form method="POST" action="/admin/suggested-relationships/accept-bulk">
   <label class="dup-select-all">
     <input type="checkbox" class="select-all-checkbox" data-target=".sr-checkbox">
-    Select all suggestions
+    Select all on this page
   </label>
 
   <div class="table-wrap">
@@ -45,5 +49,7 @@
 {% else %}
 <p class="empty-inline">no suggested relationships</p>
 {% endif %}
+
+{{ paging.controls("/admin/suggested-relationships") }}
 
 {% endblock %}

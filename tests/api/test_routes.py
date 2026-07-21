@@ -393,7 +393,10 @@ def test_pending_archives_page_has_select_all_and_no_nested_forms(client, db_con
     try:
         resp = client.get("/admin/pending-archives")
         assert resp.status_code == 200
-        assert resp.text.count("<form") == 1  # only the outer bulk-accept form
+        # Exactly one POST form (the bulk-accept one) — the page-size
+        # selector's own GET forms (added for pagination) are separate
+        # siblings, not nested inside it, so they don't reintroduce the bug.
+        assert resp.text.count("<form method=\"POST\" action=\"/admin/zips/accept-bulk\"") == 1
         assert 'class="select-all-checkbox" data-target=".zip-checkbox"' in resp.text
         assert f'name="zip_ids" value="{zip_id}"' in resp.text
         assert f'formaction="/admin/zips/{zip_id}/confirm"' in resp.text
@@ -451,7 +454,9 @@ def test_suggested_projects_page_has_no_nested_forms(client, make_file, db_conn)
             )
         resp = client.get("/admin/suggested-projects")
         assert resp.status_code == 200
-        assert resp.text.count("<form") == 1
+        # See the pending-archives version of this test for why this checks
+        # the POST form specifically, not the total <form> count.
+        assert resp.text.count("<form method=\"POST\" action=\"/admin/suggested-projects/accept-bulk\"") == 1
         assert f'formaction="/admin/suggested-projects/{project_id}/{file_id}/confirm"' in resp.text
         assert f'formaction="/admin/suggested-projects/{project_id}/{file_id}/reject"' in resp.text
     finally:
@@ -471,7 +476,9 @@ def test_suggested_relationships_page_has_no_nested_forms(client, make_file, db_
     try:
         resp = client.get("/admin/suggested-relationships")
         assert resp.status_code == 200
-        assert resp.text.count("<form") == 1
+        # See the pending-archives version of this test for why this checks
+        # the POST form specifically, not the total <form> count.
+        assert resp.text.count("<form method=\"POST\" action=\"/admin/suggested-relationships/accept-bulk\"") == 1
         assert f'formaction="/admin/suggested-relationships/{rel_id}/confirm"' in resp.text
         assert f'formaction="/admin/suggested-relationships/{rel_id}/reject"' in resp.text
     finally:

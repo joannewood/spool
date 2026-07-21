@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_bulk_review_paging.html" as paging with context %}
 {% block title %}Duplicate files — SPOOL{% endblock %}
 {% block content %}
 
@@ -8,16 +9,18 @@
   Files with byte-identical content (same hash always means the same render — thumbnail
   rendering is a deterministic function of file bytes). Pick which copies to remove — the
   file is deleted from disk (via the host-helper) and untracked; the copy you keep is
-  otherwise untouched.
+  otherwise untouched. "Select all"/"Delete selected" only apply to what's on the current page.
 </p>
 
 {% if delete_errors %}<p class="badge warn">⚠ {{ delete_errors }}</p>{% endif %}
+
+{{ paging.controls("/admin/duplicates") }}
 
 {% if groups %}
 <form method="POST" action="/admin/duplicates/delete">
   <label class="dup-select-all">
     <input type="checkbox" class="select-all-checkbox" data-target=".dup-remove-default">
-    Select all duplicates (keeps the first/oldest copy in each group)
+    Select all on this page (keeps the first/oldest copy in each group)
   </label>
 
   {% for group in groups %}
@@ -47,5 +50,7 @@
 {% else %}
 <p class="empty-inline">no duplicate files found</p>
 {% endif %}
+
+{{ paging.controls("/admin/duplicates") }}
 
 {% endblock %}

@@ -1,0 +1,32 @@
+{# Shared by the four bulk-review admin pages (suggested projects/
+   relationships, duplicates, pending archives) — plain GET links/form,
+   no htmx partial-swap needed here since a full page reload is fine for
+   an admin utility page. `base_path` is the page's own route. #}
+{% macro controls(base_path) %}
+<div class="bulk-review-paging">
+  <span class="note-inline">{{ total }} total</span>
+
+  <form method="GET" action="{{ base_path }}" class="inline-form">
+    <label>
+      Page size
+      <select name="page_size" onchange="this.form.submit()">
+        {% for size in page_sizes %}
+        <option value="{{ size }}" {% if size == page_size %}selected{% endif %}>{{ size }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </form>
+
+  {% if total_pages > 1 %}
+  <nav class="pagination">
+    {% if page > 1 %}
+    <a href="{{ base_path }}?page={{ page - 1 }}&page_size={{ page_size }}">← Prev</a>
+    {% endif %}
+    <span>Page {{ page }} of {{ total_pages }}</span>
+    {% if page < total_pages %}
+    <a href="{{ base_path }}?page={{ page + 1 }}&page_size={{ page_size }}">Next →</a>
+    {% endif %}
+  </nav>
+  {% endif %}
+</div>
+{% endmacro %}

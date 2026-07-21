@@ -350,3 +350,139 @@ def test_get_ingestion_totals_reflects_an_unhashed_file(make_file):
     after = queries.get_ingestion_totals()
     assert after["total_files"] == before["total_files"] + 1
     assert after["unhashed"] == before["unhashed"] + 1
+
+
+# ---- bulk-review pagination + batched confirm ------------------------------
+# Session-scoped test DB may already hold other tests' suggested rows, so
+# these use a small explicit page_size rather than the 100-row default, and
+# check deltas/specific-row-presence rather than exact whole-table counts.
+
+def test_list_suggested_project_assignments_paginates(make_file, db_conn):
+    project_id = queries.create_project("Pagination Test Project", "", None)
+    try:
+        file_ids = [make_file(filename=f"pagination-test-{i}.stl") for i in range(5)]
+        with db_conn.cursor() as cur:
+            for file_id in file_ids:
+                cur.execute(
+                    "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'suggested')",
+                    (project_id, file_id),
+                )
+
+        page1, total = queries.list_suggested_project_assignments(page=1, page_size=2)
+        assert total >= 5
+        assert len(page1) == 2
+
+        page3, total_again = queries.list_suggested_project_assignments(page=3, page_size=2)
+        assert total_again == total
+        assert len(page3) >= 1  # at least the 5th of our own rows lands here
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_confirm_file_projects_bulk_confirms_every_pair_in_one_call(make_file, db_conn):
+    project_a = queries.create_project("Bulk Confirm A", "", None)
+    project_b = queries.create_project("Bulk Confirm B", "", None)
+    file_a = make_file(filename="bulk-confirm-a.stl")
+    file_b = make_file(filename="bulk-confirm-b.stl")
+    try:
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'suggested')",
+                (project_a, file_a),
+            )
+            cur.execute(
+                "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'suggested')",
+                (project_b, file_b),
+            )
+
+        queries.confirm_file_projects_bulk([(file_a, project_a), (file_b, project_b)])
+
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "SELECT status FROM project_files WHERE (file_id, project_id) IN ((%s, %s), (%s, %s))",
+                (file_a, project_a, file_b, project_b),
+            )
+            statuses = {row[0] for row in cur.fetchall()}
+        assert statuses == {"confirmed"}
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id IN (%s, %s)", (project_a, project_b))
+
+
+def test_confirm_relationships_bulk_confirms_every_id_in_one_call(make_file, db_conn):
+    file_a = make_file()
+    file_b = make_file()
+    file_c = make_file()
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO relationships (from_file_id, to_file_id, type, status) VALUES (%s, %s, 'variant_of', 'suggested') RETURNING id",
+            (file_a, file_b),
+        )
+        rel_1 = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO relationships (from_file_id, to_file_id, type, status) VALUES (%s, %s, 'variant_of', 'suggested') RETURNING id",
+            (file_b, file_c),
+        )
+        rel_2 = cur.fetchone()[0]
+
+    queries.confirm_relationships_bulk([rel_1, rel_2])
+
+    with db_conn.cursor() as cur:
+        cur.execute("SELECT status FROM relationships WHERE id IN (%s, %s)", (rel_1, rel_2))
+        statuses = {row[0] for row in cur.fetchall()}
+    assert statuses == {"confirmed"}
+
+
+def test_list_duplicate_groups_paginates_by_group(make_file):
+    make_file(filename="dup-page-a1.stl", content_hash="duppage-hash-1")
+    make_file(filename="dup-page-a2.stl", content_hash="duppage-hash-1")
+    make_file(filename="dup-page-b1.stl", content_hash="duppage-hash-2")
+    make_file(filename="dup-page-b2.stl", content_hash="duppage-hash-2")
+
+    page1, total = queries.list_duplicate_groups(page=1, page_size=1)
+    assert total >= 2
+    assert len(page1) == 1
+
+
+def test_list_pending_zips_paginates(db_conn, test_root_id):
+    zip_ids = []
+    try:
+        with db_conn.cursor() as cur:
+            for i in range(3):
+                cur.execute(
+                    "INSERT INTO zip_files (watched_root_id, path, filename, size_bytes) VALUES (%s, %s, %s, 100) RETURNING id",
+                    (test_root_id, f"/tmp/api-test-root/PagingZip{i}.zip", f"PagingZip{i}.zip"),
+                )
+                zip_ids.append(cur.fetchone()[0])
+
+        page1, total = queries.list_pending_zips(page=1, page_size=2)
+        assert total >= 3
+        assert len(page1) == 2
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM zip_files WHERE id = ANY(%s)", (zip_ids,))
+
+
+def test_enqueue_zip_extractions_bulk_queues_every_zip_in_one_call(db_conn, test_root_id):
+    zip_ids = []
+    try:
+        with db_conn.cursor() as cur:
+            for i in range(2):
+                cur.execute(
+                    "INSERT INTO zip_files (watched_root_id, path, filename, size_bytes) VALUES (%s, %s, %s, 100) RETURNING id",
+                    (test_root_id, f"/tmp/api-test-root/BulkExtract{i}.zip", f"BulkExtract{i}.zip"),
+                )
+                zip_ids.append(cur.fetchone()[0])
+
+        queries.enqueue_zip_extractions_bulk(zip_ids)
+
+        with db_conn.cursor() as cur:
+            cur.execute("SELECT status FROM zip_files WHERE id = ANY(%s)", (zip_ids,))
+            statuses = {row[0] for row in cur.fetchall()}
+            assert statuses == {"confirmed"}
+            cur.execute("SELECT count(*) FROM jobs WHERE zip_file_id = ANY(%s) AND job_type = 'extract_zip'", (zip_ids,))
+            assert cur.fetchone()[0] == 2
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM zip_files WHERE id = ANY(%s)", (zip_ids,))

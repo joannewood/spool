@@ -44,6 +44,16 @@ SORT_OPTIONS = [
     ("size_asc", "Size (smallest)"),
 ]
 
+
+def _clamp_bulk_review_paging(page, page_size):
+    """Shared by the four bulk-review admin pages (suggested projects/
+    relationships, duplicates, pending archives) — garbage query-string
+    values fall back to sane defaults rather than erroring, matching this
+    app's general boundary-only-validation style."""
+    if page_size not in queries.BULK_REVIEW_PAGE_SIZES:
+        page_size = queries.BULK_REVIEW_PAGE_SIZE_DEFAULT
+    return max(page, 1), page_size
+
 APP_DIR = os.path.dirname(__file__)
 os.makedirs(THUMBNAILS_DIR, exist_ok=True)
 
@@ -405,10 +415,10 @@ def admin(request: Request):
         {
             "roots": queries.list_watched_roots(),
             "ingest_modes": INGEST_MODES,
-            "pending_zip_count": len(queries.list_pending_zips()),
-            "duplicate_count": len(queries.list_duplicate_groups()),
-            "suggested_project_count": len(queries.list_suggested_project_assignments()),
-            "suggested_relationship_count": len(queries.list_suggested_relationships_all()),
+            "pending_zip_count": queries.count_pending_zips(),
+            "duplicate_count": queries.count_duplicate_groups(),
+            "suggested_project_count": queries.count_suggested_project_assignments(),
+            "suggested_relationship_count": queries.count_suggested_relationships(),
         },
     )
 
@@ -437,9 +447,20 @@ def admin_status(request: Request, q: str = "", status: str = "", job_type: str 
 
 
 @app.get("/admin/pending-archives", response_class=HTMLResponse)
-def admin_pending_archives(request: Request):
+def admin_pending_archives(request: Request, page: int = 1, page_size: int = queries.BULK_REVIEW_PAGE_SIZE_DEFAULT):
+    page, page_size = _clamp_bulk_review_paging(page, page_size)
+    zips, total = queries.list_pending_zips(page=page, page_size=page_size)
     return templates.TemplateResponse(
-        request, "admin_pending_archives.html", {"zips": queries.list_pending_zips()}
+        request,
+        "admin_pending_archives.html",
+        {
+            "zips": zips,
+            "total": total,
+            "page": page,
+            "total_pages": max(1, -(-total // page_size)),
+            "page_size": page_size,
+            "page_sizes": queries.BULK_REVIEW_PAGE_SIZES,
+        },
     )
 
 
@@ -468,8 +489,7 @@ def reject_zip(zip_id: int):
 
 @app.post("/admin/zips/accept-bulk")
 def admin_accept_zips_bulk(zip_ids: list[int] = Form([])):
-    for zip_id in zip_ids:
-        queries.enqueue_zip_extraction(zip_id)
+    queries.enqueue_zip_extractions_bulk(zip_ids)
     return RedirectResponse("/admin/pending-archives", status_code=303)
 
 
@@ -489,11 +509,20 @@ def unreject_zip(zip_id: int):
 # ---- admin: bulk review of suggestions -------------------------------------
 
 @app.get("/admin/suggested-projects", response_class=HTMLResponse)
-def admin_suggested_projects(request: Request):
+def admin_suggested_projects(request: Request, page: int = 1, page_size: int = queries.BULK_REVIEW_PAGE_SIZE_DEFAULT):
+    page, page_size = _clamp_bulk_review_paging(page, page_size)
+    assignments, total = queries.list_suggested_project_assignments(page=page, page_size=page_size)
     return templates.TemplateResponse(
         request,
         "admin_suggested_projects.html",
-        {"assignments": queries.list_suggested_project_assignments()},
+        {
+            "assignments": assignments,
+            "total": total,
+            "page": page,
+            "total_pages": max(1, -(-total // page_size)),
+            "page_size": page_size,
+            "page_sizes": queries.BULK_REVIEW_PAGE_SIZES,
+        },
     )
 
 
@@ -511,18 +540,29 @@ def admin_reject_project_assignment(project_id: int, file_id: int):
 
 @app.post("/admin/suggested-projects/accept-bulk")
 def admin_accept_project_assignments_bulk(pairs: list[str] = Form([])):
+    parsed = []
     for pair in pairs:
         project_id_str, file_id_str = pair.split(":")
-        queries.confirm_file_project(int(file_id_str), int(project_id_str))
+        parsed.append((int(file_id_str), int(project_id_str)))
+    queries.confirm_file_projects_bulk(parsed)
     return RedirectResponse("/admin/suggested-projects", status_code=303)
 
 
 @app.get("/admin/suggested-relationships", response_class=HTMLResponse)
-def admin_suggested_relationships(request: Request):
+def admin_suggested_relationships(request: Request, page: int = 1, page_size: int = queries.BULK_REVIEW_PAGE_SIZE_DEFAULT):
+    page, page_size = _clamp_bulk_review_paging(page, page_size)
+    relationships, total = queries.list_suggested_relationships_all(page=page, page_size=page_size)
     return templates.TemplateResponse(
         request,
         "admin_suggested_relationships.html",
-        {"relationships": queries.list_suggested_relationships_all()},
+        {
+            "relationships": relationships,
+            "total": total,
+            "page": page,
+            "total_pages": max(1, -(-total // page_size)),
+            "page_size": page_size,
+            "page_sizes": queries.BULK_REVIEW_PAGE_SIZES,
+        },
     )
 
 
@@ -540,20 +580,26 @@ def admin_reject_relationship(rel_id: int):
 
 @app.post("/admin/suggested-relationships/accept-bulk")
 def admin_accept_relationships_bulk(rel_ids: list[int] = Form([])):
-    for rel_id in rel_ids:
-        queries.confirm_relationship(rel_id)
+    queries.confirm_relationships_bulk(rel_ids)
     return RedirectResponse("/admin/suggested-relationships", status_code=303)
 
 
 # ---- admin: duplicate files ------------------------------------------------
 
 @app.get("/admin/duplicates", response_class=HTMLResponse)
-def admin_duplicates(request: Request):
+def admin_duplicates(request: Request, page: int = 1, page_size: int = queries.BULK_REVIEW_PAGE_SIZE_DEFAULT):
+    page, page_size = _clamp_bulk_review_paging(page, page_size)
+    groups, total = queries.list_duplicate_groups(page=page, page_size=page_size)
     return templates.TemplateResponse(
         request,
         "admin_duplicates.html",
         {
-            "groups": queries.list_duplicate_groups(),
+            "groups": groups,
+            "total": total,
+            "page": page,
+            "total_pages": max(1, -(-total // page_size)),
+            "page_size": page_size,
+            "page_sizes": queries.BULK_REVIEW_PAGE_SIZES,
             "delete_errors": request.query_params.get("delete_errors", ""),
         },
     )

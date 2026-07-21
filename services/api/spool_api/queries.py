@@ -6,6 +6,65 @@ from common.db import get_connection
 from common.text import clean_name
 
 PAGE_SIZE = 60
+# The bulk-review admin pages (suggested projects/relationships, duplicates,
+# pending archives) render every row on one page and their "select all" +
+# bulk-accept forms submit every visible row in one POST — fine at the
+# handful-of-rows scale they were built/tested against, but a real library
+# can accumulate thousands of suggestions (confirmed live: 6,246 suggested
+# project assignments from one large bulk import made both the page itself
+# slow to render and "Accept selected" agonizingly slow, since
+# common.db.get_connection() opens a brand-new, unpooled Postgres
+# connection for every single row it confirms — 6,246 sequential fresh
+# connections, not one bulk statement). Paginating bounds both problems at
+# once: a page only ever renders/submits at most this many rows. Once the
+# bulk-accept routes batch onto one connection per request (see
+# confirm_file_projects_bulk et al.) the connection-count problem is fixed
+# regardless of page size, so the page-size *selector* (100/200/500/1000)
+# is offered mainly to bound how many rows get rendered/submitted at once,
+# not because bigger pages are dangerous anymore — 100 stays the default.
+BULK_REVIEW_PAGE_SIZES = [100, 200, 500, 1000]
+BULK_REVIEW_PAGE_SIZE_DEFAULT = BULK_REVIEW_PAGE_SIZES[0]
+
+
+def count_pending_zips():
+    """Cheap COUNT-only query for the admin homepage's summary link — the
+    full paginated list_pending_zips() would also work (it returns a total
+    alongside its page of rows) but fetching a page of rows just to read
+    that total is wasted work for a page that's loaded often and only
+    ever wants the number."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT count(*) FROM zip_files WHERE status = 'suggested'")
+            return cur.fetchone()[0]
+
+
+def count_duplicate_groups():
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT count(*) FROM (
+                    SELECT 1 FROM files
+                    WHERE status = 'active' AND content_hash IS NOT NULL
+                    GROUP BY content_hash HAVING count(*) > 1
+                ) g
+                """
+            )
+            return cur.fetchone()[0]
+
+
+def count_suggested_project_assignments():
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT count(*) FROM project_files WHERE status = 'suggested'")
+            return cur.fetchone()[0]
+
+
+def count_suggested_relationships():
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT count(*) FROM relationships WHERE status = 'suggested'")
+            return cur.fetchone()[0]
 
 
 def _attach_project_memberships(cur, rows):
@@ -544,14 +603,28 @@ def remove_relationship(rel_id):
             cur.execute("DELETE FROM relationships WHERE id = %s", (rel_id,))
 
 
-def list_suggested_relationships_all():
+def confirm_relationships_bulk(rel_ids):
+    """Same effect as calling confirm_relationship once per id, but one
+    connection for the whole batch — see confirm_file_projects_bulk's
+    docstring for why that matters at scale."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            for rel_id in rel_ids:
+                cur.execute("UPDATE relationships SET status = 'confirmed' WHERE id = %s", (rel_id,))
+
+
+def list_suggested_relationships_all(page=1, page_size=BULK_REVIEW_PAGE_SIZE_DEFAULT):
     """Every suggested relationship across the whole library — for the
     bulk review page, so this doesn't have to be done one file's page at
     a time. Label always uses the "out" (from -> to) phrasing, since both
     files are shown side by side here rather than relative to "this" file
-    the way the per-file panel works."""
+    the way the per-file panel works. Paginated for the same reason as
+    list_suggested_project_assignments. Returns (rows, total)."""
+    offset = (page - 1) * page_size
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("SELECT count(*) AS n FROM relationships WHERE status = 'suggested'")
+            total = cur.fetchone()["n"]
             cur.execute(
                 """
                 SELECT r.id, r.type, r.confidence,
@@ -564,12 +637,14 @@ def list_suggested_relationships_all():
                 JOIN files f2 ON f2.id = r.to_file_id
                 WHERE r.status = 'suggested'
                 ORDER BY r.created_at DESC
-                """
+                LIMIT %s OFFSET %s
+                """,
+                (page_size, offset),
             )
             rows = cur.fetchall()
     for r in rows:
         r["label"] = RELATIONSHIP_LABELS[(r["type"], "out")]
-    return rows
+    return rows, total
 
 
 # ---- suggested project membership (folder-based auto-grouping) --------------
@@ -607,12 +682,36 @@ def reject_file_project(file_id, project_id):
             )
 
 
-def list_suggested_project_assignments():
+def confirm_file_projects_bulk(pairs):
+    """Same effect as calling confirm_file_project once per pair, but one
+    connection for the *whole* batch — get_connection() opens a brand-new,
+    unpooled Postgres connection every call, and doing that per row is
+    exactly what made bulk-accepting thousands of suggestions painfully
+    slow (confirmed live: 6,246 real suggested rows, each needing its own
+    fresh connect/auth round-trip). `pairs` is a list of (file_id,
+    project_id) tuples."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            for file_id, project_id in pairs:
+                cur.execute(
+                    "UPDATE project_files SET status = 'confirmed' WHERE file_id = %s AND project_id = %s",
+                    (file_id, project_id),
+                )
+
+
+def list_suggested_project_assignments(page=1, page_size=BULK_REVIEW_PAGE_SIZE_DEFAULT):
     """Every suggested (project, file) pairing across the whole library —
     for the bulk review page, so this doesn't have to be done one file's
-    page at a time."""
+    page at a time. Paginated since a real library can accumulate
+    thousands of these from one large import — both rendering all of them
+    at once and the "select all" + bulk-accept flow submitting all of
+    them at once become impractically slow well before that scale.
+    Returns (rows, total), same shape as search_files."""
+    offset = (page - 1) * page_size
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("SELECT count(*) AS n FROM project_files WHERE status = 'suggested'")
+            total = cur.fetchone()["n"]
             cur.execute(
                 """
                 SELECT p.id AS project_id, p.name AS project_name,
@@ -623,9 +722,11 @@ def list_suggested_project_assignments():
                 JOIN files f ON f.id = pf.file_id
                 WHERE pf.status = 'suggested'
                 ORDER BY p.name, f.filename
-                """
+                LIMIT %s OFFSET %s
+                """,
+                (page_size, offset),
             )
-            return cur.fetchall()
+            return cur.fetchall(), total
 
 
 # ---- print metadata ---------------------------------------------------------
@@ -815,14 +916,22 @@ def get_ingestion_totals():
 
 # ---- pending zip archives -----------------------------------------------
 
-def list_pending_zips():
+def list_pending_zips(page=1, page_size=BULK_REVIEW_PAGE_SIZE_DEFAULT):
+    """Paginated for consistency with the other bulk-review pages, even
+    though pending archives rarely reach the scale that made this matter
+    for suggested projects — see BULK_REVIEW_PAGE_SIZES' comment. Returns
+    (rows, total)."""
+    offset = (page - 1) * page_size
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("SELECT count(*) AS n FROM zip_files WHERE status = 'suggested'")
+            total = cur.fetchone()["n"]
             cur.execute(
                 "SELECT id, filename, path, size_bytes, error FROM zip_files "
-                "WHERE status = 'suggested' ORDER BY created_at"
+                "WHERE status = 'suggested' ORDER BY created_at LIMIT %s OFFSET %s",
+                (page_size, offset),
             )
-            return cur.fetchall()
+            return cur.fetchall(), total
 
 
 def enqueue_zip_extraction(zip_id):
@@ -837,6 +946,24 @@ def enqueue_zip_extraction(zip_id):
                     "INSERT INTO jobs (zip_file_id, job_type, status) VALUES (%s, 'extract_zip', 'queued')",
                     (zip_id,),
                 )
+
+
+def enqueue_zip_extractions_bulk(zip_ids):
+    """Same effect as calling enqueue_zip_extraction once per id, but one
+    connection for the whole batch — see confirm_file_projects_bulk's
+    docstring for why that matters at scale."""
+    with get_connection() as conn:
+        with conn.transaction():
+            with conn.cursor() as cur:
+                for zip_id in zip_ids:
+                    cur.execute(
+                        "UPDATE zip_files SET status = 'confirmed', error = NULL WHERE id = %s",
+                        (zip_id,),
+                    )
+                    cur.execute(
+                        "INSERT INTO jobs (zip_file_id, job_type, status) VALUES (%s, 'extract_zip', 'queued')",
+                        (zip_id,),
+                    )
 
 
 def reject_zip(zip_id):
@@ -902,25 +1029,34 @@ def get_sidecar(sidecar_id):
 
 # ---- duplicate files (identical content_hash) --------------------------------
 
-def list_duplicate_groups():
+def list_duplicate_groups(page=1, page_size=BULK_REVIEW_PAGE_SIZE_DEFAULT):
     """Files sharing an identical content_hash — same hash always means
     same render (rendering is a deterministic function of file bytes), so
-    there's no separate 'render similarity' check to make."""
+    there's no separate 'render similarity' check to make. Paginated by
+    *group* (not by individual file row), for the same reason as the
+    other bulk-review pages. `count(*) OVER()` gets the total group count
+    in the same query as the page of groups, rather than a separate
+    COUNT(*) round trip. Returns (groups, total)."""
+    offset = (page - 1) * page_size
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
                 """
-                SELECT content_hash, array_agg(id ORDER BY first_seen_at) AS file_ids
+                SELECT content_hash, array_agg(id ORDER BY first_seen_at) AS file_ids,
+                       count(*) OVER() AS total_groups
                 FROM files
                 WHERE status = 'active' AND content_hash IS NOT NULL
                 GROUP BY content_hash
                 HAVING count(*) > 1
                 ORDER BY min(first_seen_at) DESC
-                """
+                LIMIT %s OFFSET %s
+                """,
+                (page_size, offset),
             )
             groups_raw = cur.fetchall()
+            total = groups_raw[0]["total_groups"] if groups_raw else 0
             if not groups_raw:
-                return []
+                return [], total
 
             all_ids = [fid for g in groups_raw for fid in g["file_ids"]]
             cur.execute(
@@ -938,7 +1074,7 @@ def list_duplicate_groups():
         files = [files_by_id[fid] for fid in g["file_ids"] if fid in files_by_id]
         if len(files) > 1:
             groups.append({"content_hash": g["content_hash"], "files": files})
-    return groups
+    return groups, total
 
 
 def delete_file_record(file_id):

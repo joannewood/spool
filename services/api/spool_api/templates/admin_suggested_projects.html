@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_bulk_review_paging.html" as paging with context %}
 {% block title %}Suggested project assignments — SPOOL{% endblock %}
 {% block content %}
 
@@ -7,14 +8,17 @@
 <p class="note">
   Folder-based project groupings the worker has proposed but not yet confirmed.
   Accept the ones that look right (individually or in bulk) or reject the rest —
-  nothing here changes a file's project until you do.
+  nothing here changes a file's project until you do. "Select all"/"Accept selected"
+  only apply to what's on the current page.
 </p>
+
+{{ paging.controls("/admin/suggested-projects") }}
 
 {% if assignments %}
 <form method="POST" action="/admin/suggested-projects/accept-bulk">
   <label class="dup-select-all">
     <input type="checkbox" class="select-all-checkbox" data-target=".sp-checkbox">
-    Select all suggestions
+    Select all on this page
   </label>
 
   <div class="table-wrap">
@@ -44,5 +48,7 @@
 {% else %}
 <p class="empty-inline">no suggested project assignments</p>
 {% endif %}
+
+{{ paging.controls("/admin/suggested-projects") }}
 
 {% endblock %}
