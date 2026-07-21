@@ -1,17 +1,7 @@
 {% import "_file_card.html" as cards %}
-<div id="results">
-  <p class="result-count">{{ total }} file{{ "s" if total != 1 else "" }}</p>
-
-  <div class="grid">
-    {% for f in files %}
-    {{ cards.file_card(f) }}
-    {% else %}
-    <p class="empty">No files match.</p>
-    {% endfor %}
-  </div>
-
+{% macro pagination(position) %}
   {% if total_pages > 1 %}
-  <nav class="pagination">
+  <nav class="pagination pagination-{{ position }}">
     {% if page > 1 %}
     <a href="/?{{ base_qs }}&page={{ page - 1 }}" hx-get="/?{{ base_qs }}&page={{ page - 1 }}" hx-target="#results" hx-select="#results" hx-swap="outerHTML" hx-push-url="true">← Prev</a>
     {% endif %}
@@ -21,4 +11,19 @@
     {% endif %}
   </nav>
   {% endif %}
+{% endmacro %}
+<div id="results">
+  <p class="result-count">{{ total }} file{{ "s" if total != 1 else "" }}</p>
+
+  {{ pagination("top") }}
+
+  <div class="grid">
+    {% for f in files %}
+    {{ cards.file_card(f) }}
+    {% else %}
+    <p class="empty">No files match.</p>
+    {% endfor %}
+  </div>
+
+  {{ pagination("bottom") }}
 </div>

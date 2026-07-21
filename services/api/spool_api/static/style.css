@@ -453,11 +453,15 @@ main {
   align-items: center;
   justify-content: center;
   gap: 16px;
-  margin-top: 28px;
   font-size: var(--fs-sm);
   color: var(--ink-muted);
 }
 .pagination a { color: var(--accent); text-decoration: none; }
+/* Same nav, shown both above and below the grid — margins differ since
+   .result-count already provides space above the top instance, and the
+   grid needs its own gap below the top instance before cards start. */
+.pagination-top { margin-bottom: 20px; }
+.pagination-bottom { margin-top: 28px; }
 
 /* detail page */
 .back {

@@ -632,3 +632,27 @@ def test_admin_page_links_to_status_page(client):
     resp = client.get("/admin")
     assert resp.status_code == 200
     assert 'href="/admin/status"' in resp.text
+
+
+# ---- library page pagination (top and bottom) ------------------------------
+
+def test_index_shows_pagination_at_top_and_bottom_when_multiple_pages(client, make_file):
+    from spool_api.queries import PAGE_SIZE
+
+    for i in range(PAGE_SIZE + 1):
+        make_file(filename=f"pagination-test-{i}.stl")
+
+    resp = client.get("/", params={"q": "pagination-test"})
+    assert resp.status_code == 200
+    assert "Page 1 of 2" in resp.text
+    assert resp.text.count('class="pagination pagination-top"') == 1
+    assert resp.text.count('class="pagination pagination-bottom"') == 1
+
+
+def test_index_no_pagination_shown_for_a_single_page(client, make_file):
+    make_file(filename="single-page-result.stl")
+
+    resp = client.get("/", params={"q": "single-page-result"})
+    assert resp.status_code == 200
+    assert "pagination-top" not in resp.text
+    assert "pagination-bottom" not in resp.text
