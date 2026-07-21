@@ -269,6 +269,24 @@ def test_folder_project_uses_parent_name_for_cad_files_export_folder(conn, make_
         assert cur.fetchone()[0] == "Thingamajig"  # not "cad_files"
 
 
+def test_folder_project_treats_singular_and_plural_format_folder_as_equivalent(conn, make_root):
+    # "3MF", "3mf file", "3mf files" must all be recognized as the same
+    # generic container — a folder with just one file inside is exactly
+    # as generic as one with several.
+    root = make_root()
+    id_a, path_a = _insert_file(conn, root, "a.3mf", ".3mf", "hash-a", subdir="Widget/3mf file")
+    id_b, path_b = _insert_file(conn, root, "b.3mf", ".3mf", "hash-b", subdir="Gadget/3MF File")
+
+    suggest_folder_project(conn, id_a, path_a, root)
+    suggest_folder_project(conn, id_b, path_b, root)
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM projects WHERE lower(name) IN ('3mf file', '3mf files', '3mf')")
+        assert cur.fetchone()[0] == 0
+        cur.execute("SELECT count(*) FROM projects WHERE name IN ('Widget', 'Gadget')")
+        assert cur.fetchone()[0] == 2
+
+
 def test_folder_project_keeps_generic_name_with_no_meaningful_parent(conn, make_root):
     root = make_root()
     file_id, path = _insert_file(conn, root, "widget.stl", ".stl", "hash", subdir="files")
@@ -286,7 +304,11 @@ def test_folder_project_keeps_generic_name_with_no_meaningful_parent(conn, make_
 def test_folder_project_same_name_different_paths_dont_collide(conn, make_root):
     # Two unrelated roots, each with a leaf folder named "misc" — same name,
     # genuinely different real folders. Matching by path (not name) means
-    # these must NOT be merged into one shared "misc" project.
+    # these must NOT be merged into one shared "misc" project — and now
+    # that project names are disambiguated on collision, the second one
+    # doesn't even keep the literal name "misc" (see
+    # test_folder_project_disambiguates_colliding_name_with_parent_folder
+    # for the disambiguation itself).
     root_a = make_root()
     root_b = make_root()
     id_a, path_a = _insert_file(conn, root_a, "a.stl", ".stl", "hash-a", subdir="misc")
@@ -297,12 +319,52 @@ def test_folder_project_same_name_different_paths_dont_collide(conn, make_root):
 
     with conn.cursor() as cur:
         cur.execute("SELECT count(*) FROM projects WHERE name = 'misc'")
-        assert cur.fetchone()[0] == 2  # two distinct projects, not one shared one
+        assert cur.fetchone()[0] == 1  # exactly one keeps the plain name
         cur.execute(
             "SELECT count(DISTINCT project_id) FROM project_files WHERE file_id IN (%s, %s)",
             (id_a, id_b),
         )
-        assert cur.fetchone()[0] == 2
+        assert cur.fetchone()[0] == 2  # still two distinct projects, not merged
+
+
+def test_folder_project_disambiguates_colliding_name_with_parent_folder(conn, make_root):
+    root_a = make_root()
+    root_b = make_root()
+    id_a, path_a = _insert_file(conn, root_a, "a.stl", ".stl", "hash-a", subdir="Kit One/Bed")
+    id_b, path_b = _insert_file(conn, root_b, "b.stl", ".stl", "hash-b", subdir="Kit Two/Bed")
+
+    suggest_folder_project(conn, id_a, path_a, root_a)
+    suggest_folder_project(conn, id_b, path_b, root_b)
+
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT p.name FROM projects p JOIN project_files pf ON pf.project_id = p.id WHERE pf.file_id = %s",
+            (id_a,),
+        )
+        assert cur.fetchone()[0] == "Bed"  # first one is unaffected
+        cur.execute(
+            "SELECT p.name FROM projects p JOIN project_files pf ON pf.project_id = p.id WHERE pf.file_id = %s",
+            (id_b,),
+        )
+        assert cur.fetchone()[0] == "Bed (Kit Two)"  # second is disambiguated with its parent
+
+
+def test_folder_project_disambiguates_against_a_manually_created_project(conn, make_root):
+    # A manually-created project with the same name is just as real a
+    # collision as one this function created itself.
+    root = make_root()
+    with conn.cursor() as cur:
+        cur.execute("INSERT INTO projects (name) VALUES ('Widget')")
+
+    file_id, path = _insert_file(conn, root, "a.stl", ".stl", "hash-a", subdir="Kit/Widget")
+    suggest_folder_project(conn, file_id, path, root)
+
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT p.name FROM projects p JOIN project_files pf ON pf.project_id = p.id WHERE pf.file_id = %s",
+            (file_id,),
+        )
+        assert cur.fetchone()[0] == "Widget (Kit)"
 
 
 def test_folder_project_renaming_still_matches_by_path(conn, make_root):
@@ -343,5 +405,11 @@ def test_folder_project_never_matches_a_manually_created_project(conn, make_root
     with conn.cursor() as cur:
         cur.execute("SELECT project_id FROM project_files WHERE file_id = %s", (file_id,))
         assert cur.fetchone()[0] != manual_project_id
+        # The manual "Kit" is untouched; the new auto-created one is
+        # disambiguated against it (parent folder name is an unpredictable
+        # pytest tmp dir, so just check it's a distinct "Kit (...)" name
+        # rather than asserting the exact qualifier).
         cur.execute("SELECT count(*) FROM projects WHERE name = 'Kit'")
-        assert cur.fetchone()[0] == 2  # the manual one, plus a new auto-created one
+        assert cur.fetchone()[0] == 1
+        cur.execute("SELECT name FROM projects WHERE id != %s AND name LIKE 'Kit (%%'", (manual_project_id,))
+        assert cur.fetchone() is not None

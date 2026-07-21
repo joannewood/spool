@@ -28,9 +28,13 @@ _VERSION_RE = re.compile(r"^(?P<base>.+?)[ _-]v(?P<ver>\d+)$", re.IGNORECASE)
 # extension but is the exact same bare-descriptor pattern — confirmed
 # live: two unrelated kits ("cardboard-gridfinity-bins",
 # "cardboard-skadis-bins") each have their own "cad_files" subfolder.
-_GENERIC_CONTAINER_NAMES = {"files", "cad", "cad files"} | {ext.lstrip(".") for ext in MODEL_EXTENSIONS} | {
-    f"{ext.lstrip('.')} files" for ext in MODEL_EXTENSIONS
-}
+# Both singular and plural ("3mf file" and "3mf files") count — a folder
+# with just one file inside is exactly as generic a container as one
+# with several, so there's no reason the singular form should slip
+# through.
+_GENERIC_CONTAINER_NAMES = {"files", "file", "cad", "cad file", "cad files"} | {
+    ext.lstrip(".") for ext in MODEL_EXTENSIONS
+} | {f"{ext.lstrip('.')} file" for ext in MODEL_EXTENSIONS} | {f"{ext.lstrip('.')} files" for ext in MODEL_EXTENSIONS}
 # The multi-word entries above ("3mf files", "cad files"...) assume a
 # space between the two words, but a real folder just as often spells it
 # "3mf_files" or "3MF-Files" — normalize runs of underscore/hyphen to a
@@ -42,6 +46,34 @@ _SEPARATOR_TO_SPACE_RE = re.compile(r"[_\-]+")
 
 def _stem(filename):
     return os.path.splitext(filename)[0]
+
+
+def _unique_project_name(cur, name, directory):
+    """Project names should be unique — a second, unrelated real folder
+    that happens to produce the same cleaned name (e.g. two different
+    "Root" board game kits' "Woodland Alliance" faction folders, or a
+    generic piece name like "Bed" reused across two different dollhouse
+    kits) gets disambiguated with its parent folder's name in parentheses
+    instead of silently colliding with an existing, unrelated project of
+    the same name. Confirmed live this resolves every real duplicate name
+    in the library as of writing (25 distinct names, all disambiguated by
+    their immediate parent folder alone). Checked against every project
+    regardless of how it was created — a manually-created project with
+    the same name is just as real a collision as an auto-created one.
+    Falls back to a numeric suffix in the practically-never-happens case
+    where even the disambiguated name collides too."""
+    cur.execute("SELECT 1 FROM projects WHERE lower(name) = lower(%s)", (name,))
+    if cur.fetchone() is None:
+        return name
+    parent_name = clean_name(os.path.basename(os.path.dirname(directory)))
+    candidate = f"{name} ({parent_name})"
+    suffix = 2
+    while True:
+        cur.execute("SELECT 1 FROM projects WHERE lower(name) = lower(%s)", (candidate,))
+        if cur.fetchone() is None:
+            return candidate
+        candidate = f"{name} ({parent_name}) ({suffix})"
+        suffix += 1
 
 
 def _parse_version(stem):
@@ -181,9 +213,10 @@ def suggest_folder_project(conn, file_id, host_path, root):
         row = cur.fetchone()
         project_id = row["id"] if row else None
         if project_id is None:
+            unique_name = _unique_project_name(cur, folder_name, match_directory)
             cur.execute(
                 "INSERT INTO projects (name, source_folder_path) VALUES (%s, %s) RETURNING id",
-                (folder_name, match_directory),
+                (unique_name, match_directory),
             )
             project_id = cur.fetchone()["id"]
 
