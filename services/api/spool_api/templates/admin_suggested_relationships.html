@@ -12,6 +12,17 @@
   apply to what's on the current page.
 </p>
 
+{% if total %}
+<form method="POST" action="/admin/suggested-relationships/accept-all" class="inline-form">
+  <button type="submit">Confirm all {{ total }} suggested relationship{{ "s" if total != 1 else "" }}</button>
+</form>
+<p class="note">
+  Runs as one server-side action, not a page-by-page selection — safe to use
+  even for a very large number of suggestions (this is what to use on a phone
+  or slow connection instead of "select all" + "accept selected").
+</p>
+{% endif %}
+
 {{ paging.controls("/admin/suggested-relationships") }}
 
 {% if relationships %}

@@ -472,6 +472,74 @@ def test_confirm_relationships_bulk_confirms_every_id_in_one_call(make_file, db_
     assert statuses == {"confirmed"}
 
 
+def test_confirm_all_suggested_project_assignments_needs_no_id_list(make_file, db_conn):
+    # The whole point: this takes no ids from the caller at all, so a
+    # client never has to render/submit a huge id list to accept
+    # everything (confirmed live: doing that from a phone against 9,720
+    # real suggested rows brought the app down).
+    project_a = queries.create_project("Confirm All A", "", None)
+    project_b = queries.create_project("Confirm All B", "", None)
+    file_a = make_file(filename="confirm-all-a.stl")
+    file_b = make_file(filename="confirm-all-b.stl")
+    other_project = queries.create_project("Confirm All Untouched", "", None)
+    other_file = make_file(filename="confirm-all-already-confirmed.stl")
+    try:
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'suggested')",
+                (project_a, file_a),
+            )
+            cur.execute(
+                "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'suggested')",
+                (project_b, file_b),
+            )
+            cur.execute(
+                "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'confirmed')",
+                (other_project, other_file),
+            )
+
+        queries.confirm_all_suggested_project_assignments()
+
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "SELECT status FROM project_files WHERE (file_id, project_id) IN ((%s, %s), (%s, %s))",
+                (file_a, project_a, file_b, project_b),
+            )
+            assert {row[0] for row in cur.fetchall()} == {"confirmed"}
+            cur.execute(
+                "SELECT status FROM project_files WHERE file_id = %s AND project_id = %s",
+                (other_file, other_project),
+            )
+            assert cur.fetchone()[0] == "confirmed"  # was already confirmed, untouched otherwise
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id IN (%s, %s, %s)", (project_a, project_b, other_project))
+
+
+def test_confirm_all_suggested_relationships_needs_no_id_list(make_file, db_conn):
+    file_a = make_file()
+    file_b = make_file()
+    file_c = make_file()
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO relationships (from_file_id, to_file_id, type, status) VALUES (%s, %s, 'variant_of', 'suggested') RETURNING id",
+            (file_a, file_b),
+        )
+        rel_1 = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO relationships (from_file_id, to_file_id, type, status) VALUES (%s, %s, 'variant_of', 'suggested') RETURNING id",
+            (file_b, file_c),
+        )
+        rel_2 = cur.fetchone()[0]
+
+    queries.confirm_all_suggested_relationships()
+
+    with db_conn.cursor() as cur:
+        cur.execute("SELECT status FROM relationships WHERE id IN (%s, %s)", (rel_1, rel_2))
+        statuses = {row[0] for row in cur.fetchall()}
+    assert statuses == {"confirmed"}
+
+
 def test_list_duplicate_groups_paginates_by_group(make_file):
     make_file(filename="dup-page-a1.stl", content_hash="duppage-hash-1")
     make_file(filename="dup-page-a2.stl", content_hash="duppage-hash-1")

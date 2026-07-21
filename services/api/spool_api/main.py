@@ -666,6 +666,18 @@ def admin_accept_project_assignments_bulk(pairs: list[str] = Form([])):
     return RedirectResponse("/admin/suggested-projects", status_code=303)
 
 
+# Deliberately takes no ids from the client at all — the page-based
+# select-all-then-submit flow needs the browser to render and POST back
+# every row's own hidden fields, which for a genuinely large suggestion
+# count is real work for the client (confirmed live: doing this from a
+# phone against 9,720 real suggested rows brought the whole app down).
+# This just runs one SQL UPDATE server-side.
+@app.post("/admin/suggested-projects/accept-all")
+def admin_accept_all_project_assignments():
+    queries.confirm_all_suggested_project_assignments()
+    return RedirectResponse("/admin/suggested-projects", status_code=303)
+
+
 @app.get("/admin/suggested-relationships", response_class=HTMLResponse)
 def admin_suggested_relationships(request: Request, page: int = 1, page_size: str = None):
     page, page_size = _resolve_bulk_review_paging(request, page, page_size)
@@ -701,6 +713,12 @@ def admin_reject_relationship(rel_id: int):
 @app.post("/admin/suggested-relationships/accept-bulk")
 def admin_accept_relationships_bulk(rel_ids: list[int] = Form([])):
     queries.confirm_relationships_bulk(rel_ids)
+    return RedirectResponse("/admin/suggested-relationships", status_code=303)
+
+
+@app.post("/admin/suggested-relationships/accept-all")
+def admin_accept_all_relationships():
+    queries.confirm_all_suggested_relationships()
     return RedirectResponse("/admin/suggested-relationships", status_code=303)
 
 

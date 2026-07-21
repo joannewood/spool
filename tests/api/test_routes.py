@@ -550,6 +550,77 @@ def test_suggested_relationships_page_has_no_nested_forms(client, make_file, db_
             cur.execute("DELETE FROM relationships WHERE id = %s", (rel_id,))
 
 
+def test_suggested_projects_page_shows_confirm_all_button(client, make_file, db_conn):
+    from spool_api import queries
+
+    file_id = make_file(filename="confirm-all-button-check.stl")
+    project_id = queries.create_project("Confirm All Button Project", "", None)
+    try:
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'suggested')",
+                (project_id, file_id),
+            )
+        resp = client.get("/admin/suggested-projects")
+        assert resp.status_code == 200
+        assert 'action="/admin/suggested-projects/accept-all"' in resp.text
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_accept_all_project_assignments_route_confirms_everything(client, make_file, db_conn):
+    from spool_api import queries
+
+    project_a = queries.create_project("Accept All Route A", "", None)
+    project_b = queries.create_project("Accept All Route B", "", None)
+    file_a = make_file(filename="accept-all-route-a.stl")
+    file_b = make_file(filename="accept-all-route-b.stl")
+    try:
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'suggested')",
+                (project_a, file_a),
+            )
+            cur.execute(
+                "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'suggested')",
+                (project_b, file_b),
+            )
+        resp = client.post("/admin/suggested-projects/accept-all", follow_redirects=False)
+        assert resp.status_code == 303
+        assert resp.headers["location"] == "/admin/suggested-projects"
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "SELECT status FROM project_files WHERE (file_id, project_id) IN ((%s, %s), (%s, %s))",
+                (file_a, project_a, file_b, project_b),
+            )
+            assert {row[0] for row in cur.fetchall()} == {"confirmed"}
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id IN (%s, %s)", (project_a, project_b))
+
+
+def test_accept_all_relationships_route_confirms_everything(client, make_file, db_conn):
+    file_a = make_file()
+    file_b = make_file()
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO relationships (from_file_id, to_file_id, type, status) VALUES (%s, %s, 'variant_of', 'suggested') RETURNING id",
+            (file_a, file_b),
+        )
+        rel_id = cur.fetchone()[0]
+    try:
+        resp = client.post("/admin/suggested-relationships/accept-all", follow_redirects=False)
+        assert resp.status_code == 303
+        assert resp.headers["location"] == "/admin/suggested-relationships"
+        with db_conn.cursor() as cur:
+            cur.execute("SELECT status FROM relationships WHERE id = %s", (rel_id,))
+            assert cur.fetchone()[0] == "confirmed"
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM relationships WHERE id = %s", (rel_id,))
+
+
 # ---- library filter panel: rating / printed / material -------------------
 
 def test_index_filters_by_rating(client, make_file, db_conn):

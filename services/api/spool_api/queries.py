@@ -720,6 +720,15 @@ def confirm_relationships_bulk(rel_ids):
                 cur.execute("UPDATE relationships SET status = 'confirmed' WHERE id = %s", (rel_id,))
 
 
+def confirm_all_suggested_relationships():
+    """Same reasoning as confirm_all_suggested_project_assignments — one
+    plain SQL UPDATE, no per-row id list for the client to render/submit
+    at all."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE relationships SET status = 'confirmed' WHERE status = 'suggested'")
+
+
 def list_suggested_relationships_all(page=1, page_size=BULK_REVIEW_PAGE_SIZE_DEFAULT):
     """Every suggested relationship across the whole library — for the
     bulk review page, so this doesn't have to be done one file's page at
@@ -804,6 +813,20 @@ def confirm_file_projects_bulk(pairs):
                     "UPDATE project_files SET status = 'confirmed' WHERE file_id = %s AND project_id = %s",
                     (file_id, project_id),
                 )
+
+
+def confirm_all_suggested_project_assignments():
+    """"Confirm everything" as one plain SQL UPDATE, no per-row id list
+    involved at all — the page-based bulk-select flow (confirm_file_
+    projects_bulk) requires the browser to actually render every row's
+    checkbox/hidden fields and submit all of them back in one POST body,
+    which for a genuinely large suggestion count (confirmed live: 9,720
+    real rows) is exactly what brought the whole app down while trying to
+    do this from a phone. This needs the client to send nothing but the
+    button click itself."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE project_files SET status = 'confirmed' WHERE status = 'suggested'")
 
 
 def list_suggested_project_assignments(page=1, page_size=BULK_REVIEW_PAGE_SIZE_DEFAULT):
