@@ -3,6 +3,7 @@ import re
 
 from psycopg.rows import dict_row
 
+from common.config import MODEL_EXTENSIONS
 from common.text import clean_name
 
 STEP_EXTS = (".step", ".stp")
@@ -15,7 +16,28 @@ _VERSION_RE = re.compile(r"^(?P<base>.+?)[ _-]v(?P<ver>\d+)$", re.IGNORECASE)
 # "<ProjectName>/files/widget.stl" is a common download/export convention,
 # and naming the project "files" after that container folder means every
 # unrelated project using the same convention collides into one project.
-_GENERIC_CONTAINER_NAMES = {"files"}
+# A per-format export folder ("STL", "3MF Files", "STL", "STP"...) is the
+# exact same problem, just spelled with the format name instead of the word
+# "files" — confirmed live: 36 real projects named nothing but a bare
+# format (7x "STL Files", 7x "STL", 7x "3MF Files", 5x "3MF", 4x
+# "STEP Files"...), each a genuinely different kit's export folder but all
+# sharing the same unhelpful name. Derived from MODEL_EXTENSIONS rather
+# than hardcoded so a new format added there is automatically covered here
+# too, the same reasoning as the ALL_EXTENSIONS/MODEL_EXTENSIONS assert-
+# sync gotcha elsewhere in this app. "cad"/"cad files" isn't a file
+# extension but is the exact same bare-descriptor pattern — confirmed
+# live: two unrelated kits ("cardboard-gridfinity-bins",
+# "cardboard-skadis-bins") each have their own "cad_files" subfolder.
+_GENERIC_CONTAINER_NAMES = {"files", "cad", "cad files"} | {ext.lstrip(".") for ext in MODEL_EXTENSIONS} | {
+    f"{ext.lstrip('.')} files" for ext in MODEL_EXTENSIONS
+}
+# The multi-word entries above ("3mf files", "cad files"...) assume a
+# space between the two words, but a real folder just as often spells it
+# "3mf_files" or "3MF-Files" — normalize runs of underscore/hyphen to a
+# single space before checking membership, so all three spellings match
+# the same set entry (confirmed live: a real "cad_files" folder used the
+# underscore form and was missed until this normalization was added).
+_SEPARATOR_TO_SPACE_RE = re.compile(r"[_\-]+")
 
 
 def _stem(filename):
@@ -142,7 +164,7 @@ def suggest_folder_project(conn, file_id, host_path, root):
 
     match_directory = directory
     folder_name = os.path.basename(directory)
-    if folder_name.lower() in _GENERIC_CONTAINER_NAMES:
+    if _SEPARATOR_TO_SPACE_RE.sub(" ", folder_name).lower() in _GENERIC_CONTAINER_NAMES:
         parent_directory = os.path.dirname(directory)
         if os.path.normpath(parent_directory) != os.path.normpath(root.host_path):
             match_directory = parent_directory

@@ -234,6 +234,41 @@ def test_folder_project_leaves_real_spaces_and_plusses_alone(conn, make_root):
         assert cur.fetchone()[0] == "C++ Project"  # already has real spaces — left untouched
 
 
+def test_folder_project_uses_parent_name_for_format_named_export_folders(conn, make_root):
+    # "STL"/"3MF Files"/etc. (a per-format export subfolder) is exactly the
+    # same collision risk as a literal "files" folder — confirmed live: 36
+    # real projects named nothing but a bare format, each a genuinely
+    # different kit but all sharing the same unhelpful name.
+    root = make_root()
+    id_a, path_a = _insert_file(conn, root, "a.stl", ".stl", "hash-a", subdir="Widget/STL")
+    id_b, path_b = _insert_file(conn, root, "b.3mf", ".3mf", "hash-b", subdir="Gadget/3MF Files")
+
+    suggest_folder_project(conn, id_a, path_a, root)
+    suggest_folder_project(conn, id_b, path_b, root)
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM projects WHERE lower(name) IN ('stl', '3mf files')")
+        assert cur.fetchone()[0] == 0  # never grouped/named under the bare format
+        cur.execute("SELECT count(*) FROM projects WHERE name IN ('Widget', 'Gadget')")
+        assert cur.fetchone()[0] == 2
+
+
+def test_folder_project_uses_parent_name_for_cad_files_export_folder(conn, make_root):
+    # "cad"/"cad_files" isn't a file extension but is the same bare
+    # descriptor pattern — confirmed live with two unrelated real kits.
+    root = make_root()
+    file_id, path = _insert_file(conn, root, "widget.step", ".step", "hash", subdir="Thingamajig/cad_files")
+
+    suggest_folder_project(conn, file_id, path, root)
+
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT p.name FROM projects p JOIN project_files pf ON pf.project_id = p.id WHERE pf.file_id = %s",
+            (file_id,),
+        )
+        assert cur.fetchone()[0] == "Thingamajig"  # not "cad_files"
+
+
 def test_folder_project_keeps_generic_name_with_no_meaningful_parent(conn, make_root):
     root = make_root()
     file_id, path = _insert_file(conn, root, "widget.stl", ".stl", "hash", subdir="files")
