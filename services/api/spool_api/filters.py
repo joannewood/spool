@@ -33,14 +33,23 @@ def render_error_label(error_text):
     "failed" — see worker/app/mesh_safety.py for the two safety-guard
     error shapes this recognizes (an oversized mesh vs. a 3MF component
     tree that would blow up into far more geometry than its file size
-    suggests). Anything else (a real bug, a malformed file) falls back to
-    a generic label; the raw text is still available via the
-    placeholder's title tooltip / the detail page's footer."""
+    suggests), plus a real trimesh 4.12.2 bug (confirmed live against 4
+    real files: `KeyError: 'world'` from trimesh/exchange/threemf.py's
+    load_3MF, which unconditionally walks its parsed 3MF build graph
+    from a root node named "world" — for a 3MF whose build structure
+    doesn't produce one, this fails the exact same way regardless of
+    load mode, so there's no SPOOL-side workaround, just a clearer label
+    than the bare `'world'` str(KeyError(...)) repr). Anything else (a
+    real bug, a malformed file) falls back to a generic label; the raw
+    text is still available via the placeholder's title tooltip / the
+    detail page's footer."""
     text = error_text or ""
     if "uncompressed" in text and "safety limit" in text:
         return "Mesh too large to render"
     if "build references" in text and "safety limit" in text:
         return "Too complex to render"
+    if text == "'world'":
+        return "Unsupported 3MF structure (trimesh limitation)"
     return "Render failed"
 
 

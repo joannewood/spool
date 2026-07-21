@@ -33,7 +33,16 @@ def test_render_error_label_excessive_components():
     assert render_error_label(error) == "Too complex to render"
 
 
+def test_render_error_label_trimesh_world_keyerror():
+    # A real trimesh 4.12.2 bug (confirmed live against 4 real files) —
+    # its 3MF loader always raises exactly str(KeyError("world")) for a
+    # 3MF whose build graph has no "world" root node, regardless of load
+    # mode. Not fixable from SPOOL's side, so this just labels it clearly
+    # instead of showing the bare "'world'" repr.
+    assert render_error_label("'world'") == "Unsupported 3MF structure (trimesh limitation)"
+
+
 def test_render_error_label_falls_back_for_unrecognized_errors():
-    assert render_error_label("'world'") == "Render failed"
+    assert render_error_label("some other unrelated error") == "Render failed"
     assert render_error_label(None) == "Render failed"
     assert render_error_label("") == "Render failed"
