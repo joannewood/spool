@@ -596,6 +596,53 @@ def test_delete_files_bulk_handles_empty_list():
     queries.delete_files_bulk([])  # must not raise
 
 
+def test_delete_files_bulk_removes_relationship_where_deleted_file_is_the_source(make_file, db_conn):
+    # The real workflow this guards: a file gets a duplicate_of
+    # relationship pointing at the file it duplicates, then gets deleted
+    # via the /admin/duplicates cleanup — the stale relationship row must
+    # not be left behind (relationships.from_file_id/to_file_id both have
+    # ON DELETE CASCADE to files.id, but this proves it live rather than
+    # just trusting the schema).
+    original_id = make_file(filename="dup-source-original.stl")
+    duplicate_id = make_file(filename="dup-source-duplicate.stl")
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO relationships (from_file_id, to_file_id, type, status) "
+            "VALUES (%s, %s, 'duplicate_of', 'confirmed') RETURNING id",
+            (duplicate_id, original_id),
+        )
+        rel_id = cur.fetchone()[0]
+
+    queries.delete_files_bulk([duplicate_id])
+
+    with db_conn.cursor() as cur:
+        cur.execute("SELECT id FROM relationships WHERE id = %s", (rel_id,))
+        assert cur.fetchone() is None
+    assert queries.get_file(original_id) is not None  # the kept file is untouched
+
+
+def test_delete_files_bulk_removes_relationship_where_deleted_file_is_the_target(make_file, db_conn):
+    # Same guard, but the deleted file is the *target* side of the
+    # relationship (to_file_id) rather than the source — both foreign
+    # keys need the cascade, not just one.
+    original_id = make_file(filename="dup-target-original.stl")
+    duplicate_id = make_file(filename="dup-target-duplicate.stl")
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO relationships (from_file_id, to_file_id, type, status) "
+            "VALUES (%s, %s, 'duplicate_of', 'confirmed') RETURNING id",
+            (duplicate_id, original_id),
+        )
+        rel_id = cur.fetchone()[0]
+
+    queries.delete_files_bulk([original_id])  # deleting the target this time
+
+    with db_conn.cursor() as cur:
+        cur.execute("SELECT id FROM relationships WHERE id = %s", (rel_id,))
+        assert cur.fetchone() is None
+    assert queries.get_file(duplicate_id) is not None
+
+
 # ---- orphaned empty project cleanup ----------------------------------------
 # Deleting a file (or manually removing it from a project) can leave an
 # auto-created project with zero members — confirmed live as a real,
