@@ -720,6 +720,40 @@ def test_delete_files_bulk_deletes_now_empty_auto_created_project(make_file, db_
         assert cur.fetchone() is None
 
 
+def test_delete_files_bulk_cleans_up_project_even_with_a_co_located_sidecar(make_file, db_conn, test_root_id):
+    # sidecar_files has no foreign key to files or projects at all — it's
+    # matched to a project purely by directory path at query time
+    # (get_project_sidecars), so a README/preview image sharing a
+    # project's folder must never be able to keep that project "alive"
+    # once its real model files are gone. Confirmed here rather than just
+    # trusting the schema: a sidecar in the same directory survives the
+    # file deletion untouched (it's a real, different file, never
+    # touched by deleting a model file), and the project is still
+    # cleaned up exactly as if no sidecar were there at all.
+    project_id = _make_auto_project(db_conn, "/tmp/api-test-root")
+    file_id = make_file(filename="sidecar-coloc-model.stl", path="/tmp/api-test-root/sidecar-coloc-model.stl")
+    queries.add_file_to_project(file_id, project_id)
+    with db_conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO sidecar_files (watched_root_id, path, filename, ext, size_bytes, status)
+            VALUES (%s, '/tmp/api-test-root/README.txt', 'README.txt', '.txt', 50, 'active')
+            RETURNING id
+            """,
+            (test_root_id,),
+        )
+        sidecar_id = cur.fetchone()[0]
+
+    queries.delete_files_bulk([file_id])
+
+    with db_conn.cursor() as cur:
+        cur.execute("SELECT id FROM projects WHERE id = %s", (project_id,))
+        assert cur.fetchone() is None  # project cleaned up despite the sidecar
+        cur.execute("SELECT status FROM sidecar_files WHERE id = %s", (sidecar_id,))
+        assert cur.fetchone()[0] == "active"  # the sidecar itself is untouched
+        cur.execute("DELETE FROM sidecar_files WHERE id = %s", (sidecar_id,))
+
+
 def test_delete_files_bulk_deletes_project_whose_only_membership_was_never_confirmed(make_file, db_conn):
     # The exact real-world sequence this guards against: suggest_folder_
     # project creates the project with a 'suggested' (not 'confirmed')
