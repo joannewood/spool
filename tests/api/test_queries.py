@@ -689,7 +689,7 @@ def test_list_projects_needing_name_cleanup_includes_a_messy_name():
         suggestions, total = queries.list_projects_needing_name_cleanup(page_size="all")
         match = next((s for s in suggestions if s["id"] == project_id), None)
         assert match is not None
-        assert match["suggested_name"] == "bulk rename messy"
+        assert match["suggested_name"] == "Bulk Rename Messy"
         assert total >= 1
     finally:
         with queries.get_connection() as conn, conn.cursor() as cur:

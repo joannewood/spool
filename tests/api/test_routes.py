@@ -840,7 +840,7 @@ def test_bulk_rename_page_shows_suggested_name(client):
         resp = client.get("/projects/bulk-rename", params={"page_size": "all"})
         assert resp.status_code == 200
         assert "route-bulk-rename-model_files" in resp.text
-        assert 'value="route bulk rename"' in resp.text
+        assert 'value="Route Bulk Rename"' in resp.text
     finally:
         with queries.get_connection() as conn, conn.cursor() as cur:
             cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
