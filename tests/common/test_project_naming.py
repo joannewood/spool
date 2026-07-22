@@ -19,7 +19,7 @@ def test_unique_project_name_disambiguates_with_parent_folder(conn):
     _make_project(conn, "Widget")
     with conn.cursor() as cur:
         result = unique_project_name(cur, "Widget", directory="/root/Some Kit/Widget")
-    assert result == "Widget (Some Kit)"
+    assert result == "Some Kit (Widget)"
 
 
 def test_unique_project_name_falls_back_to_numeric_suffix_without_a_directory(conn):
@@ -31,10 +31,10 @@ def test_unique_project_name_falls_back_to_numeric_suffix_without_a_directory(co
 
 def test_unique_project_name_falls_back_to_numeric_suffix_when_parent_qualified_name_also_collides(conn):
     _make_project(conn, "Widget")
-    _make_project(conn, "Widget (Some Kit)")
+    _make_project(conn, "Some Kit (Widget)")
     with conn.cursor() as cur:
         result = unique_project_name(cur, "Widget", directory="/root/Some Kit/Widget")
-    assert result == "Widget (Some Kit) (2)"
+    assert result == "Some Kit (Widget) (2)"
 
 
 def test_unique_project_name_exclude_id_lets_a_project_keep_its_own_name(conn):

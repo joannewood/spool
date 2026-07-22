@@ -9,9 +9,13 @@ def unique_project_name(cur, name, directory=None, exclude_id=None):
     "Root" board game kits' "Woodland Alliance" faction folders, a
     generic piece name like "Bed" reused across two different dollhouse
     kits, or two projects' names both cleaning up to the same string via
-    suggest_clean_project_name) gets disambiguated with its parent
-    folder's name in parentheses instead of silently colliding with an
-    existing, unrelated project of the same name. Checked against every
+    suggest_clean_project_name) gets disambiguated by leading with its
+    parent folder's name and moving the colliding name into parentheses
+    ("Root Board Game (Woodland Alliance)", not "Woodland Alliance (Root
+    Board Game)") — the parent is what actually identifies which kit a
+    generic-sounding piece name came from, so it reads better first,
+    instead of silently colliding with an existing, unrelated project of
+    the same name. Checked against every
     project regardless of how it was created — a manually-created
     project with the same name is just as real a collision as an
     auto-created one. Falls back to a numeric suffix if there's no
@@ -46,8 +50,12 @@ def unique_project_name(cur, name, directory=None, exclude_id=None):
         # reads inconsistently next to an already-cleaned name otherwise
         # (confirmed live: "Other (ikea-mini-kallax-collection-model_
         # files)" instead of "Other (Ikea Mini Kallax Collection)").
+        # Parent leads, colliding name trails in brackets — "Widget" on
+        # its own means nothing without knowing which kit it came from,
+        # so the parent folder's name is what should read first; the
+        # bracket then narrows it down to which part of that kit.
         parent_name = suggest_clean_project_name(os.path.basename(os.path.dirname(directory)))
-        base_candidate = f"{name} ({parent_name})"
+        base_candidate = f"{parent_name} ({name})"
         if not taken(base_candidate):
             return base_candidate
 

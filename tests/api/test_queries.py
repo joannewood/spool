@@ -933,7 +933,7 @@ def test_rename_projects_bulk_disambiguates_against_an_existing_project(db_conn)
     to_rename_id = _make_auto_project(db_conn, "/tmp/orphan-test/rename-collide/Widget")
     try:
         queries.rename_projects_bulk([(to_rename_id, "Widget")])
-        assert queries.get_project(to_rename_id)["name"] == "Widget (Rename Collide)"
+        assert queries.get_project(to_rename_id)["name"] == "Rename Collide (Widget)"
         assert queries.get_project(existing_id)["name"] == "Widget"  # untouched
     finally:
         with queries.get_connection() as conn, conn.cursor() as cur:
@@ -973,12 +973,13 @@ def test_rename_all_projects_needing_cleanup_renames_and_disambiguates(db_conn):
         name_a = queries.get_project(project_a)["name"]
         name_b = queries.get_project(project_b)["name"]
         # Both clean to "Widget" — the second processed gets disambiguated
-        # with its parent folder's name (both share the same parent here,
-        # "cleanup-all", since that's the realistic collision case: the
-        # same kit's "-model_files"/"-print_files" folder pair). The
-        # qualifier itself goes through suggest_clean_project_name too, not
-        # bare clean_name, so it reads as "Cleanup All", not "cleanup-all".
-        assert {name_a, name_b} == {"Widget", "Widget (Cleanup All)"}
+        # by leading with its parent folder's name instead (both share the
+        # same parent here, "cleanup-all", since that's the realistic
+        # collision case: the same kit's "-model_files"/"-print_files"
+        # folder pair). The qualifier itself goes through
+        # suggest_clean_project_name too, not bare clean_name, so it reads
+        # as "Cleanup All", not "cleanup-all".
+        assert {name_a, name_b} == {"Widget", "Cleanup All (Widget)"}
         assert queries.get_project(already_clean)["name"] == "Already Clean"  # untouched
     finally:
         with queries.get_connection() as conn, conn.cursor() as cur:

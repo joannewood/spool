@@ -441,7 +441,7 @@ def test_folder_project_disambiguates_colliding_name_with_parent_folder(conn, ma
             "SELECT p.name FROM projects p JOIN project_files pf ON pf.project_id = p.id WHERE pf.file_id = %s",
             (id_b,),
         )
-        assert cur.fetchone()[0] == "Bed (Kit Two)"  # second is disambiguated with its parent
+        assert cur.fetchone()[0] == "Kit Two (Bed)"  # second is disambiguated, parent leading
 
 
 def test_folder_project_disambiguates_against_a_manually_created_project(conn, make_root):
@@ -459,7 +459,7 @@ def test_folder_project_disambiguates_against_a_manually_created_project(conn, m
             "SELECT p.name FROM projects p JOIN project_files pf ON pf.project_id = p.id WHERE pf.file_id = %s",
             (file_id,),
         )
-        assert cur.fetchone()[0] == "Widget (Kit)"
+        assert cur.fetchone()[0] == "Kit (Widget)"
 
 
 def test_folder_project_renaming_still_matches_by_path(conn, make_root):
@@ -501,12 +501,13 @@ def test_folder_project_never_matches_a_manually_created_project(conn, make_root
         cur.execute("SELECT project_id FROM project_files WHERE file_id = %s", (file_id,))
         assert cur.fetchone()[0] != manual_project_id
         # The manual "Kit" is untouched; the new auto-created one is
-        # disambiguated against it (parent folder name is an unpredictable
-        # pytest tmp dir, so just check it's a distinct "Kit (...)" name
-        # rather than asserting the exact qualifier).
+        # disambiguated against it, parent folder leading (parent folder
+        # name is an unpredictable pytest tmp dir, so just check it's a
+        # distinct "... (Kit)" name rather than asserting the exact
+        # qualifier).
         cur.execute("SELECT count(*) FROM projects WHERE name = 'Kit'")
         assert cur.fetchone()[0] == 1
-        cur.execute("SELECT name FROM projects WHERE id != %s AND name LIKE 'Kit (%%'", (manual_project_id,))
+        cur.execute("SELECT name FROM projects WHERE id != %s AND name LIKE '%% (Kit)'", (manual_project_id,))
         assert cur.fetchone() is not None
 
 
@@ -632,8 +633,8 @@ def test_folder_project_wrapper_name_disambiguates_on_collision(conn, make_root)
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute("SELECT count(*) FROM projects WHERE name = 'Kit'")
         assert cur.fetchone()["count"] == 1  # only the first keeps the plain name
-        cur.execute("SELECT count(*) FROM projects WHERE name LIKE 'Kit (%%'")
-        assert cur.fetchone()["count"] == 1  # the second is disambiguated
+        cur.execute("SELECT count(*) FROM projects WHERE name LIKE '%% (Kit)'")
+        assert cur.fetchone()["count"] == 1  # the second is disambiguated, parent leading
 
 
 def test_folder_project_never_overrides_a_manually_set_parent(conn, make_root):
