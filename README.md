@@ -22,16 +22,18 @@ Fusion or Bambu Studio — no more digging through folders full of
   cleanly.
 - **Search and browse** — search-as-you-type across filenames, tags, and
   print metadata (material, printer, slicer, your own print notes), filter by
-  extension, color-coded by file type.
+  extension, color-coded by file type. Hyphens, underscores, and spaces are
+  treated as the same thing, so searching "cake stand" finds a file
+  literally named `cake_stand.stl`.
 - **Tags, nestable projects, print metadata** — organize files by hand, or
   let SPOOL auto-suggest a project for files that share a folder.
 - **Relationships** — link a STEP file to the STL exported from it, or a part
   to its next revision, with auto-suggested `duplicate_of` /
   `new_version_of` / `derived_from` detection based on content hash and
   filename patterns.
-- **Zip review** — a `.zip` containing a recognized model file gets surfaced
-  for you to confirm or dismiss before anything is extracted; nothing
-  unrelated to 3D printing is ever touched.
+- **Archive review** — a `.zip`, `.7z`, or `.rar` containing a recognized
+  model file gets surfaced for you to confirm or dismiss before anything is
+  extracted; nothing unrelated to 3D printing is ever touched.
 - **Duplicate cleanup** — files with byte-identical content are grouped for
   review, with bulk select/delete.
 - **Printed tracker** — mark a file as printed, rate it, and leave yourself
@@ -42,63 +44,176 @@ Fusion or Bambu Studio — no more digging through folders full of
 
 ## Requirements
 
-- macOS (the native host-helper piece is Mac-specific — everything else is
-  just Docker)
-- Docker Desktop
-- Python 3.9+ on the host, only if you want to run the test suite
+- A Mac (the native host-helper piece that launches Fusion/Bambu Studio is
+  Mac-specific — everything else is just Docker)
+- Docker Desktop (free — see step 1 below)
+- Python 3.9+ on the host, only if you want to run the test suite (most
+  people setting this up just to use it can skip this entirely)
 
 ## Setting up on your own machine
 
-1. **Configure your folders.** Copy `.env.example` to `.env` and fill in the
-   three real paths on your Mac — a drop folder for new prints, your
-   existing library, and Downloads (auto-relocated into the drop folder).
-   Also change `POSTGRES_PASSWORD` from the placeholder.
+These steps assume you've never used Terminal or Docker before — if you
+already have, skip ahead freely. Every command below is meant to be copied
+and pasted exactly as written, one at a time, pressing Return after each.
 
-   ```bash
-   cp .env.example .env
-   ```
+### Step 0: Open Terminal
 
-2. **Bring up the stack.**
+Terminal is the app you'll paste commands into. Open it with
+**Spotlight**: press `Cmd + Space`, type `Terminal`, press Return. A window
+with a text prompt appears — that's it, that's Terminal. Leave it open;
+every command in these instructions gets typed (or pasted) there.
 
-   ```bash
-   docker compose up -d --build        # bring up postgres, api, watcher, worker
-   docker compose ps                   # check health
-   curl localhost:8000/health          # confirm api <-> postgres
-   ```
+### Step 1: Install Docker Desktop
 
-   Then open `http://localhost:8000`. Your three folders from `.env` are
-   seeded as watched roots automatically — but only on a genuinely fresh
-   `pgdata` volume (first-ever `docker compose up`). If you change the paths
-   in `.env` later, edit the roots directly on the `/admin` page instead —
-   re-running `docker compose up` won't re-seed an existing database.
+SPOOL runs inside Docker, which keeps everything it needs (the database,
+the web server, etc.) neatly contained instead of installed loose on your
+Mac.
 
-3. **Install the host-helper** (native, not Docker — a Linux container can't
-   launch a macOS GUI app, so this one piece runs directly on your Mac as a
-   launchd agent):
+1. Go to <https://www.docker.com/products/docker-desktop/> and download
+   Docker Desktop for Mac (pick Apple Silicon or Intel — if you're not
+   sure which, click the Apple logo top-left → "About This Mac" and check
+   the chip listed there).
+2. Open the downloaded file and drag Docker into Applications, same as
+   any other Mac app.
+3. Open Docker Desktop from Applications. The first launch asks for a
+   few permissions — accept them. Wait until the little whale icon in
+   your menu bar (top of the screen) stops animating and Docker Desktop's
+   own window says it's running. **Docker Desktop needs to be open and
+   running every time you use SPOOL** — if the whale icon isn't in your
+   menu bar, SPOOL won't work until you open Docker Desktop again.
 
-   ```bash
-   host-helper/install.sh
-   ```
+### Step 2: Get the SPOOL code onto your Mac
 
-   It reads the same three paths from `.env`, so run this *after* step 1.
-   Open `host-helper/host_helper.py` first and check `APP_MAP` — it's
-   hardcoded to Autodesk Fusion + Bambu Studio (this project's own setup);
-   change it to whichever CAD/slicer apps you actually use, using their real
-   `.app` bundle name, not the marketing name (`ls ~/Applications /Applications`
-   — e.g. Autodesk's own app is `Autodesk Fusion.app` under `~/Applications`,
-   not `/Applications`, and Bambu's is `BambuStudio.app`, no space — `open -a`
-   only matches the real bundle name). Re-run `install.sh` any time you edit
-   `host_helper.py` or `.env`.
+If you were sent a link to this project's GitHub page: click the green
+**Code** button, then **Download ZIP**. Once it downloads, double-click the
+ZIP file in your Downloads folder to unzip it, then drag the resulting
+folder somewhere you'll remember (your Documents folder is a good choice).
 
-4. **Grant macOS permissions for the duplicate-delete feature.** "Open in
-   app" works with no extra setup — it just hands off to macOS's own
-   LaunchServices. Actually *deleting* a file (the duplicate-files admin
-   page) needs real filesystem access, which macOS's privacy protections
-   (TCC) block by default for a launchd-spawned process. If a delete fails
-   with "Operation not permitted", grant Full Disk Access to
-   `/usr/bin/python3` in **System Settings → Privacy & Security → Full Disk
-   Access** (one-time, can't be scripted). Everything else — including
-   host-helper starting up and "Open in app" — works without this.
+Now tell Terminal to work inside that folder — type `cd ` (with a trailing
+space), then drag the folder itself from Finder into the Terminal window
+(this pastes its full path in automatically), then press Return. Your
+prompt should now show the folder's name, confirming you're "in" it.
+
+(If you're comfortable with git instead: `git clone <the repo URL>` and
+`cd` into the folder it creates.)
+
+### Step 3: Tell SPOOL which folders to watch
+
+SPOOL needs to know three real folders on your Mac: a "drop folder" for
+new downloads, your existing 3D print library, and your Downloads folder.
+These are set in a file called `.env`, which doesn't exist yet — you copy
+it from a template.
+
+Paste this into Terminal and press Return:
+
+```bash
+cp .env.example .env
+```
+
+Nothing appears to happen — that's normal, it just means it worked. Now
+open the new `.env` file in TextEdit by pasting this and pressing Return:
+
+```bash
+open -e .env
+```
+
+You'll see a handful of lines like `DROPFOLDER_HOST_PATH=...`. Edit the
+three `_HOST_PATH` lines to real folders on your Mac — for example:
+
+```
+DROPFOLDER_HOST_PATH=/Users/yourname/Documents/3DPrintFiles
+LIBRARY_HOST_PATH=/Users/yourname/Documents/3D Printing
+DOWNLOADS_HOST_PATH=/Users/yourname/Downloads
+```
+
+(Tip: if a folder doesn't exist yet, create it in Finder first — Docker
+needs the real folder to already be there.) Also change
+`POSTGRES_PASSWORD` from the placeholder to anything else — it's just a
+password for the database SPOOL keeps on your own Mac, not something you
+need to remember or share. Save the file (`Cmd + S`) and close TextEdit.
+
+### Step 4: Start SPOOL
+
+Back in Terminal, paste this and press Return:
+
+```bash
+docker compose up -d --build
+```
+
+This downloads and builds everything SPOOL needs — the first time, it can
+take several minutes (you'll see a lot of text scroll by; that's normal).
+When it finishes and gives you a new prompt, check that everything started
+correctly:
+
+```bash
+docker compose ps
+```
+
+You should see five services (`postgres`, `api`, `watcher`, `worker`,
+`worker-step`) all saying `running` or `Up`. Then open a web browser and
+go to:
+
+```
+http://localhost:8000
+```
+
+You should see SPOOL's search page. Your three folders from `.env` start
+being indexed automatically in the background — if they contain a lot of
+files, thumbnails will keep appearing over the next while as SPOOL works
+through them, no action needed from you.
+
+*(If you ever change a folder path in `.env` later, editing the file
+alone won't update an already-running SPOOL — go to the `/admin` page in
+the browser and edit the path there instead.)*
+
+### Step 5: Install the host-helper (lets SPOOL open files in Fusion/Bambu Studio)
+
+Everything above runs inside Docker, which — deliberately, for safety —
+can't reach out and open another app on your actual Mac. One small
+separate helper program handles just that piece; it's not Docker, it's a
+tiny program that starts automatically in the background whenever you log
+in to your Mac.
+
+First, open `host-helper/host_helper.py` (find it in Finder, inside the
+SPOOL folder, and open it with TextEdit) and look for a section called
+`APP_MAP`. It's currently set up for this project's own apps (Autodesk
+Fusion and Bambu Studio) — if you use different CAD or slicer software,
+change the app names there to match. The name has to be the *exact* file
+name of the app as it sits in your Applications folder, not its display
+name — to check, paste this in Terminal:
+
+```bash
+ls ~/Applications /Applications
+```
+
+and use exactly what's printed there (e.g. some apps are named slightly
+differently than you'd expect — "Autodesk Fusion.app", not
+"Fusion 360.app"). Save and close the file if you changed anything, then
+run:
+
+```bash
+host-helper/install.sh
+```
+
+If you ever edit `host_helper.py` or `.env` again later, re-run that same
+command to pick up the change.
+
+### Step 6: One-time permission for deleting duplicate files
+
+Everything works right away except one specific feature: actually
+deleting a file from the duplicate-files review page (opening a file in
+Fusion/Bambu Studio needs no extra setup). If you try to delete a
+duplicate and see "Operation not permitted," macOS is blocking it for
+safety. To allow it, only once:
+
+1. Open **System Settings**.
+2. Go to **Privacy & Security → Full Disk Access**.
+3. Click the **+** button, press `Cmd + Shift + G` to open the "Go to
+   folder" box, type `/usr/bin`, press Return, then select `python3` and
+   add it.
+
+That's it — SPOOL is fully set up. Bookmark `http://localhost:8000` and
+come back to it any time Docker Desktop is running.
 
 ### Day-to-day
 
@@ -145,10 +260,10 @@ Tests run on the host (not in a container) against a real, separate
   database** — the seed only runs once, against a brand-new `pgdata`
   volume. Update the path on the `/admin` page instead (and re-run
   `host-helper/install.sh` if it's one of the delete-allowlist paths).
-- **Zip files can't be extracted from your Library folder.** It's mounted
+- **Archives can't be extracted from your Library folder.** It's mounted
   read-only (an "existing library" root is never supposed to be written
-  to) — confirming a zip found there will fail with a permissions error in
-  Admin, by design. Extract it yourself, or drop the zip in your drop
+  to) — confirming a zip/7z/rar found there will fail with a permissions
+  error in Admin, by design. Extract it yourself, or drop it in your drop
   folder instead.
 - **Don't point a watched root at a folder under iCloud Drive sync (e.g.
   anywhere inside `~/Documents` or `~/Desktop` if "Desktop & Documents
@@ -176,7 +291,7 @@ Nine build phases done — ingestion, mesh + STEP + SVG previews, browse/search,
 tags/projects/print metadata, relationships, drift reconciliation, the native
 open-in-app helper, and a growing backlog of quality-of-life features (search
 across print metadata, duplicate cleanup, a printed/rating tracker, and more).
-136 automated tests covering the ingestion pipeline and the API. Runnable on
+296 automated tests covering the ingestion pipeline and the API. Runnable on
 someone else's Mac — watched-root paths are configured via `.env`, not
 hardcoded — aside from a one-line `APP_MAP` edit in `host_helper.py` for
 whichever CAD/slicer apps you actually use (see setup instructions above).
