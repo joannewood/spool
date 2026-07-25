@@ -177,6 +177,24 @@ SORT_CLAUSES = {
 
 _NUMBER_RE = re.compile(r"(\d+(?:\.\d+)?)")
 
+# "_"/"-" stand in for a space in most downloaded filenames (a
+# Thingiverse/Printables convention, same one common.text.clean_name/
+# suggest_clean_project_name already work around for display) — searching
+# "cake stand" should still find "cake_stand.stl", not just "cake stand.stl"
+# literally. Applied to both the search term (in Python, once per query)
+# and every text column it's compared against (in SQL, via _normalized
+# wrapping the column expression) so a hyphen/underscore/space anywhere on
+# either side of the match are all treated as equivalent.
+_SEPARATOR_RUN_RE = re.compile(r"[-_]+")
+
+
+def _normalize_search_term(q):
+    return _SEPARATOR_RUN_RE.sub(" ", q)
+
+
+def _normalized(column_expr):
+    return f"regexp_replace({column_expr}, '[-_]+', ' ', 'g')"
+
 # Keyword -> (settings_json key, match tolerance). Bambu's auto-extraction
 # (worker/app/bambu_metadata.py) writes these as plain numbers inside
 # print_metadata.settings_json — "0.2mm nozzle" or "20% infill" can't match
@@ -245,19 +263,23 @@ def search_files(
     conditions = ["status = 'active'"]
     params = []
     if q:
+        q_normalized = _normalize_search_term(q)
         q_conditions = [
-            """(
-                filename ILIKE %s OR display_name ILIKE %s OR id IN (
+            f"""(
+                {_normalized('filename')} ILIKE %s OR {_normalized('display_name')} ILIKE %s OR id IN (
                     SELECT file_id FROM print_metadata
-                    WHERE material ILIKE %s OR printer_profile ILIKE %s
-                       OR slicer ILIKE %s OR notes ILIKE %s
+                    WHERE {_normalized('material')} ILIKE %s OR {_normalized('printer_profile')} ILIKE %s
+                       OR {_normalized('slicer')} ILIKE %s OR {_normalized('notes')} ILIKE %s
                 ) OR id IN (
-                    SELECT file_id FROM print_log WHERE comments ILIKE %s
+                    SELECT file_id FROM print_log WHERE {_normalized('comments')} ILIKE %s
                 )
             )"""
         ]
-        q_params = [f"%{q}%"] * 7
+        q_params = [f"%{q_normalized}%"] * 7
 
+        # Structured metadata matching (e.g. "0.2mm nozzle") works off
+        # keyword presence in the raw query, not a substring match against
+        # a column — separator normalization doesn't apply to it.
         structured_clauses, structured_params = _structured_metadata_clauses(q)
         q_conditions.extend(structured_clauses)
         q_params.extend(structured_params)
@@ -304,7 +326,7 @@ def search_files(
         # fall back to the user's chosen sort as the tiebreaker within
         # each tier — so "newest" still means something among
         # equally-relevant results, it just isn't the primary key anymore.
-        name_expr = "COALESCE(display_name, filename)"
+        name_expr = _normalized("COALESCE(display_name, filename)")
         order_by = f"""
             CASE
                 WHEN {name_expr} ILIKE %s THEN 0
@@ -314,7 +336,7 @@ def search_files(
             END,
             {order_by}
         """
-        order_params = [q, f"{q}%", f"%{q}%"]
+        order_params = [q_normalized, f"{q_normalized}%", f"%{q_normalized}%"]
 
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
@@ -703,15 +725,17 @@ def get_suggested_relationships(file_id):
 
 
 def search_files_for_relationship(q, exclude_file_id):
+    q_normalized = _normalize_search_term(q)
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
-                """
+                f"""
                 SELECT id, filename, display_name, ext FROM files
-                WHERE status = 'active' AND id != %s AND (filename ILIKE %s OR display_name ILIKE %s)
+                WHERE status = 'active' AND id != %s
+                  AND ({_normalized('filename')} ILIKE %s OR {_normalized('display_name')} ILIKE %s)
                 ORDER BY filename LIMIT 10
                 """,
-                (exclude_file_id, f"%{q}%", f"%{q}%"),
+                (exclude_file_id, f"%{q_normalized}%", f"%{q_normalized}%"),
             )
             return cur.fetchall()
 

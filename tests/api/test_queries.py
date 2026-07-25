@@ -166,6 +166,43 @@ def test_search_without_query_does_not_apply_relevance_ranking(make_file):
     assert {a, b} <= ids
 
 
+# ---- separator normalization ("cake stand" matches "cake_stand") ----------
+
+def test_search_query_with_spaces_matches_filename_with_underscores(make_file):
+    file_id = make_file(filename="cake_stand.stl")
+    rows, _ = queries.search_files(q="cake stand", extensions=None, tags=None, page=1)
+    assert file_id in [r["id"] for r in rows]
+
+
+def test_search_query_with_spaces_matches_filename_with_hyphens(make_file):
+    file_id = make_file(filename="cake-stand.stl")
+    rows, _ = queries.search_files(q="cake stand", extensions=None, tags=None, page=1)
+    assert file_id in [r["id"] for r in rows]
+
+
+def test_search_query_with_underscores_matches_filename_with_spaces(make_file):
+    file_id = make_file(filename="cake stand.stl")
+    rows, _ = queries.search_files(q="cake_stand", extensions=None, tags=None, page=1)
+    assert file_id in [r["id"] for r in rows]
+
+
+def test_search_separator_normalization_applies_to_print_metadata_too(make_file, db_conn):
+    file_id = make_file(filename="unrelated.stl")
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO print_metadata (file_id, material, source) VALUES (%s, %s, 'manual')",
+            (file_id, "wood_fill"),
+        )
+    rows, _ = queries.search_files(q="wood fill", extensions=None, tags=None, page=1)
+    assert file_id in [r["id"] for r in rows]
+
+
+def test_search_for_relationship_applies_separator_normalization(make_file):
+    file_id = make_file(filename="cake_stand.stl")
+    results = queries.search_files_for_relationship("cake stand", exclude_file_id=0)
+    assert file_id in [r["id"] for r in results]
+
+
 # ---- project associations surfaced on search/browse results ---------------
 
 def test_search_attaches_project_membership_to_each_row(make_file, db_conn):
