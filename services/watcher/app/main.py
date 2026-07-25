@@ -6,7 +6,7 @@ from watchdog.observers import Observer
 
 from common import ingest
 from common.db import get_connection
-from common.paths import is_ignorable_junk, is_model_file, is_zip_file, to_host_path
+from common.paths import is_archive_file, is_ignorable_junk, is_model_file, to_host_path
 from common.roots import fetch_active_roots, fetch_dropfolder_root
 from common.zip_ingest import stage_zip_if_relevant
 
@@ -44,14 +44,14 @@ class RootEventHandler(FileSystemEventHandler):
         if is_ignorable_junk(path):
             return
 
-        if is_zip_file(path):
+        if is_archive_file(path):
             if not wait_until_stable(path):
                 print(f"[watcher] gave up waiting for {path} to settle", flush=True)
                 return
             with get_connection() as conn:
                 zip_id = stage_zip_if_relevant(conn, self.root, path)
             if zip_id is not None:
-                print(f"[watcher] found reviewable zip {zip_id}: {path}", flush=True)
+                print(f"[watcher] found reviewable archive {zip_id}: {path}", flush=True)
             return
 
         if not is_model_file(path):

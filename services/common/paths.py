@@ -17,8 +17,19 @@ def is_model_file(path):
     return os.path.splitext(path)[1].lower() in MODEL_EXTENSIONS
 
 
-def is_zip_file(path):
-    return os.path.splitext(path)[1].lower() == ".zip"
+# All three are peeked (namelist only, no decompression) to decide
+# whether they're worth surfacing for review — see common/zip_ingest.py,
+# which dispatches to zipfile, py7zr, or rarfile based on which of these
+# matched. .rar itself can't be read in pure Python (its compression
+# algorithm isn't freely implementable the way .zip/.7z's are) — rarfile
+# shells out to a system tool (bsdtar, in this project's Docker images)
+# just for the actual decompression; listing/namelist only needs the
+# archive's own header, no external tool involved.
+_ARCHIVE_EXTENSIONS = {".zip", ".7z", ".rar"}
+
+
+def is_archive_file(path):
+    return os.path.splitext(path)[1].lower() in _ARCHIVE_EXTENSIONS
 
 
 # OS-generated clutter that shows up in nearly every folder and carries no

@@ -2,18 +2,51 @@ import os
 import shutil
 import zipfile
 
+import py7zr
+import rarfile
+
 from common.ingest import _unique_path
 from common.paths import to_container_path
 from common.roots import fetch_dropfolder_root, fetch_root_by_id
 
 
-def _is_safe_zip(zf):
+def _is_safe_archive(names):
     """Guards against zip-slip (a malicious entry like '../../etc/passwd'
-    escaping the extraction directory) before we ever call extractall."""
-    for name in zf.namelist():
+    escaping the extraction directory) before we ever call extractall —
+    same check regardless of which archive format's namelist we were
+    handed."""
+    for name in names:
         if os.path.isabs(name) or ".." in os.path.normpath(name).split(os.sep):
             return False
     return True
+
+
+def _extract_archive(container_path, extract_dir):
+    """Dispatches by extension — .7z via py7zr, .rar via rarfile (which
+    shells out to bsdtar for the actual decompression — see
+    common/zip_ingest.py's _archive_namelist for why listing didn't need
+    that), everything else (.zip) via the stdlib zipfile. Raises on an
+    unsafe (zip-slip) or unreadable archive; caller is responsible for
+    creating extract_dir's parent."""
+    ext = os.path.splitext(container_path)[1].lower()
+    if ext == ".7z":
+        with py7zr.SevenZipFile(container_path, mode="r") as zf:
+            if not _is_safe_archive(zf.getnames()):
+                raise ValueError("archive contains unsafe paths (zip-slip), refusing to extract")
+            os.makedirs(extract_dir)
+            zf.extractall(path=extract_dir)
+    elif ext == ".rar":
+        with rarfile.RarFile(container_path) as rf:
+            if not _is_safe_archive(rf.namelist()):
+                raise ValueError("archive contains unsafe paths (zip-slip), refusing to extract")
+            os.makedirs(extract_dir)
+            rf.extractall(path=extract_dir)
+    else:
+        with zipfile.ZipFile(container_path) as zf:
+            if not _is_safe_archive(zf.namelist()):
+                raise ValueError("archive contains unsafe paths (zip-slip), refusing to extract")
+            os.makedirs(extract_dir)
+            zf.extractall(extract_dir)
 
 
 def process_extract_zip_job(conn, zip_file_id):
@@ -31,11 +64,7 @@ def process_extract_zip_job(conn, zip_file_id):
         stem = os.path.splitext(filename)[0]
         extract_dir = _unique_path(os.path.join(os.path.dirname(container_path), stem))
 
-        with zipfile.ZipFile(container_path) as zf:
-            if not _is_safe_zip(zf):
-                raise ValueError("zip contains unsafe paths (zip-slip), refusing to extract")
-            os.makedirs(extract_dir)
-            zf.extractall(extract_dir)
+        _extract_archive(container_path, extract_dir)
 
         os.remove(container_path)
 

@@ -1,4 +1,4 @@
-from common.paths import is_ignorable_junk, is_model_file, is_zip_file, to_container_path, to_host_path
+from common.paths import is_archive_file, is_ignorable_junk, is_model_file, to_container_path, to_host_path
 from common.roots import WatchedRoot
 
 
@@ -24,10 +24,14 @@ def test_is_model_file_rejects_unrelated_extensions():
         assert not is_model_file(f"widget{ext}")
 
 
-def test_is_zip_file():
-    assert is_zip_file("Archive.zip")
-    assert is_zip_file("Archive.ZIP")
-    assert not is_zip_file("widget.stl")
+def test_is_archive_file():
+    assert is_archive_file("Archive.zip")
+    assert is_archive_file("Archive.ZIP")
+    assert is_archive_file("Archive.7z")
+    assert is_archive_file("Archive.7Z")
+    assert is_archive_file("Archive.rar")
+    assert is_archive_file("Archive.RAR")
+    assert not is_archive_file("widget.stl")
 
 
 def test_is_ignorable_junk():

@@ -9,6 +9,8 @@ WORKDIR /app
 # are only there because pyrender unconditionally imports its interactive
 # Viewer (pyglet) at package import time, even though we never use it.
 # libgomp1 is needed by cadquery-ocp (OpenCASCADE uses OpenMP internally).
+# libarchive-tools provides bsdtar — rarfile's extraction backend for .rar
+# archives (see watcher/Dockerfile's comment for why bsdtar specifically).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglx-mesa0 \
@@ -18,6 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxext6 \
     libxrender1 \
     libgomp1 \
+    libarchive-tools \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PYOPENGL_PLATFORM=egl

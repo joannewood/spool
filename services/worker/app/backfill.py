@@ -1,7 +1,7 @@
 import os
 
 from common import ingest
-from common.paths import is_ignorable_junk, is_model_file, is_zip_file, to_host_path
+from common.paths import is_archive_file, is_ignorable_junk, is_model_file, to_host_path
 from common.roots import fetch_active_roots
 from common.zip_ingest import stage_zip_if_relevant
 
@@ -16,7 +16,7 @@ def _walk_project_folders(container_root_path):
     for dirpath, _dirnames, filenames in os.walk(container_root_path):
         full_paths = [os.path.join(dirpath, f) for f in filenames if not is_ignorable_junk(f)]
         model_paths = [p for p in full_paths if is_model_file(p)]
-        zip_paths = [p for p in full_paths if is_zip_file(p)]
+        zip_paths = [p for p in full_paths if is_archive_file(p)]
         sidecar_paths = [p for p in full_paths if p not in model_paths and p not in zip_paths]
         yield dirpath, model_paths, sidecar_paths, zip_paths
 

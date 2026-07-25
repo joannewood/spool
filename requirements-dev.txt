@@ -1,6 +1,11 @@
 pytest==8.*
 psycopg[binary]==3.2.*
 
+# common/zip_ingest.py's archive-format support (tests/common/test_zip_ingest.py) —
+# pinned to match services/watcher and services/worker's requirements.txt.
+py7zr==1.0.*
+rarfile==4.2.*
+
 # services/api's runtime deps, needed on the host so `spool_api` (and its
 # FastAPI TestClient-based route tests) can actually import — pinned to
 # match services/api/requirements.txt. uvicorn itself isn't needed here;
