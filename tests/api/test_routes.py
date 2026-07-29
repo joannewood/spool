@@ -1098,6 +1098,35 @@ def test_bulk_rename_page_shows_suggested_name(client):
             cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
 
 
+def test_bulk_rename_page_has_no_nested_form(client):
+    # Regression coverage for a real, live bug: paging.controls() renders
+    # its own <form method="GET"> for the page-size selector — this
+    # template called it *inside* the outer <form method="POST"> (unlike
+    # every sibling bulk-review page, which calls it outside), so per
+    # HTML5 parsing rules the GET form's stray closing </form> tag closed
+    # the OUTER form early. Everything after that point — the table,
+    # checkboxes, and "Apply selected renames" button — ended up with no
+    # enclosing form at all, so clicking the button did nothing (confirmed
+    # live via a real browser: no navigation, no console error, just a
+    # button with `.form === null`). Route-level tests alone (below)
+    # didn't catch this, since posting directly to the route bypasses the
+    # browser's HTML parsing entirely.
+    from spool_api import queries
+
+    project_id = queries.create_project("route-nestedform-check-model_files", "", None)
+    try:
+        resp = client.get("/projects/bulk-rename", params={"page_size": "all"})
+        assert resp.status_code == 200
+        outer_form_start = resp.text.index('<form method="POST" action="/projects/bulk-rename">')
+        apply_button = resp.text.index("Apply selected renames")
+        between = resp.text[outer_form_start:apply_button]
+        assert between.count("<form") == 1  # only the outer form's own opening tag
+        assert "</form>" not in between  # the outer form must still be open at the button
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
 def test_bulk_rename_apply_only_renames_checked_rows(client):
     from spool_api import queries
 

@@ -24,10 +24,10 @@
 </p>
 {% endif %}
 
+{{ paging.controls("/projects/bulk-rename") }}
+
 {% if suggestions %}
 <form method="POST" action="/projects/bulk-rename">
-  {{ paging.controls("/projects/bulk-rename") }}
-
   <label class="dup-select-all">
     <input type="checkbox" class="select-all-checkbox" data-target=".bulk-rename-checkbox">
     Select all on this page
@@ -52,11 +52,11 @@
   </div>
 
   <button type="submit">Apply selected renames</button>
-
-  {{ paging.controls("/projects/bulk-rename") }}
 </form>
 {% else %}
 <p class="empty-inline">No project names need cleanup — everything already looks clean.</p>
 {% endif %}
+
+{{ paging.controls("/projects/bulk-rename") }}
 
 {% endblock %}
