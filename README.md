@@ -62,10 +62,11 @@ Fusion or Bambu Studio — no more digging through folders full of
   skip the test suite entirely, most people setting this up just to use
   it never need it).
 
-Setup below is split into three self-contained guides — expand whichever
-one matches you. (The Windows path is newer and has seen less real-world
-use than the macOS one — if something looks off, the "Known limitations"
-section has a couple of Windows-specific notes.)
+Setup below is split into four self-contained guides (a quick script and
+a full manual walkthrough for each OS) — expand whichever one matches
+you. (The Windows path is newer and has seen less real-world use than
+the macOS one — if something looks off, the "Known limitations" section
+has a couple of Windows-specific notes.)
 
 ## Setting up on your own machine
 
@@ -123,7 +124,7 @@ loaded, bookmark it (the star icon in the address bar) so you can get
 back without retyping the address — you'll come back to this same one
 every time you use SPOOL.
 
-Three self-contained setup guides follow — expand whichever matches you.
+Four self-contained setup guides follow — expand whichever matches you.
 Each one gets you all the way to a running SPOOL; there's no need to
 read the others first (or at all).
 
@@ -205,18 +206,18 @@ pick up changes won't undo your configuration.
 Follow the prompts it prints, and skip ahead to
 [**Using SPOOL**](#using-spool) once it says you're done. If anything
 about it fails, or you'd rather understand/control every step yourself,
-the **Manual setup, step by step** guide below does exactly the same
-thing by hand.
+the **Manual setup (Mac)** guide below does exactly the same thing by
+hand.
 
 </details>
 
 <details>
-<summary><h2>🛠️ Manual setup, step by step</h2></summary>
+<summary><h2>🛠️ Manual setup (Mac)</h2></summary>
 
-Full control over every step, or a fallback if `./setup.sh`/`.\setup.ps1`
-above hit a snag — everything here uses macOS commands and apps (Terminal,
-Finder, TextEdit); if you're on Windows, the terse equivalent is at the
-end of the Windows setup guide.
+Full control over every step, or a fallback if `./setup.sh` above hit a
+snag — everything here uses macOS commands and apps (Terminal, Finder,
+TextEdit). On Windows? See **Manual setup (Windows)** further down
+instead.
 
 ### Step 1: Tell SPOOL which folders to watch
 
@@ -414,13 +415,143 @@ actual machine, not just a container.
    — everything from there on is identical regardless of which OS you
    set up on.
 
-If you'd rather not run a script at all: the same handful of steps —
-`copy .env.example .env` and edit it (using forward slashes in the paths,
-per the comment in that file), `docker compose up -d --build`, `python
-host-helper\configure_apps.py`, then `powershell -ExecutionPolicy Bypass
--File host-helper\install_windows.ps1` — do exactly what `setup.ps1`
-does, just without the folder-picker windows or the friendly
-progress messages.
+If anything above fails, or you'd rather understand/control every step
+yourself, see **Manual setup (Windows)** below — it does exactly the
+same thing by hand.
+
+</details>
+
+<details>
+<summary><h2>🛠️ Manual setup (Windows)</h2></summary>
+
+Full control over every step, or a fallback if `.\setup.ps1` above hit a
+snag — everything here uses Windows commands and apps (PowerShell,
+File Explorer, Notepad). On a Mac? See **Manual setup (Mac)** above
+instead.
+
+### Step 1: Tell SPOOL which folders to watch
+
+See "Setting up on your own machine" near the top of this page for what
+the drop folder, Library, and Downloads each actually do, and which are
+required — here's just the mechanics of setting them.
+
+These paths are set in a file called `.env`, which doesn't exist yet —
+you copy it from a template. In PowerShell (or Command Prompt), in your
+SPOOL folder:
+
+```powershell
+copy .env.example .env
+```
+
+Nothing appears to happen — that's normal, it just means it worked. Now
+open the new `.env` file in Notepad:
+
+```powershell
+notepad .env
+```
+
+You'll see a handful of lines like `DROPFOLDER_HOST_PATH=...`. Set
+`DROPFOLDER_HOST_PATH` to a real folder on your PC — **using forward
+slashes, not backslashes**, even though that looks unusual for a Windows
+path (e.g. `C:/Users/you/Documents/3DPrintFiles`, not
+`C:\Users\you\Documents\3DPrintFiles`; see the comment at the top of
+`.env.example` for why). For `LIBRARY_HOST_PATH` and
+`DOWNLOADS_HOST_PATH`, either set them too, or leave them exactly as
+`LIBRARY_HOST_PATH=` (nothing after the `=`) to skip that one entirely —
+for example, to use a library but skip Downloads auto-move:
+
+```
+DROPFOLDER_HOST_PATH=C:/Users/yourname/Documents/3DPrintFiles
+LIBRARY_HOST_PATH=C:/Users/yourname/Documents/3D Printing
+DOWNLOADS_HOST_PATH=
+```
+
+(Tip: if a folder doesn't exist yet, create it in File Explorer first —
+Docker needs the real folder to already be there.) Also change
+`POSTGRES_PASSWORD` from the placeholder to anything else — it's just a
+password for the database SPOOL keeps on your own PC, not something you
+need to remember or share. Save the file (`Ctrl + S`) and close Notepad.
+
+### Step 2: Start SPOOL
+
+Back in PowerShell, paste this and press Return:
+
+```powershell
+docker compose up -d --build
+```
+
+This downloads and builds everything SPOOL needs — the first time, it
+can take several minutes (you'll see a lot of text scroll by; that's
+normal). When it finishes, check that everything started correctly:
+
+```powershell
+docker compose ps
+```
+
+You should see five services (`postgres`, `api`, `watcher`, `worker`,
+`worker-step`) all saying `running` or `Up`. Now open
+`http://localhost:8000` in your browser (see "Starting SPOOL and opening
+it" near the top of this page if you skipped straight here) — you
+should see SPOOL's search page, currently empty or nearly so. Your
+folders from `.env` start being indexed automatically in the
+background — if they contain a lot of files, thumbnails will keep
+appearing over the next while as SPOOL works through them; there's
+nothing else you need to click or run for that to happen, just wait and
+refresh the page occasionally.
+
+*(If you ever change a folder path in `.env` later, editing the file
+alone won't update an already-running SPOOL — go to the `/admin` page in
+the browser and edit the path there instead.)*
+
+### Step 3: Install the host-helper (lets SPOOL open files in Fusion/Bambu Studio)
+
+Everything above runs inside Docker, which — deliberately, for safety —
+can't reach out and open another app on your actual PC. One small
+separate helper program handles just that piece; it's not Docker, it's a
+tiny program that starts automatically in the background whenever you
+log in.
+
+Easiest path — let it look at what's installed and ask you to confirm:
+
+```powershell
+python host-helper\configure_apps.py
+```
+
+It scans common install folders (`Program Files`, etc.), guesses your
+CAD app and slicer, and asks you to pick from a numbered list if it
+finds more than one candidate (or if it finds none, lets you type the
+exact `.exe` path yourself). This is exactly what `.\setup.ps1` already
+ran for you if you used the setup script instead of this manual guide —
+running it again re-asks and overwrites the previous choice, so it's
+fine to change your mind later.
+
+If you'd rather do it by hand instead: open `host-helper\host_helper_windows.py`
+(find it in File Explorer, inside the SPOOL folder, and open it with
+Notepad) and look for two sections, `APP_MAP` and `APP_PATHS` — unlike
+macOS, Windows needs both, since there's no equivalent of `open -a` that
+resolves an app name to a real program on its own. To find an app's real
+`.exe` path: find it in the Start menu, right-click it → **More** →
+**Open file location** (this reveals a shortcut in File Explorer),
+then right-click *that* shortcut → **Properties** — the **Target** field
+shows the real path. There's a matching `APP_MAP` (not `APP_PATHS`, that
+one's Windows-only) in `services/api/spool_api/host_helper_client.py`
+too — keep both in sync.
+
+Either way, finish by running:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File host-helper\install_windows.ps1
+```
+
+If you ever change `host_helper_windows.py`, `host_helper_client.py`, or
+`.env` again later, re-run that same command (and `docker compose up -d
+--build api` too, if you changed `host_helper_client.py`) to pick up the
+change.
+
+That's it — SPOOL is fully set up, with no extra permission step needed
+(unlike macOS, Windows' own normal file permissions already cover
+deleting duplicates). Bookmark `http://localhost:8000` and come back to
+it any time Docker Desktop is running.
 
 </details>
 
