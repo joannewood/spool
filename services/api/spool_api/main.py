@@ -758,6 +758,10 @@ def admin_duplicates(request: Request, page: int = 1, page_size: str = None):
             "page_size": page_size,
             "page_sizes": queries.BULK_REVIEW_PAGE_SIZES,
             "delete_errors": request.query_params.get("delete_errors", ""),
+            # "Delete all extra copies" acts across every group, not just
+            # this page — a page-local check would wrongly hide/show it
+            # depending on which page happened to be open.
+            "show_delete_all": queries.has_deletable_duplicate(),
         },
     )
     response.set_cookie(BULK_REVIEW_PAGE_SIZE_COOKIE, str(page_size), max_age=31536000)

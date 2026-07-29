@@ -1344,6 +1344,32 @@ def list_duplicate_groups(page=1, page_size=BULK_REVIEW_PAGE_SIZE_DEFAULT):
     return groups, total
 
 
+def has_deletable_duplicate():
+    """Cheap existence check for whether "Delete all extra copies"
+    (delete_all_duplicates route — always operates across every group,
+    not just the current page) would actually do anything. Lets the
+    admin page hide that button entirely when every duplicate group
+    happens to be all-Library-copies (list_duplicate_groups' all_undeletable
+    case) instead of showing an active-looking button that's a guaranteed
+    no-op. Only fetches paths, not the full thumbnail/filename/etc. join
+    list_duplicate_groups does, since this only needs a yes/no answer."""
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                SELECT array_agg(path) AS paths
+                FROM files
+                WHERE status = 'active' AND content_hash IS NOT NULL
+                GROUP BY content_hash
+                HAVING count(*) > 1
+                """
+            )
+            for row in cur.fetchall():
+                if any(not _is_undeletable_path(p) for p in row["paths"]):
+                    return True
+    return False
+
+
 def get_files_bulk(file_ids):
     """Same shape as calling get_file once per id, but one connection for
     the whole batch — see confirm_file_projects_bulk's docstring for why

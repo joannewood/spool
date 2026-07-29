@@ -721,6 +721,22 @@ def test_list_duplicate_groups_unaffected_when_no_copy_in_library(make_file, mon
     assert files_by_id[newer_id]["delete_default"] is True
 
 
+def test_has_deletable_duplicate_false_when_every_group_is_all_library(make_file, monkeypatch):
+    monkeypatch.setattr(queries, "_LIBRARY_HOST_PATH", "/tmp/api-test-library")
+    make_file(filename="hd-lib-a.stl", path="/tmp/api-test-library/hd-lib-a.stl", content_hash="hd-lib-hash")
+    make_file(filename="hd-lib-b.stl", path="/tmp/api-test-library/hd-lib-b.stl", content_hash="hd-lib-hash")
+
+    assert queries.has_deletable_duplicate() is False
+
+
+def test_has_deletable_duplicate_true_when_a_deletable_copy_exists(make_file, monkeypatch):
+    monkeypatch.setattr(queries, "_LIBRARY_HOST_PATH", "/tmp/api-test-library")
+    make_file(filename="hd-mixed-a.stl", path="/tmp/api-test-library/hd-mixed-a.stl", content_hash="hd-mixed-hash")
+    make_file(filename="hd-mixed-b.stl", path="/tmp/api-test-root/hd-mixed-b.stl", content_hash="hd-mixed-hash")
+
+    assert queries.has_deletable_duplicate() is True
+
+
 # ---- delete_files_bulk also removes thumbnails (orphan-cleanup fix) -------
 
 def test_delete_files_bulk_removes_thumbnails(make_file):

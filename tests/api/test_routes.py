@@ -1044,6 +1044,31 @@ def test_delete_all_duplicates_route_never_deletes_a_library_copy(client, make_f
             cur.execute("DELETE FROM files WHERE id = %s", (library_id,))
 
 
+def test_admin_duplicates_page_hides_delete_all_button_when_only_library_groups_exist(client, make_file, monkeypatch):
+    from spool_api import queries
+
+    monkeypatch.setattr(queries, "_LIBRARY_HOST_PATH", "/tmp/api-test-library")
+    make_file(filename="btn-lib-a.stl", path="/tmp/api-test-library/btn-lib-a.stl", content_hash="btn-lib-hash")
+    make_file(filename="btn-lib-b.stl", path="/tmp/api-test-library/btn-lib-b.stl", content_hash="btn-lib-hash")
+
+    resp = client.get("/admin/duplicates?page_size=all")
+    assert resp.status_code == 200
+    assert "Delete all extra copies" not in resp.text
+    assert "Both/all copies are in your read-only Library folder" in resp.text
+
+
+def test_admin_duplicates_page_shows_delete_all_button_when_a_deletable_copy_exists(client, make_file, monkeypatch):
+    from spool_api import queries
+
+    monkeypatch.setattr(queries, "_LIBRARY_HOST_PATH", "/tmp/api-test-library")
+    make_file(filename="btn-mixed-a.stl", path="/tmp/api-test-root/btn-mixed-a.stl", content_hash="btn-mixed-hash")
+    make_file(filename="btn-mixed-b.stl", path="/tmp/api-test-root/btn-mixed-b.stl", content_hash="btn-mixed-hash")
+
+    resp = client.get("/admin/duplicates?page_size=all")
+    assert resp.status_code == 200
+    assert "Delete all extra copies" in resp.text
+
+
 # ---- bulk project-name cleanup ---------------------------------------------
 
 def test_projects_page_links_to_bulk_rename_when_cleanup_needed(client):

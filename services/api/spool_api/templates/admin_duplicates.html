@@ -14,7 +14,7 @@
 
 {% if delete_errors %}<p class="badge warn">⚠ {{ delete_errors }}</p>{% endif %}
 
-{% if total %}
+{% if show_delete_all %}
 <form method="POST" action="/admin/duplicates/delete-all" class="inline-form">
   <button type="submit">Delete all extra copies across {{ total }} group{{ "s" if total != 1 else "" }}</button>
 </form>
