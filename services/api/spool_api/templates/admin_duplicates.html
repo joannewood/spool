@@ -20,9 +20,10 @@
 </form>
 <p class="note">
   Runs as one server-side action, not a page-by-page selection — always keeps
-  the earliest copy in every group and deletes only the rest, the same rule
-  "select all" already applies per page. This still deletes real files from
-  disk; there's no undo.
+  the earliest *deletable* copy in every group and deletes only the rest
+  (copies in your read-only Library folder are never touched), the same
+  rule "select all" already applies per page. This still deletes real
+  files from disk; there's no undo.
 </p>
 {% endif %}
 
@@ -32,14 +33,20 @@
 <form method="POST" action="/admin/duplicates/delete">
   <label class="dup-select-all">
     <input type="checkbox" class="select-all-checkbox" data-target=".dup-remove-default">
-    Select all on this page (keeps the first/oldest copy in each group)
+    Select all on this page (keeps the first/oldest deletable copy in each
+    group — copies in your read-only Library folder are never selected)
   </label>
 
   {% for group in groups %}
-  <div class="dup-group">
+  <div class="dup-group {{ 'dup-group-warn' if group.all_undeletable }}">
+    {% if group.all_undeletable %}
+    <p class="badge warn">⚠ Both/all copies are in your read-only Library folder — SPOOL can't delete any of them. If you want one gone, delete it yourself outside SPOOL (Finder/File Explorer), using the paths below to tell them apart.</p>
+    {% endif %}
     {% for f in group.files %}
     <div class="dup-row">
-      <input type="checkbox" name="file_ids" value="{{ f.id }}" class="dup-checkbox {{ 'dup-keep-default' if loop.first else 'dup-remove-default' }}">
+      <input type="checkbox" name="file_ids" value="{{ f.id }}"
+             class="dup-checkbox {{ 'dup-remove-default' if f.delete_default else 'dup-keep-default' }}"
+             {{ 'disabled title="In your read-only Library folder — can\'t be deleted from here"' | safe if f.undeletable }}>
       <a class="dup-thumb" href="/files/{{ f.id }}">
         {% if f.thumbnail_path %}
           <img src="{{ thumb_url(f.thumbnail_path, f.content_hash) }}" alt="">
@@ -49,6 +56,7 @@
       </a>
       <div class="dup-info">
         <a href="/files/{{ f.id }}">{{ f.display_name or (f.filename | clean_name) }}</a>
+        {% if f.undeletable %}<span class="badge">🔒 Library</span>{% endif %}
         <span class="note-inline">{{ f.path }}</span>
         <span class="note-inline">{{ f.size_bytes | filesizeformat }} · first seen {{ f.first_seen_at }}</span>
       </div>

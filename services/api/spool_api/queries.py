@@ -1234,6 +1234,28 @@ def get_sidecar(sidecar_id):
 
 # ---- duplicate files (identical content_hash) --------------------------------
 
+# Same value host-helper's own ALLOWED_DELETE_ROOTS exclusion reads (see
+# host-helper/host_helper.py) — read once at import time, same convention
+# already used for THUMBNAILS_DIR elsewhere in this file.
+_LIBRARY_HOST_PATH = os.environ.get("LIBRARY_HOST_PATH", "")
+
+
+def _is_undeletable_path(path):
+    """True if `path` falls under the read-only Library root, mirroring
+    host-helper's own delete-allowlist exclusion — lets the duplicate-
+    files admin page know a copy can't be deleted *before* offering to
+    delete it, rather than only finding out when host-helper rejects the
+    request. Never raises on a malformed/relative path (real `files.path`
+    rows are always absolute, but this guards against the empty-string
+    "no Library configured" case and any future surprise)."""
+    if not _LIBRARY_HOST_PATH:
+        return False
+    try:
+        return os.path.commonpath([path, _LIBRARY_HOST_PATH]) == os.path.normpath(_LIBRARY_HOST_PATH)
+    except ValueError:
+        return False
+
+
 def list_duplicate_groups(page=1, page_size=BULK_REVIEW_PAGE_SIZE_DEFAULT):
     """Files sharing an identical content_hash — same hash always means
     same render (rendering is a deterministic function of file bytes), so
@@ -1241,7 +1263,20 @@ def list_duplicate_groups(page=1, page_size=BULK_REVIEW_PAGE_SIZE_DEFAULT):
     *group* (not by individual file row), for the same reason as the
     other bulk-review pages. `count(*) OVER()` gets the total group count
     in the same query as the page of groups, rather than a separate
-    COUNT(*) round trip. Returns (groups, total)."""
+    COUNT(*) round trip. Returns (groups, total).
+
+    Each file gets `undeletable` (in the read-only Library root) and
+    `delete_default` (should this copy be pre-selected for deletion)
+    flags — a Library copy is never `delete_default`, since deletion
+    there would just fail anyway (see host_helper.py's
+    ALLOWED_DELETE_ROOTS). Three cases per group: no Library copy at all
+    -> original rule, keep the oldest and delete every other copy; at
+    least one Library copy -> it's the forced "keeper" (nothing else can
+    make that choice), so *every* deletable copy defaults to selected,
+    regardless of age, leaving just the Library copy/copies surviving;
+    every copy is in Library -> nothing is touchable, `all_undeletable =
+    True` on the group so the UI can say so plainly instead of offering
+    a doomed delete."""
     limit_sql, limit_params = _limit_offset(page, page_size)
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
@@ -1276,9 +1311,36 @@ def list_duplicate_groups(page=1, page_size=BULK_REVIEW_PAGE_SIZE_DEFAULT):
 
     groups = []
     for g in groups_raw:
+        # file_ids is already oldest-first (array_agg ORDER BY first_seen_at).
         files = [files_by_id[fid] for fid in g["file_ids"] if fid in files_by_id]
-        if len(files) > 1:
-            groups.append({"content_hash": g["content_hash"], "files": files})
+        if len(files) <= 1:
+            continue
+        for f in files:
+            f["undeletable"] = _is_undeletable_path(f["path"])
+        deletable = [f for f in files if not f["undeletable"]]
+        if not deletable:
+            # Every copy is in Library — nothing here is touchable at all.
+            for f in files:
+                f["delete_default"] = False
+        elif len(deletable) == len(files):
+            # No Library copy in this group — original rule: keep the
+            # oldest, delete every other copy (files is oldest-first).
+            keep_id = files[0]["id"]
+            for f in files:
+                f["delete_default"] = f["id"] != keep_id
+        else:
+            # At least one Library copy exists — it's the forced
+            # "keeper" (nothing else can make that choice), so every
+            # deletable copy is redundant and safe to remove, regardless
+            # of age. Leaves exactly the Library copy/copies surviving,
+            # same "down to one true copy" goal as the no-Library case.
+            for f in files:
+                f["delete_default"] = not f["undeletable"]
+        groups.append({
+            "content_hash": g["content_hash"],
+            "files": files,
+            "all_undeletable": not deletable,
+        })
     return groups, total
 
 

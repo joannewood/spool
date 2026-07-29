@@ -660,6 +660,67 @@ def test_list_duplicate_groups_page_size_all_returns_every_group(make_file):
     assert len(groups) == total
 
 
+# ---- Library copies are never offered for deletion ------------------------
+# (real bug: host-helper's own ALLOWED_DELETE_ROOTS used to include Library,
+# so confirming a delete for a duplicate that happened to live in the
+# read-only Library root would really, permanently delete it there — fixed
+# in host-helper, and mirrored here so the admin UI never even offers to)
+
+def test_list_duplicate_groups_flags_library_copy_as_undeletable(make_file, monkeypatch):
+    monkeypatch.setattr(queries, "_LIBRARY_HOST_PATH", "/tmp/api-test-library")
+    library_id = make_file(
+        filename="lib-dup.stl", path="/tmp/api-test-library/lib-dup.stl", content_hash="lib-dup-hash"
+    )
+    other_id = make_file(
+        filename="other-dup.stl", path="/tmp/api-test-root/other-dup.stl", content_hash="lib-dup-hash"
+    )
+
+    groups, _ = queries.list_duplicate_groups(page=1, page_size="all")
+    group = next(g for g in groups if g["content_hash"] == "lib-dup-hash")
+    files_by_id = {f["id"]: f for f in group["files"]}
+
+    assert files_by_id[library_id]["undeletable"] is True
+    assert files_by_id[library_id]["delete_default"] is False
+    assert files_by_id[other_id]["undeletable"] is False
+    assert files_by_id[other_id]["delete_default"] is True
+    assert group["all_undeletable"] is False
+
+
+def test_list_duplicate_groups_all_undeletable_when_every_copy_in_library(make_file, monkeypatch):
+    monkeypatch.setattr(queries, "_LIBRARY_HOST_PATH", "/tmp/api-test-library")
+    id_a = make_file(
+        filename="both-lib-a.stl", path="/tmp/api-test-library/both-lib-a.stl", content_hash="both-lib-hash"
+    )
+    id_b = make_file(
+        filename="both-lib-b.stl", path="/tmp/api-test-library/both-lib-b.stl", content_hash="both-lib-hash"
+    )
+
+    groups, _ = queries.list_duplicate_groups(page=1, page_size="all")
+    group = next(g for g in groups if g["content_hash"] == "both-lib-hash")
+
+    assert group["all_undeletable"] is True
+    assert all(not f["delete_default"] for f in group["files"])
+    assert {f["id"] for f in group["files"]} == {id_a, id_b}
+
+
+def test_list_duplicate_groups_unaffected_when_no_copy_in_library(make_file, monkeypatch):
+    monkeypatch.setattr(queries, "_LIBRARY_HOST_PATH", "/tmp/api-test-library")
+    earliest_id = make_file(
+        filename="no-lib-a.stl", path="/tmp/api-test-root/no-lib-a.stl", content_hash="no-lib-hash"
+    )
+    newer_id = make_file(
+        filename="no-lib-b.stl", path="/tmp/api-test-root/no-lib-b.stl", content_hash="no-lib-hash"
+    )
+
+    groups, _ = queries.list_duplicate_groups(page=1, page_size="all")
+    group = next(g for g in groups if g["content_hash"] == "no-lib-hash")
+    files_by_id = {f["id"]: f for f in group["files"]}
+
+    assert group["all_undeletable"] is False
+    assert files_by_id[earliest_id]["delete_default"] is False  # oldest kept, same as before
+    assert files_by_id[newer_id]["delete_default"] is True
+
+
 # ---- delete_files_bulk also removes thumbnails (orphan-cleanup fix) -------
 
 def test_delete_files_bulk_removes_thumbnails(make_file):

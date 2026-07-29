@@ -52,6 +52,11 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       THUMBNAILS_DIR: /data/thumbnails
       HOST_HELPER_URL: http://host.docker.internal:8100
+      # Same value host-helper's own ALLOWED_DELETE_ROOTS exclusion reads
+      # (see host-helper/host_helper.py) — lets the duplicate-files admin
+      # page know a file is undeletable *before* offering to delete it,
+      # instead of only finding out when host-helper rejects the request.
+      LIBRARY_HOST_PATH: ${LIBRARY_HOST_PATH}
     ports:
       - "8000:8000"
     volumes:

@@ -798,14 +798,15 @@ def delete_duplicates(file_ids: list[int] = Form([])):
 
 # Deliberately takes no ids from the client — same reasoning as the other
 # accept-all routes, but note this one is a real, irreversible deletion
-# (not just a status flip), so it always keeps the earliest file in each
-# duplicate group (list_duplicate_groups already orders each group's
-# files oldest-first) and only deletes the rest — never all copies of
-# anything.
+# (not just a status flip), so it relies on list_duplicate_groups' own
+# delete_default flag (keeps the earliest *deletable* copy in each group,
+# never a copy in the read-only Library root, regardless of age) rather
+# than blindly skipping each group's first file — never all copies of
+# anything, and never a Library copy at all.
 @app.post("/admin/duplicates/delete-all")
 def delete_all_duplicates():
     groups, _ = queries.list_duplicate_groups(page_size="all")
-    file_ids = [f["id"] for g in groups for f in g["files"][1:]]
+    file_ids = [f["id"] for g in groups for f in g["files"] if f["delete_default"]]
     errors = _delete_files_via_host_helper(file_ids)
     qs = urlencode({"delete_errors": errors}) if errors else ""
     return RedirectResponse(f"/admin/duplicates{'?' + qs if qs else ''}", status_code=303)

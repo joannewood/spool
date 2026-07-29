@@ -1009,6 +1009,41 @@ def test_delete_all_duplicates_route_keeps_earliest_of_each_group(client, make_f
             cur.execute("DELETE FROM files WHERE id = %s", (earliest_id,))
 
 
+def test_delete_all_duplicates_route_never_deletes_a_library_copy(client, make_file, monkeypatch):
+    from spool_api import host_helper_client, queries
+
+    monkeypatch.setattr(queries, "_LIBRARY_HOST_PATH", "/tmp/api-test-library")
+    # Library copy has the *earlier* first_seen_at (the common real case —
+    # an existing library file predates a newly-downloaded duplicate) to
+    # prove the Library exclusion is what's driving this, not just luck
+    # of which one happens to be oldest.
+    library_id = make_file(
+        filename="route-lib-dup.stl", path="/tmp/api-test-library/route-lib-dup.stl", content_hash="route-lib-dup-hash"
+    )
+    newer_id = make_file(
+        filename="route-lib-dup-2.stl", path="/tmp/api-test-root/route-lib-dup-2.stl", content_hash="route-lib-dup-hash"
+    )
+
+    deleted_paths = []
+
+    def fake_request_delete(path):
+        deleted_paths.append(path)
+        return True, None
+
+    monkeypatch.setattr(host_helper_client, "request_delete", fake_request_delete)
+
+    resp = client.post("/admin/duplicates/delete-all", follow_redirects=False)
+    assert resp.status_code == 303
+
+    assert deleted_paths == ["/tmp/api-test-root/route-lib-dup-2.stl"]  # only the deletable one
+    assert queries.get_file(library_id) is not None  # Library copy survives
+    assert queries.get_file(newer_id) is None  # the redundant copy is gone
+
+    with queries.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM files WHERE id = %s", (library_id,))
+
+
 # ---- bulk project-name cleanup ---------------------------------------------
 
 def test_projects_page_links_to_bulk_rename_when_cleanup_needed(client):

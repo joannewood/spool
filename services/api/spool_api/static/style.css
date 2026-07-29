@@ -1178,6 +1178,16 @@ input[name="new_names"] { width: 100%; min-width: 220px; }
   border: 1px solid var(--border);
   border-radius: 8px;
 }
+/* Every copy in this group is in the read-only Library folder — nothing
+   here is deletable from SPOOL at all, so the whole card gets the same
+   warn tokens as .badge.warn instead of a quiet inline note, to actually
+   catch the eye when scanning a page of otherwise-normal duplicate
+   groups (the point being to notice these and go delete the unwanted
+   copy outside SPOOL, not just filter noise). */
+.dup-group-warn {
+  border-color: var(--warn);
+  background: var(--warn-bg);
+}
 .dup-row { display: flex; align-items: center; gap: 10px; }
 .dup-thumb {
   width: 40px;
