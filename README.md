@@ -192,17 +192,32 @@ docker compose ps
 ```
 
 You should see five services (`postgres`, `api`, `watcher`, `worker`,
-`worker-step`) all saying `running` or `Up`. Then open a web browser and
-go to:
+`worker-step`) all saying `running` or `Up`.
+
+Now open the actual app: open any web browser (Safari, Chrome, Firefox —
+whatever you normally use), click once in the address bar at the very
+top of the window (where a website's address normally shows), type or
+paste the following, and press Return:
 
 ```
 http://localhost:8000
 ```
 
-You should see SPOOL's search page. Your three folders from `.env` start
-being indexed automatically in the background — if they contain a lot of
-files, thumbnails will keep appearing over the next while as SPOOL works
-through them, no action needed from you.
+This isn't a real website out on the internet — "localhost" is a special
+address that always means "the thing running on this same computer,"
+which is exactly what SPOOL is. It'll work fine even with Wi-Fi off,
+and no one outside your own computer can reach it. You should now see
+SPOOL's search page, currently empty or nearly so. Your three folders
+from `.env` start being indexed automatically in the background — if
+they contain a lot of files, thumbnails will keep appearing over the
+next while as SPOOL works through them; there's nothing else you need
+to click or run for that to happen, just wait and refresh the page
+occasionally.
+
+Once it's loaded once, most browsers let you bookmark it (the star icon
+in the address bar) so you can get back to `http://localhost:8000`
+without retyping it — worth doing, since you'll come back to this same
+address every time you use SPOOL.
 
 *(If you ever change a folder path in `.env` later, editing the file
 alone won't update an already-running SPOOL — go to the `/admin` page in
@@ -314,10 +329,13 @@ container.
    to auto-detect your CAD/slicer apps the same way the macOS script
    does (scanning `Program Files` and similar folders for a recognizable
    install, asking you to confirm or type the exact path if it's not
-   sure). It's safe to run more than once. One genuine difference from
-   macOS: there's no separate permission step needed for deleting
-   duplicate files — Windows' own normal file permissions already cover
-   that, so setup finishes in one fewer step.
+   sure). Right at the end it opens SPOOL for you automatically in your
+   default web browser — that's how you'll know it worked, no need to
+   type any address in yourself. It's safe to run this whole script more
+   than once. One genuine difference from macOS: there's no separate
+   permission step needed for deleting duplicate files — Windows' own
+   normal file permissions already cover that, so setup finishes in one
+   fewer step.
 
 5. Once it says you're done, skip up to [**Using SPOOL**](#using-spool)
    — everything from there on is identical regardless of which OS you
