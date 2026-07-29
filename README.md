@@ -435,6 +435,32 @@ but every configured app is always clickable for any file.
   about up front (cloud-synced folders, the read-only Library root, and
   what does/doesn't need a restart after a config change).
 
+## Found a bug, or something confusing?
+
+Please file it as a **GitHub issue** rather than just mentioning it in
+passing — it's the one place that won't get lost, and lets more than one
+of you comment on the same thing.
+
+1. Go to the **Issues** tab at the top of the repo's GitHub page (or
+   <https://github.com/joannewood/spool/issues> directly), then click the
+   green **New issue** button.
+2. Give it a short, specific title (e.g. "Setup script fails on the
+   folder-picker step on Windows 11", not just "doesn't work").
+3. In the description, include:
+   - **What you did** (the exact steps, as best you can recall).
+   - **What you expected** vs. **what actually happened**.
+   - **Your OS** (macOS or Windows — and Windows version if you know it).
+   - Any error text on screen, and if it's setup-related, the output of
+     `docker compose ps` and `docker compose logs api` (or `logs worker`)
+     pasted in — more context almost always beats less.
+4. Click **Submit new issue**. That's it — no special permissions needed
+   beyond having been added to the repo.
+
+Screenshots help a lot for anything UI-related; drag an image straight
+into the issue's text box on GitHub and it'll attach itself. General
+feedback ("this would be more useful if...") is just as welcome as bug
+reports — open an issue for those too rather than sitting on them.
+
 ## Day-to-day operations
 
 ### Useful commands
