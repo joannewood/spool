@@ -97,7 +97,40 @@ prompt should now show the folder's name, confirming you're "in" it.
 (If you're comfortable with git instead: `git clone <the repo URL>` and
 `cd` into the folder it creates.)
 
-### Step 3: Tell SPOOL which folders to watch
+### Step 3: Run the setup script (recommended)
+
+The rest of setup — telling SPOOL which folders to watch, starting it,
+and wiring up "open in" for your CAD/slicer apps — is one script:
+
+```bash
+./setup.sh
+```
+
+It pops up a native Finder window to pick each folder (rather than making
+you hand-edit a config file), generates a database password for you so
+there's nothing to remember, waits for each step to actually finish before
+moving to the next, and tells you plainly if something didn't work. It
+also looks at what's in your `~/Applications`/`/Applications` folder and
+tries to guess your CAD program and slicer automatically, asking you to
+confirm or pick from a list rather than requiring you to know the exact
+`.app` file name up front.
+
+**It's completely safe to run more than once** — if it finds a `.env` you
+already set up, it asks whether to keep it before touching anything, so
+re-running it later (say, after downloading an updated copy of SPOOL) to
+pick up changes won't undo your configuration.
+
+Follow the prompts it prints, and skip ahead to
+[**Using SPOOL**](#using-spool) once it says you're done. If anything
+about it fails, or you'd rather understand/control every step yourself,
+the exact same setup broken into individual pieces follows below —
+nothing in `setup.sh` does anything you can't also do by hand.
+
+### Manual setup, step by step
+
+Skip this whole section if `./setup.sh` above already worked for you.
+
+#### Step 3b: Tell SPOOL which folders to watch
 
 SPOOL needs to know three real folders on your Mac: a "drop folder" for
 new downloads, your existing 3D print library, and your Downloads folder.
@@ -132,7 +165,7 @@ needs the real folder to already be there.) Also change
 password for the database SPOOL keeps on your own Mac, not something you
 need to remember or share. Save the file (`Cmd + S`) and close TextEdit.
 
-### Step 4: Start SPOOL
+#### Step 4b: Start SPOOL
 
 Back in Terminal, paste this and press Return:
 
@@ -166,7 +199,7 @@ through them, no action needed from you.
 alone won't update an already-running SPOOL — go to the `/admin` page in
 the browser and edit the path there instead.)*
 
-### Step 5: Install the host-helper (lets SPOOL open files in Fusion/Bambu Studio)
+#### Step 5b: Install the host-helper (lets SPOOL open files in Fusion/Bambu Studio)
 
 Everything above runs inside Docker, which — deliberately, for safety —
 can't reach out and open another app on your actual Mac. One small
@@ -174,13 +207,24 @@ separate helper program handles just that piece; it's not Docker, it's a
 tiny program that starts automatically in the background whenever you log
 in to your Mac.
 
-First, open `host-helper/host_helper.py` (find it in Finder, inside the
-SPOOL folder, and open it with TextEdit) and look for a section called
-`APP_MAP`. It's currently set up for this project's own apps (Autodesk
-Fusion and Bambu Studio) — if you use different CAD or slicer software,
-change the app names there to match. The name has to be the *exact* file
-name of the app as it sits in your Applications folder, not its display
-name — to check, paste this in Terminal:
+Easiest path — let it look at what's installed and ask you to confirm:
+
+```bash
+python3 host-helper/configure_apps.py
+```
+
+It scans `~/Applications`/`/Applications`, guesses your CAD app and
+slicer, and asks you to pick from a numbered list if it finds more than
+one candidate (or if it finds none, lets you type the exact name
+yourself). This is exactly what `./setup.sh` already ran for you if you
+used it above — running it again re-asks and overwrites the previous
+choice, so it's fine to change your mind later.
+
+If you'd rather do it by hand instead: open `host-helper/host_helper.py`
+(find it in Finder, inside the SPOOL folder, and open it with TextEdit)
+and look for a section called `APP_MAP`. The name has to be the *exact*
+file name of the app as it sits in your Applications folder, not its
+display name — to check, paste this in Terminal:
 
 ```bash
 ls ~/Applications /Applications
@@ -188,17 +232,20 @@ ls ~/Applications /Applications
 
 and use exactly what's printed there (e.g. some apps are named slightly
 differently than you'd expect — "Autodesk Fusion.app", not
-"Fusion 360.app"). Save and close the file if you changed anything, then
-run:
+"Fusion 360.app"). There's a matching `APP_MAP` in
+`services/api/spool_api/host_helper_client.py` too — keep both in sync.
+
+Either way, finish by running:
 
 ```bash
 host-helper/install.sh
 ```
 
-If you ever edit `host_helper.py` or `.env` again later, re-run that same
-command to pick up the change.
+If you ever change `host_helper.py`, `host_helper_client.py`, or `.env`
+again later, re-run that same command (and `docker compose up -d --build
+api` too, if you changed `host_helper_client.py`) to pick up the change.
 
-### Step 6: One-time permission for deleting duplicate files
+#### Step 6b: One-time permission for deleting duplicate files
 
 Everything works right away except one specific feature: actually
 deleting a file from the duplicate-files review page (opening a file in
@@ -215,7 +262,113 @@ safety. To allow it, only once:
 That's it — SPOOL is fully set up. Bookmark `http://localhost:8000` and
 come back to it any time Docker Desktop is running.
 
-### Day-to-day
+## Using SPOOL
+
+**Give it time after first setup.** SPOOL doesn't wait for you to ask —
+the moment it starts, it's already walking your drop folder and library
+in the background, hashing every file and rendering a thumbnail for each
+one. For a library of a few hundred files that's minutes; for several
+thousand, it can be a while. You don't need to do anything — just refresh
+the library page occasionally, or watch progress live on `/admin/status`
+(a running counter of files hashed/rendered/failed and what's currently
+being worked on).
+
+### Browsing and searching
+
+The home page (`http://localhost:8000`) is a grid of thumbnails, newest
+first. Type in the search box at the top to filter live as you type — it
+searches filenames, tags, and print metadata (material, printer, slicer,
+your own notes) all at once, and treats hyphens/underscores/spaces as
+interchangeable, so "cake stand" finds `cake_stand.stl` too. Click
+**Filters** for a side panel with extension, tag, star rating, "printed"
+status, and material/printer/slicer dropdowns; the **sort** dropdown next
+to search covers newest/oldest/name/size. Click any card to open that
+file's own page — dimensions, whether it's watertight (manifold), tags,
+project membership, any auto-extracted or manually-entered print
+settings, related files, and buttons to open it directly in your CAD or
+slicer app.
+
+### Organizing: tags and projects
+
+On a file's page, click the small **+** next to Tags or Project to add
+one (or create a new project on the spot). Double-click a file's name or
+a project's name to rename it in place. You don't have to organize
+everything by hand, though — SPOOL watches for files that share a folder
+and suggests a project for them automatically; those show up as a
+lighter, dashed-outline chip with a checkmark/× to confirm or dismiss.
+The same auto-suggestion happens for relationships (e.g. a `.stl`
+detected as probably exported from a `.step` file with the same name).
+
+If suggestions pile up faster than you want to review them one at a time,
+`/admin` has dedicated bulk-review pages for suggested projects and
+suggested relationships, each with a "confirm all" option.
+
+### Marking what you've printed
+
+On a file's page, click the small printer badge over the thumbnail to
+open a form: a "printed" checkbox, a 1–5 star rating, and a free-text
+note to yourself (how the print went, what settings you used, etc.).
+
+### Opening a file in Fusion/Bambu Studio (or whatever you configured)
+
+Every file's page has one icon button per app you configured during
+setup, right next to its file path — click one to open that exact file
+in that exact app. The app matching the file's own type (e.g. your
+slicer for a `.stl`) gets a highlighted border as the obvious default,
+but every configured app is always clickable for any file.
+
+### Reviewing what SPOOL found: the Admin page
+
+`/admin` is mission control for everything that needs a human decision:
+
+- **Pending archives** — a `.zip`/`.7z`/`.rar` SPOOL noticed contains a
+  recognized model file, waiting for you to confirm (extract it) or
+  reject (ignore it forever). **Nothing is extracted automatically.**
+- **Duplicate files** — groups of files with byte-identical content,
+  with a bulk-select-and-delete flow.
+- **Suggested projects** / **suggested relationships** — the bulk-review
+  pages mentioned above.
+- **Rejected archives** — anything you've dismissed, in case you change
+  your mind.
+- **Watched roots** — edit the label, pause, or reactivate any of your
+  three configured folders.
+- **Status** — the live processing dashboard mentioned above: what's
+  running right now, recent successes/failures (with the full error for
+  anything that failed), and per-folder file counts.
+
+## Best practices for testers
+
+- **This is a personal, single-user tool, not a shared service.** There's
+  no login and no per-user separation — SPOOL is meant to run on *your
+  own* Mac against *your own* folders. If several of you are trying it
+  out, each person should do their own setup (their own `.env`, their
+  own `http://localhost:8000`), not share one running copy over a
+  network.
+- **Confirming an archive deletes the original after extracting it.**
+  Once you click Confirm on `/admin/pending-archives`, SPOOL extracts the
+  contents into your drop folder and removes the original `.zip`/`.7z`/
+  `.rar` — there's no undo. If you're not sure yet, click Reject instead
+  (you can un-reject it later from `/admin/rejected-archives` with the
+  original file untouched) rather than experimenting with Confirm on
+  something you care about.
+- **Deleting a duplicate is permanent** — it removes the real file from
+  disk, not just the SPOOL record of it.
+- **"Select all" only ever applies to what's currently on the page** on
+  the bulk-review admin pages — it won't silently reach into suggestions
+  you haven't scrolled to yet, but do check what's actually checked
+  before clicking a bulk "accept"/"delete" button, especially if you've
+  turned the page size up.
+- **A big first import takes real time and CPU**, especially STEP files
+  (they go through a separate, slower rendering lane specifically so they
+  don't block everything else) — this is expected, not a hang. Check
+  `/admin/status` before assuming something's stuck.
+- See **Known limitations** below for a few sharp edges worth knowing
+  about up front (cloud-synced folders, the read-only Library root, and
+  what does/doesn't need a restart after a config change).
+
+## Day-to-day operations
+
+### Useful commands
 
 ```bash
 docker compose ps                   # check health
@@ -249,7 +402,7 @@ Tests run on the host (not in a container) against a real, separate
 `spool_test` database on the same Postgres instance (exposed at
 `localhost:55432` for exactly this).
 
-### Known limitations
+## Known limitations
 
 - **Adding a *new* watched root isn't a UI action.** Docker can't attach a
   new bind mount to an already-running container, so the admin page can
@@ -292,9 +445,10 @@ tags/projects/print metadata, relationships, drift reconciliation, the native
 open-in-app helper, and a growing backlog of quality-of-life features (search
 across print metadata, duplicate cleanup, a printed/rating tracker, and more).
 296 automated tests covering the ingestion pipeline and the API. Runnable on
-someone else's Mac — watched-root paths are configured via `.env`, not
-hardcoded — aside from a one-line `APP_MAP` edit in `host_helper.py` for
-whichever CAD/slicer apps you actually use (see setup instructions above).
+someone else's Mac via a single guided `./setup.sh` — watched-root paths
+and CAD/slicer app choices are both configured interactively rather than
+hardcoded (see setup instructions above), with the fully manual,
+step-by-step path still available for anyone who wants it.
 
 ## License
 
