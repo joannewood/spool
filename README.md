@@ -52,15 +52,22 @@ Fusion or Bambu Studio — no more digging through folders full of
 - Docker Desktop (free — see step 1 below). **Install and open this
   before running the setup script** — the script checks for it and will
   stop and point you to the download page if it's missing, so it's
-  smoother to just get it out of the way first.
-- Python 3 (macOS usually already has this; Windows needs a separate
-  install — see the Windows section below). Used by the setup script to
-  auto-detect your CAD/slicer apps, and separately to run the automated
-  test suite. Neither of those is required to actually use SPOOL day to
-  day — if Python isn't there, setup just skips the app auto-detection
-  step with a note, and you can configure that part by hand later (or
-  skip the test suite entirely, most people setting this up just to use
-  it never need it).
+  smoother to just get it out of the way first. SPOOL runs inside
+  Docker, which keeps everything it needs (the database, the web
+  server, etc.) neatly contained instead of installed loose on your
+  computer — this is why every setup guide below starts by installing
+  it. **It needs to be open and running every time you use SPOOL** — if
+  you restart your computer and SPOOL doesn't seem to be working, check
+  that Docker Desktop is open first before anything else.
+- Python 3 — **optional**. (macOS usually already has this; Windows
+  needs a separate install — see the Windows section below, itself an
+  optional step there.) Used by the setup script to auto-detect your
+  CAD/slicer apps, and separately to run the automated test suite.
+  Neither of those is required to actually use SPOOL day to day — if
+  Python isn't there, setup just skips the app auto-detection step with
+  a note, and you can configure that part by hand later (or skip the
+  test suite entirely, most people setting this up just to use it never
+  need it).
 
 Setup below is split into four self-contained guides (a quick script and
 a full manual walkthrough for each OS) — expand whichever one matches
@@ -99,14 +106,6 @@ worth knowing if you skip one now and want it later: adding it isn't as
 simple as updating a setting and restarting (the same is true of adding
 any watched folder after first setup) — see "Adding a folder you
 initially skipped" under Known limitations for the extra step involved.
-
-**About Docker Desktop**: SPOOL runs inside Docker, which keeps
-everything it needs (the database, the web server, etc.) neatly
-contained instead of installed loose on your computer — this is why
-every guide below starts by installing it. **It needs to be open and
-running every time you use SPOOL** — if you restart your computer and
-SPOOL doesn't seem to be working, check that Docker Desktop is open
-first before anything else.
 
 **Starting SPOOL and opening it**: every guide below ends the same way —
 building and starting everything (`docker compose up -d --build`, either
@@ -298,7 +297,10 @@ separate helper program handles just that piece; it's not Docker, it's a
 tiny program that starts automatically in the background whenever you log
 in to your Mac.
 
-Easiest path — let it look at what's installed and ask you to confirm:
+Easiest path (needs Python, which is **optional** and most Macs already
+have — see Requirements above; if you'd rather not bother, skip straight
+to the "by hand" alternative below) — let it look at what's installed
+and ask you to confirm:
 
 ```bash
 python3 host-helper/configure_apps.py
@@ -368,12 +370,15 @@ actual machine, not just a container.
 1. **Install Docker Desktop** from
    <https://www.docker.com/products/docker-desktop/> — download it, run
    the installer, then open Docker Desktop from the Start menu and wait
-   until it says it's running (see "About Docker Desktop" above for why
-   this needs to stay open).
-2. **Install Python** from <https://www.python.org/downloads/> if you
-   don't already have it — during setup, check the box that says **"Add
-   python.exe to PATH"**. (Used to auto-detect your CAD/slicer apps; skip
-   this and you can still configure them by hand later.)
+   until it says it's running (see the Requirements section above for
+   why this needs to stay open).
+2. **Install Python (optional)** from
+   <https://www.python.org/downloads/> if you don't already have it —
+   during setup, check the box that says **"Add python.exe to PATH"**.
+   This step is only used to auto-detect your CAD/slicer apps; it's
+   fine to skip it entirely and either configure those apps by hand
+   later, or come back and install Python then if you change your
+   mind.
 3. **Get the SPOOL code**: click the green **Code** button on this
    project's GitHub page, then **Download ZIP**, and unzip it (or
    `git clone` if you're comfortable with git) — then open it: right-click
@@ -511,7 +516,10 @@ separate helper program handles just that piece; it's not Docker, it's a
 tiny program that starts automatically in the background whenever you
 log in.
 
-Easiest path — let it look at what's installed and ask you to confirm:
+Easiest path (needs Python — **optional**, see Requirements above; if
+you don't have it and would rather not install it just for this, skip
+straight to the "by hand" alternative below) — let it look at what's
+installed and ask you to confirm:
 
 ```powershell
 python host-helper\configure_apps.py
