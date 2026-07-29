@@ -109,6 +109,38 @@ function Select-Folder($description, $default) {
 }
 
 if ($Reconfigure) {
+    # Safety net for the most likely way to lose data without realizing
+    # it: docker-compose.yml pins the project name to "spool" (see its
+    # own comment) specifically so your database survives a downloaded
+    # update landing in a differently-named folder -- but that only
+    # helps if this fresh setup doesn't also generate a *new* database
+    # password that can't authenticate against that already-existing
+    # database. Detected by checking for the volume before writing
+    # anything.
+    docker volume inspect spool_pgdata 2>$null 1>$null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host ""
+        Write-Host "Found an existing SPOOL database from a previous setup, but there's"
+        Write-Host "no .env in this folder yet to match it. This usually means you're"
+        Write-Host "running setup fresh after downloading an update into a new folder."
+        Write-Host ""
+        Write-Host "If you want to keep your existing library: stop now, and see"
+        Write-Host "'Updating SPOOL' in README.md instead -- copying your old .env into"
+        Write-Host "this folder keeps everything. Generating a new one here instead"
+        Write-Host "cannot connect to that existing database (the password won't match),"
+        Write-Host "and continuing anyway means permanently deleting it first."
+        Write-Host ""
+        $confirmWipe = Read-Host "Type 'delete' to permanently erase that existing data and start fresh, or press Enter to stop"
+        if ($confirmWipe -eq "delete") {
+            Write-Host "Removing the old database..."
+            docker volume rm spool_pgdata spool_thumbnails 2>$null 1>$null
+            Write-Host "Done -- continuing with a fresh setup."
+        } else {
+            Write-Host "Stopping -- nothing has been changed. See README.md's 'Updating SPOOL' section."
+            exit 1
+        }
+    }
+
     if (-not (Test-Path ".env") -and (Test-Path ".env.example")) {
         Copy-Item ".env.example" ".env"
     }

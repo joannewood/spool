@@ -531,6 +531,45 @@ into the issue's text box on GitHub and it'll attach itself. General
 feedback ("this would be more useful if...") is just as welcome as bug
 reports — open an issue for those too rather than sitting on them.
 
+## Updating SPOOL
+
+When a new version comes out, **don't just download a fresh ZIP into a
+new folder** — your actual data (every file, tag, project, print log)
+lives in Docker's own storage, not in the SPOOL folder itself, and a
+new folder can leave that data behind without any obvious warning. The
+one thing that *does* live in the SPOOL folder and matters is `.env`
+(your folder paths and database password) — it's never part of any
+download, so it has to survive the update in place.
+
+**The clean way — update the same folder instead of making a new one:**
+
+1. Download the new ZIP and extract it anywhere temporary (double-click
+   it in Downloads, that's fine).
+2. Select everything inside that freshly-extracted folder and drag it
+   into your **existing** SPOOL folder — the same one you've been using.
+   - **Mac:** Finder will ask *"An item named X already exists — Replace?"*
+     — choose **Replace All** (or **Apply to All** + **Replace**).
+   - **Windows:** File Explorer will ask to confirm overwriting — choose
+     **Replace the files in the destination**.
+3. `.env` was never part of the ZIP, so this leaves it completely
+   untouched — your paths and password come along automatically.
+4. Delete the now-empty temporary extracted folder, then re-run
+   `./setup.sh` / `.\setup.ps1` (or just `docker compose up -d --build`)
+   from your real SPOOL folder.
+
+(If you set this up with `git clone` instead of a ZIP: `git pull` in
+that same folder does the same thing, even more simply.)
+
+**If you (or a fellow tester) do end up extracting a fresh copy into a
+new folder anyway** — running the setup script there is designed to
+catch this rather than fail silently or confusingly: it checks for an
+existing SPOOL database before writing a new `.env`, and if it finds
+one sitting there unmatched, it stops and tells you exactly what
+happened, offering two options — go find your old `.env` and use the
+steps above instead (safe, nothing is touched), or type `delete` to
+confirm permanently erasing that old data and starting completely
+fresh. It never silently guesses on your behalf either way.
+
 ## Day-to-day operations
 
 ### Useful commands

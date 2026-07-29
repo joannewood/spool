@@ -77,6 +77,36 @@ pick_folder() {
 }
 
 if [ "$RECONFIGURE" -eq 1 ]; then
+  # Safety net for the most likely way to lose data without realizing it:
+  # docker-compose.yml pins the project name to "spool" (see its own
+  # comment) specifically so your database survives a downloaded update
+  # landing in a differently-named folder — but that only helps if this
+  # fresh setup doesn't also generate a *new* database password that
+  # can't authenticate against that already-existing database. Detected
+  # by checking for the volume before writing anything.
+  if docker volume inspect spool_pgdata >/dev/null 2>&1; then
+    echo
+    echo "⚠ Found an existing SPOOL database from a previous setup, but there's"
+    echo "  no .env in this folder yet to match it. This usually means you're"
+    echo "  running setup fresh after downloading an update into a new folder."
+    echo
+    echo "  If you want to keep your existing library: stop now, and see"
+    echo "  \"Updating SPOOL\" in README.md instead — copying your old .env into"
+    echo "  this folder keeps everything. Generating a new one here instead"
+    echo "  cannot connect to that existing database (the password won't match),"
+    echo "  and continuing anyway means permanently deleting it first."
+    echo
+    read -r -p "Type 'delete' to permanently erase that existing data and start fresh, or press Return to stop: " confirm_wipe
+    if [ "$confirm_wipe" = "delete" ]; then
+      echo "Removing the old database..."
+      docker volume rm spool_pgdata spool_thumbnails >/dev/null 2>&1 || true
+      echo "Done — continuing with a fresh setup."
+    else
+      echo "Stopping — nothing has been changed. See README.md's \"Updating SPOOL\" section."
+      exit 1
+    fi
+  fi
+
   cp -n .env.example .env 2>/dev/null || true
 
   echo

@@ -1,3 +1,16 @@
+# Pinned rather than left to default to the containing folder's name —
+# Docker names volumes (pgdata/thumbnails, holding all your actual data)
+# after the Compose *project* name, and a folder-name-derived default
+# would silently start a brand-new, empty project if a downloaded update
+# ever landed in a differently-named folder than last time (e.g. "spool-main"
+# vs. "spool-main (1)", which a browser will do on its own if the old
+# folder is still there). Pinning it here means the exact same folder
+# name is never required for your data to still be found — see README.md's
+# "Updating SPOOL" section for the one thing that still *does* need to be
+# carried forward by hand (your .env file), and setup.sh/setup.ps1's own
+# safety check for what happens if that step gets missed anyway.
+name: spool
+
 services:
   postgres:
     image: postgres:16
