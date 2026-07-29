@@ -115,14 +115,20 @@ and wiring up "open in" for your CAD/slicer apps — is one script:
 ./setup.sh
 ```
 
-It pops up a native Finder window to pick each folder (rather than making
-you hand-edit a config file), generates a database password for you so
-there's nothing to remember, waits for each step to actually finish before
-moving to the next, and tells you plainly if something didn't work. It
-also looks at what's in your `~/Applications`/`/Applications` folder and
-tries to guess your CAD program and slicer automatically, asking you to
-confirm or pick from a list rather than requiring you to know the exact
-`.app` file name up front.
+It pops up a native Finder window to pick each of your three folders —
+a **drop folder** (your main working folder, the one that actually needs
+real files in it), your **existing library** if you have one (read-only;
+can be an empty folder if you don't), and **Downloads** (new 3D-print
+files landing here get auto-moved into your drop folder) — see "Step 3b:
+Tell SPOOL which folders to watch" below for the full explanation of
+each one. Rather than making you hand-edit a config file, it generates a
+database password for you so there's nothing to remember, waits for
+each step to actually finish before moving to the next, and tells you
+plainly if something didn't work. It also looks at what's in your
+`~/Applications`/`/Applications` folder and tries to guess your CAD
+program and slicer automatically, asking you to confirm or pick from a
+list rather than requiring you to know the exact `.app` file name up
+front.
 
 **It's completely safe to run more than once** — if it finds a `.env` you
 already set up, it asks whether to keep it before touching anything, so
@@ -141,10 +147,44 @@ Skip this whole section if `./setup.sh` above already worked for you.
 
 #### Step 3b: Tell SPOOL which folders to watch
 
-SPOOL needs to know three real folders on your Mac: a "drop folder" for
-new downloads, your existing 3D print library, and your Downloads folder.
-These are set in a file called `.env`, which doesn't exist yet — you copy
-it from a template.
+SPOOL needs to know three real folders on your Mac. They each do a
+different job:
+
+- **Drop folder** ("DROPFOLDER_HOST_PATH") — this is SPOOL's main working
+  folder. It's read-write, and it's where you'd put a new kit you've
+  downloaded and unzipped, or where files land after being auto-moved
+  out of Downloads (see below). **This is the one that actually
+  matters** — it's the folder SPOOL is built around, so it's worth
+  pointing this at somewhere you'll really use, even though (like the
+  other two) it technically just needs to exist as a real folder to get
+  through setup.
+- **Library** ("LIBRARY_HOST_PATH") — your *existing*, already-organized
+  collection of 3D print files, if you have one (e.g. years of files
+  sitting in a folder from before you had SPOOL). It's mounted
+  **read-only** — SPOOL only looks at what's already there to index and
+  search it; it will never move, rename, or delete anything inside it.
+  If you don't have an existing library to point this at yet, that's
+  fine (see below).
+- **Downloads** ("DOWNLOADS_HOST_PATH") — normally your Mac's actual
+  Downloads folder. SPOOL watches it specifically for new 3D-print files
+  and **automatically moves them into your drop folder** the moment
+  they finish downloading, so Downloads doesn't just become another pile
+  of clutter. If you don't want this behavior, see below.
+
+**All three need to point to *some* real, already-existing folder** — the
+setup process fails if one is left blank or points at a folder that
+doesn't exist — but Library and Downloads don't have to be doing
+anything useful yet. If you don't have an existing library, or you'd
+rather not have Downloads auto-managed yet, just create a new, empty
+folder for that one (anywhere — right-click in Finder → New Folder) and
+point it there instead; SPOOL will find nothing to do with it and stay
+out of the way. You can always repoint any of the three later from the
+`/admin` page once you decide you want to use that folder for real — see
+"Changing a path in `.env` after first setup doesn't re-seed the
+database" under Known limitations.
+
+These three paths are set in a file called `.env`, which doesn't exist
+yet — you copy it from a template.
 
 Paste this into Terminal and press Return:
 
@@ -324,8 +364,11 @@ container.
    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
    ```
 
-   The script pops up a folder picker for each of your three folders,
-   generates a database password for you, starts everything, and tries
+   The script pops up a folder picker for each of your three folders
+   (not sure what these three are for? see "Step 3b: Tell SPOOL which
+   folders to watch" above — same three folders, same meanings, just
+   picked interactively here instead of typed into a file), generates a
+   database password for you, starts everything, and tries
    to auto-detect your CAD/slicer apps the same way the macOS script
    does (scanning `Program Files` and similar folders for a recognizable
    install, asking you to confirm or type the exact path if it's not
