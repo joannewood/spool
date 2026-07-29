@@ -49,9 +49,18 @@ Fusion or Bambu Studio — no more digging through folders full of
   duplicate" pieces need a small native helper program specific to each —
   everything else is just Docker, so both platforms get the exact same
   web app)
-- Docker Desktop (free — see step 1 below)
-- Python 3.9+ on the host, only if you want to run the test suite (most
-  people setting this up just to use it can skip this entirely)
+- Docker Desktop (free — see step 1 below). **Install and open this
+  before running the setup script** — the script checks for it and will
+  stop and point you to the download page if it's missing, so it's
+  smoother to just get it out of the way first.
+- Python 3 (macOS usually already has this; Windows needs a separate
+  install — see the Windows section below). Used by the setup script to
+  auto-detect your CAD/slicer apps, and separately to run the automated
+  test suite. Neither of those is required to actually use SPOOL day to
+  day — if Python isn't there, setup just skips the app auto-detection
+  step with a note, and you can configure that part by hand later (or
+  skip the test suite entirely, most people setting this up just to use
+  it never need it).
 
 **Windows users**: jump to [Windows setup](#windows-setup) below — it's a
 single script rather than the click-by-click walkthrough that follows,
