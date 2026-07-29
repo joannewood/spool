@@ -297,10 +297,8 @@ separate helper program handles just that piece; it's not Docker, it's a
 tiny program that starts automatically in the background whenever you log
 in to your Mac.
 
-Easiest path (needs Python, which is **optional** and most Macs already
-have — see Requirements above; if you'd rather not bother, skip straight
-to the "by hand" alternative below) — let it look at what's installed
-and ask you to confirm:
+Every Mac already comes with Python 3, so just run this and let it look
+at what's installed and ask you to confirm:
 
 ```bash
 python3 host-helper/configure_apps.py
@@ -314,22 +312,7 @@ used the setup script instead of this manual guide — running it again
 re-asks and overwrites the previous choice, so it's fine to change your
 mind later.
 
-If you'd rather do it by hand instead: open `host-helper/host_helper.py`
-(find it in Finder, inside the SPOOL folder, and open it with TextEdit)
-and look for a section called `APP_MAP`. The name has to be the *exact*
-file name of the app as it sits in your Applications folder, not its
-display name — to check, paste this in Terminal:
-
-```bash
-ls ~/Applications /Applications
-```
-
-and use exactly what's printed there (e.g. some apps are named slightly
-differently than you'd expect — "Autodesk Fusion.app", not
-"Fusion 360.app"). There's a matching `APP_MAP` in
-`services/api/spool_api/host_helper_client.py` too — keep both in sync.
-
-Either way, finish by running:
+Then finish by running:
 
 ```bash
 host-helper/install.sh
