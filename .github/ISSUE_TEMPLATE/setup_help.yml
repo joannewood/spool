@@ -1,0 +1,73 @@
+name: Stuck during setup
+description: The setup script, Docker, or the host-helper isn't cooperating.
+labels: ["help wanted"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Setup is the part most likely to hit a snag on a machine that
+        isn't the one SPOOL was built on — thanks for reporting it rather
+        than giving up. The more of the fields below you can fill in, the
+        faster this can get sorted out.
+  - type: dropdown
+    id: os
+    attributes:
+      label: What OS are you on?
+      options:
+        - macOS
+        - Windows
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version (if you know it)
+      placeholder: e.g. macOS Sequoia 15.4, or Windows 11
+    validations:
+      required: false
+  - type: dropdown
+    id: which-guide
+    attributes:
+      label: Which setup guide were you following?
+      options:
+        - Mac setup (the script)
+        - Manual setup (Mac)
+        - Windows setup (the script)
+        - Manual setup (Windows)
+        - Not sure / mix of steps
+    validations:
+      required: true
+  - type: textarea
+    id: which-step
+    attributes:
+      label: Which step did it go wrong on?
+      description: e.g. "Step 3, installing the host-helper" — quoting the step's heading is perfect.
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: The exact error text or behavior, as best you can recall or copy/paste.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Terminal output
+      description: >
+        Paste whatever the terminal/PowerShell window showed around the
+        failure — the output of `docker compose ps` and
+        `docker compose logs api` (or `docker compose logs worker`) is
+        especially useful if SPOOL won't start at all.
+      render: shell
+    validations:
+      required: false
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: Drag an image straight into this box on GitHub and it'll attach itself.
+    validations:
+      required: false

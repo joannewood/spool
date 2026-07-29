@@ -1,0 +1,31 @@
+name: Feature idea / feedback
+description: Something that would make SPOOL more useful, or general feedback.
+labels: ["idea"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        "This would be more useful if..." is exactly what this template
+        is for — general feedback is just as welcome as a fully-formed
+        feature request.
+  - type: textarea
+    id: idea
+    attributes:
+      label: What's the idea?
+      description: Describe what you'd want, or what's currently awkward/missing.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why would this help you?
+      description: What are you trying to do when this comes up?
+    validations:
+      required: false
+  - type: textarea
+    id: how
+    attributes:
+      label: Any thoughts on how it might work?
+      description: Totally optional — a rough sketch is plenty, no need to have it all figured out.
+    validations:
+      required: false
