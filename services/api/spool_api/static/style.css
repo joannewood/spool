@@ -1189,6 +1189,13 @@ input[name="new_names"] { width: 100%; min-width: 220px; }
   background: var(--warn-bg);
 }
 .dup-row { display: flex; align-items: center; gap: 10px; }
+/* Files in the read-only Library folder can't actually be deleted from
+   here — the checkbox is already `disabled`, but that alone barely reads
+   as "inactive" next to a normal row. Dim the whole row instead of just
+   the checkbox so it's visually obvious at a glance which rows in a
+   group are real candidates, without disabling the thumbnail/name links
+   (still fine to click through to the file itself). */
+.dup-row:has(input:disabled) { opacity: 0.5; }
 .dup-thumb {
   width: 40px;
   height: 40px;
