@@ -46,8 +46,7 @@ APP_MAP = {
 ALLOWED_APPS = set(APP_MAP.values())
 
 # Real deletion requires real OS-level filesystem access, which is exactly
-# what the api/worker containers don't reliably have (Library is mounted
-# :ro in Docker regardless of the real OS permissions) — host-helper runs
+# what the api/worker containers don't reliably have — host-helper runs
 # natively, so it can. Deletion is irreversible, so — unlike /open, which
 # only ever launches a GUI app — this endpoint independently re-validates
 # that the path falls under a known watched root rather than trusting the
@@ -57,11 +56,21 @@ ALLOWED_APPS = set(APP_MAP.values())
 # the launchd plist by install.sh, rather than hardcoded to one machine's
 # paths — if none are set, the list is empty and every delete is rejected,
 # which is the safe direction to fail in.
+#
+# LIBRARY_HOST_PATH is deliberately excluded, not just DROPFOLDER/DOWNLOADS
+# included — Library is mounted :ro in Docker specifically because it's
+# never supposed to be written to (an "existing library" root, per the
+# spec), but that Docker-level restriction doesn't reach host-helper at
+# all, since it runs natively outside any container. Confirmed live: the
+# duplicate-file admin page has no per-root awareness either — it'll send
+# a delete request for *any* selected duplicate regardless of which root
+# it lives in — so without this exclusion, deleting a duplicate that
+# happened to live in Library would really, permanently delete it from
+# the one place this app promises never to touch.
 ALLOWED_DELETE_ROOTS = [
     p
     for p in (
         os.environ.get("DROPFOLDER_HOST_PATH"),
-        os.environ.get("LIBRARY_HOST_PATH"),
         os.environ.get("DOWNLOADS_HOST_PATH"),
     )
     if p
@@ -145,7 +154,14 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if not _under_allowed_root(path):
-            self._send(400, {"error": "path is outside known watched roots"})
+            # In practice this almost always means the file is in the
+            # read-only Library root (deliberately excluded from
+            # ALLOWED_DELETE_ROOTS above) rather than some other unknown
+            # path, since every path this endpoint is ever called with
+            # comes from a real files.path row under one of the three
+            # configured roots — worth saying plainly rather than the
+            # more accurate-but-vaguer "not in ALLOWED_DELETE_ROOTS".
+            self._send(400, {"error": "can't delete — this file is in your read-only Library folder, or an unrecognized location"})
             return
 
         try:

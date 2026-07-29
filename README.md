@@ -514,7 +514,10 @@ but every configured app is always clickable for any file.
   original file untouched) rather than experimenting with Confirm on
   something you care about.
 - **Deleting a duplicate is permanent** — it removes the real file from
-  disk, not just the SPOOL record of it.
+  disk, not just the SPOOL record of it. The one exception: a duplicate
+  that lives in your read-only Library folder can't be deleted this way
+  at all — you'll get a clear error instead — since Library is the one
+  root SPOOL guarantees it will never write to or delete from.
 - **"Select all" only ever applies to what's currently on the page** on
   the bulk-review admin pages — it won't silently reach into suggestions
   you haven't scrolled to yet, but do check what's actually checked
@@ -670,11 +673,17 @@ Tests run on the host (not in a container) against a real, separate
   database** — the seed only runs once, against a brand-new `pgdata`
   volume. Update the path on the `/admin` page instead (and re-run
   `host-helper/install.sh` if it's one of the delete-allowlist paths).
-- **Archives can't be extracted from your Library folder.** It's mounted
-  read-only (an "existing library" root is never supposed to be written
-  to) — confirming a zip/7z/rar found there will fail with a permissions
-  error in Admin, by design. Extract it yourself, or drop it in your drop
-  folder instead.
+- **Nothing SPOOL does can write to or delete from your Library folder**
+  — it's mounted read-only in Docker (an "existing library" root is
+  never supposed to be written to), and separately, the native
+  host-helper that handles real file deletion (for the duplicate-cleanup
+  page) explicitly refuses any path under Library too, since that helper
+  runs outside Docker and wouldn't otherwise be stopped by the read-only
+  mount. Confirming an archive found in Library will fail with a
+  permissions error in Admin, and deleting a duplicate that lives there
+  fails with a clear error instead of silently succeeding — extract/
+  delete it yourself outside SPOOL, or drop a copy in your drop folder
+  instead.
 - **Don't point a watched root at a folder under iCloud Drive sync (e.g.
   anywhere inside `~/Documents` or `~/Desktop` if "Desktop & Documents
   Folders" is on) while "Optimize Mac Storage" is enabled.** iCloud will
