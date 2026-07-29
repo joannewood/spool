@@ -38,19 +38,28 @@ Fusion or Bambu Studio — no more digging through folders full of
   review, with bulk select/delete.
 - **Printed tracker** — mark a file as printed, rate it, and leave yourself
   notes on how it turned out.
-- **Open in your CAD/slicer app** — a native helper launches Fusion or Bambu
-  Studio directly from the file's page (the one piece that isn't Docker,
-  since a Linux container can't launch a macOS GUI app).
+- **Open in your CAD/slicer app** — a small native helper (macOS and
+  Windows both supported) launches Fusion, Bambu Studio, or whatever you
+  use directly from the file's page — the one piece that isn't Docker,
+  since a Linux container can't launch a GUI app on your actual machine.
 
 ## Requirements
 
-- A Mac (the native host-helper piece that launches Fusion/Bambu Studio is
-  Mac-specific — everything else is just Docker)
+- macOS or Windows (the "open in your CAD/slicer app" and "delete a
+  duplicate" pieces need a small native helper program specific to each —
+  everything else is just Docker, so both platforms get the exact same
+  web app)
 - Docker Desktop (free — see step 1 below)
 - Python 3.9+ on the host, only if you want to run the test suite (most
   people setting this up just to use it can skip this entirely)
 
-## Setting up on your own machine
+**Windows users**: jump to [Windows setup](#windows-setup) below — it's a
+single script rather than the click-by-click walkthrough that follows,
+which is written for macOS. (The Windows path is newer and has seen less
+real-world use than the macOS one — if something looks off, the
+"Known limitations" section has a couple of Windows-specific notes.)
+
+## Setting up on your own machine (macOS)
 
 These steps assume you've never used Terminal or Docker before — if you
 already have, skip ahead freely. Every command below is meant to be copied
@@ -262,6 +271,66 @@ safety. To allow it, only once:
 That's it — SPOOL is fully set up. Bookmark `http://localhost:8000` and
 come back to it any time Docker Desktop is running.
 
+## Windows setup
+
+Everything above this section is written for macOS. The underlying app
+(Docker, Postgres, the web page) is identical on both platforms — the
+only thing that's genuinely different per OS is the small native helper
+that lets SPOOL open a file in Fusion/Bambu Studio and delete duplicates,
+since that needs real access to your actual machine, not just a
+container.
+
+1. **Install Docker Desktop** from
+   <https://www.docker.com/products/docker-desktop/> (download, run the
+   installer, then open Docker Desktop from the Start menu and wait until
+   it says it's running — same idea as macOS's step 1 above, just a
+   different installer).
+2. **Install Python** from <https://www.python.org/downloads/> if you
+   don't already have it — during setup, check the box that says **"Add
+   python.exe to PATH"**. (Used to auto-detect your CAD/slicer apps; skip
+   this and you can still configure them by hand later.)
+3. **Get the SPOOL code** the same way as macOS step 2 above (download
+   ZIP from GitHub and unzip it, or `git clone`), then open it: right-click
+   the folder in File Explorer and choose **"Open in Terminal"** (or
+   **PowerShell**).
+4. **Run the setup script**:
+
+   ```powershell
+   .\setup.ps1
+   ```
+
+   If you see an error like *"running scripts is disabled on this
+   system"*, that's PowerShell's default safety setting blocking an
+   unsigned script — run this first, in the same window (it only affects
+   this one window, not your whole computer), then try `.\setup.ps1`
+   again:
+
+   ```powershell
+   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+   ```
+
+   The script pops up a folder picker for each of your three folders,
+   generates a database password for you, starts everything, and tries
+   to auto-detect your CAD/slicer apps the same way the macOS script
+   does (scanning `Program Files` and similar folders for a recognizable
+   install, asking you to confirm or type the exact path if it's not
+   sure). It's safe to run more than once. One genuine difference from
+   macOS: there's no separate permission step needed for deleting
+   duplicate files — Windows' own normal file permissions already cover
+   that, so setup finishes in one fewer step.
+
+5. Once it says you're done, skip up to [**Using SPOOL**](#using-spool)
+   — everything from there on is identical regardless of which OS you
+   set up on.
+
+If you'd rather not run a script at all: the same handful of steps —
+`copy .env.example .env` and edit it (using forward slashes in the paths,
+per the comment in that file), `docker compose up -d --build`, `python
+host-helper\configure_apps.py`, then `powershell -ExecutionPolicy Bypass
+-File host-helper\install_windows.ps1` — do exactly what `setup.ps1`
+does, just without the folder-picker windows or the friendly
+progress messages.
+
 ## Using SPOOL
 
 **Give it time after first setup.** SPOOL doesn't wait for you to ask —
@@ -340,10 +409,10 @@ but every configured app is always clickable for any file.
 
 - **This is a personal, single-user tool, not a shared service.** There's
   no login and no per-user separation — SPOOL is meant to run on *your
-  own* Mac against *your own* folders. If several of you are trying it
-  out, each person should do their own setup (their own `.env`, their
-  own `http://localhost:8000`), not share one running copy over a
-  network.
+  own* computer against *your own* folders. If several of you are trying
+  it out, each person should do their own setup on their own machine
+  (their own `.env`, their own `http://localhost:8000`), not share one
+  running copy over a network.
 - **Confirming an archive deletes the original after extracting it.**
   Once you click Confirm on `/admin/pending-archives`, SPOOL extracts the
   contents into your drop folder and removes the original `.zip`/`.7z`/
@@ -404,6 +473,18 @@ Tests run on the host (not in a container) against a real, separate
 
 ## Known limitations
 
+- **The Windows path is newer and hasn't been exercised on real Windows
+  hardware** the way the macOS path has (this project was built on a
+  Mac) — the app-detection logic in `configure_apps.py` was validated
+  against synthetic test cases for real installer layouts (including
+  Autodesk's own deeply-nested one), but if `setup.ps1` or the Windows
+  host-helper hits something unexpected on your machine, please report
+  it rather than assuming it's supposed to work that way.
+- **No automatic app icons on Windows yet.** macOS extracts each
+  configured app's real icon from its `.icns`; Windows apps don't have an
+  equivalent step wired up yet, so a Windows-configured app just shows a
+  plain two-letter badge next to a file instead of its real icon —
+  cosmetic only, "Open in..." still works normally.
 - **Adding a *new* watched root isn't a UI action.** Docker can't attach a
   new bind mount to an already-running container, so the admin page can
   only edit/pause the three roots mounted at startup. To watch a fourth
@@ -444,11 +525,13 @@ Nine build phases done — ingestion, mesh + STEP + SVG previews, browse/search,
 tags/projects/print metadata, relationships, drift reconciliation, the native
 open-in-app helper, and a growing backlog of quality-of-life features (search
 across print metadata, duplicate cleanup, a printed/rating tracker, and more).
-296 automated tests covering the ingestion pipeline and the API. Runnable on
-someone else's Mac via a single guided `./setup.sh` — watched-root paths
-and CAD/slicer app choices are both configured interactively rather than
-hardcoded (see setup instructions above), with the fully manual,
-step-by-step path still available for anyone who wants it.
+308 automated tests covering the ingestion pipeline and the API. Runnable
+on someone else's Mac or Windows machine via a single guided `./setup.sh`
+/ `.\setup.ps1` — watched-root paths and CAD/slicer app choices are both
+configured interactively rather than hardcoded (see setup instructions
+above), with the fully manual, step-by-step path still available for
+anyone who wants it. The Windows path is newer and less battle-tested
+than the macOS one (see Known limitations).
 
 ## License
 

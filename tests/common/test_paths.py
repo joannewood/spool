@@ -63,3 +63,36 @@ def test_host_and_container_path_round_trip():
     host_path = "/Users/test/Documents/3DPrintFiles/a/b/widget.stl"
     container_path = to_container_path(root, host_path)
     assert to_host_path(root, container_path) == host_path
+
+
+# ---- Windows host paths ------------------------------------------------
+#
+# watcher/worker/api always run inside Linux containers regardless of the
+# host OS, so os.path here is always POSIX — a Windows host_path only
+# round-trips correctly through it if it uses forward slashes ("C:/Users/
+# you/..."), never backslashes ("C:\Users\you\..."), since POSIX os.path
+# only recognizes "/" as a separator. This is the one convention Windows
+# support (host-helper/host_helper_windows.py, setup.ps1) depends on —
+# Windows itself accepts forward-slash paths everywhere that matters
+# (os.path, subprocess, Explorer's address bar), so nothing on the Windows
+# side needs backslashes either. Locked in with real tests rather than
+# left as an unverified assumption, since nothing else in this change can
+# be exercised against real Windows hardware.
+
+def test_to_container_path_maps_windows_style_forward_slash_host_path():
+    root = _root(host_path="C:/Users/test/Documents/3DPrintFiles")
+    host_path = "C:/Users/test/Documents/3DPrintFiles/sub/widget.stl"
+    assert to_container_path(root, host_path) == "/roots/dropfolder/sub/widget.stl"
+
+
+def test_to_host_path_produces_windows_style_forward_slash_path():
+    root = _root(host_path="C:/Users/test/Documents/3DPrintFiles")
+    container_path = "/roots/dropfolder/sub/widget.stl"
+    assert to_host_path(root, container_path) == "C:/Users/test/Documents/3DPrintFiles/sub/widget.stl"
+
+
+def test_windows_style_host_and_container_path_round_trip():
+    root = _root(host_path="C:/Users/test/Documents/3DPrintFiles")
+    host_path = "C:/Users/test/Documents/3DPrintFiles/a/b/widget.stl"
+    container_path = to_container_path(root, host_path)
+    assert to_host_path(root, container_path) == host_path
