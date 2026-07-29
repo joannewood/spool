@@ -151,6 +151,9 @@ about it fails, or you'd rather understand/control every step yourself,
 the exact same setup broken into individual pieces follows below —
 nothing in `setup.sh` does anything you can't also do by hand.
 
+<details>
+<summary><strong>Manual setup, step by step</strong> (click to expand — skip this if <code>./setup.sh</code> above already worked for you)</summary>
+
 ### Manual setup, step by step
 
 Skip this whole section if `./setup.sh` above already worked for you.
@@ -333,6 +336,11 @@ safety. To allow it, only once:
 That's it — SPOOL is fully set up. Bookmark `http://localhost:8000` and
 come back to it any time Docker Desktop is running.
 
+</details>
+
+<details>
+<summary><strong>🪟 Windows setup</strong> (click to expand — on a Mac? skip straight to <a href="#using-spool">Using SPOOL</a>)</summary>
+
 ## Windows setup
 
 Everything above this section is written for macOS. The underlying app
@@ -400,6 +408,8 @@ host-helper\configure_apps.py`, then `powershell -ExecutionPolicy Bypass
 -File host-helper\install_windows.ps1` — do exactly what `setup.ps1`
 does, just without the folder-picker windows or the friendly
 progress messages.
+
+</details>
 
 ## Using SPOOL
 
