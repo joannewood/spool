@@ -124,13 +124,14 @@ and wiring up "open in" for your CAD/slicer apps — is one script:
 ./setup.sh
 ```
 
-It pops up a native Finder window to pick each of your three folders —
-a **drop folder** (your main working folder, the one that actually needs
-real files in it), your **existing library** if you have one (read-only;
-can be an empty folder if you don't), and **Downloads** (new 3D-print
-files landing here get auto-moved into your drop folder) — see "Step 3b:
-Tell SPOOL which folders to watch" below for the full explanation of
-each one. Rather than making you hand-edit a config file, it generates a
+It asks for your **drop folder** (required — your main working folder,
+the one that actually needs real files in it), then asks whether you
+have an **existing library** to index too and whether you want
+**Downloads** auto-managed, popping up a native Finder window for
+either one you say yes to and leaving it out of your setup entirely if
+you say no — see "Step 3b: Tell SPOOL which folders to watch" below for
+the full explanation of each one. Rather than making you hand-edit a
+config file, it generates a
 database password for you so there's nothing to remember, waits for
 each step to actually finish before moving to the next, and tells you
 plainly if something didn't work. It also looks at what's in your
@@ -162,38 +163,32 @@ different job:
 - **Drop folder** ("DROPFOLDER_HOST_PATH") — this is SPOOL's main working
   folder. It's read-write, and it's where you'd put a new kit you've
   downloaded and unzipped, or where files land after being auto-moved
-  out of Downloads (see below). **This is the one that actually
-  matters** — it's the folder SPOOL is built around, so it's worth
-  pointing this at somewhere you'll really use, even though (like the
-  other two) it technically just needs to exist as a real folder to get
-  through setup.
+  out of Downloads (see below). **This one's required** — it's the
+  folder SPOOL is built around, and the only one it can't run without.
 - **Library** ("LIBRARY_HOST_PATH") — your *existing*, already-organized
   collection of 3D print files, if you have one (e.g. years of files
   sitting in a folder from before you had SPOOL). It's mounted
   **read-only** — SPOOL only looks at what's already there to index and
   search it; it will never move, rename, or delete anything inside it.
-  If you don't have an existing library to point this at yet, that's
-  fine (see below).
+  **Optional** — if you don't have an existing library, just leave this
+  one blank (see below) and SPOOL will only watch your drop folder.
 - **Downloads** ("DOWNLOADS_HOST_PATH") — normally your Mac's actual
   Downloads folder. SPOOL watches it specifically for new 3D-print files
   and **automatically moves them into your drop folder** the moment
   they finish downloading, so Downloads doesn't just become another pile
-  of clutter. If you don't want this behavior, see below.
+  of clutter. **Optional** — leave it blank if you'd rather manage
+  Downloads yourself and just drop files into your drop folder directly.
 
-**All three need to point to *some* real, already-existing folder** — the
-setup process fails if one is left blank or points at a folder that
-doesn't exist — but Library and Downloads don't have to be doing
-anything useful yet. If you don't have an existing library, or you'd
-rather not have Downloads auto-managed yet, just create a new, empty
-folder for that one (anywhere — right-click in Finder → New Folder) and
-point it there instead; SPOOL will find nothing to do with it and stay
-out of the way. You can always repoint any of the three later from the
-`/admin` page once you decide you want to use that folder for real — see
-"Changing a path in `.env` after first setup doesn't re-seed the
-database" under Known limitations.
+**Only the drop folder is required.** Leaving Library and/or Downloads
+blank means SPOOL simply won't have that feature active — nothing
+breaks, there's just one less (or two less) folder(s) being watched.
+One thing worth knowing if you skip one now and want it later: adding it
+isn't as simple as editing `.env` and restarting (the same is true of
+adding any watched folder after first setup) — see "Adding a folder you
+initially skipped" under Known limitations for the extra step involved.
 
-These three paths are set in a file called `.env`, which doesn't exist
-yet — you copy it from a template.
+These paths are set in a file called `.env`, which doesn't exist yet —
+you copy it from a template.
 
 Paste this into Terminal and press Return:
 
@@ -208,13 +203,16 @@ open the new `.env` file in TextEdit by pasting this and pressing Return:
 open -e .env
 ```
 
-You'll see a handful of lines like `DROPFOLDER_HOST_PATH=...`. Edit the
-three `_HOST_PATH` lines to real folders on your Mac — for example:
+You'll see a handful of lines like `DROPFOLDER_HOST_PATH=...`. Set
+`DROPFOLDER_HOST_PATH` to a real folder on your Mac. For `LIBRARY_HOST_PATH`
+and `DOWNLOADS_HOST_PATH`, either set them too, or leave them exactly as
+`LIBRARY_HOST_PATH=` (nothing after the `=`) to skip that one entirely —
+for example, to use a library but skip Downloads auto-move:
 
 ```
 DROPFOLDER_HOST_PATH=/Users/yourname/Documents/3DPrintFiles
 LIBRARY_HOST_PATH=/Users/yourname/Documents/3D Printing
-DOWNLOADS_HOST_PATH=/Users/yourname/Downloads
+DOWNLOADS_HOST_PATH=
 ```
 
 (Tip: if a folder doesn't exist yet, create it in Finder first — Docker
@@ -373,10 +371,12 @@ container.
    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
    ```
 
-   The script pops up a folder picker for each of your three folders
-   (not sure what these three are for? see "Step 3b: Tell SPOOL which
-   folders to watch" above — same three folders, same meanings, just
-   picked interactively here instead of typed into a file), generates a
+   The script asks for your drop folder (required), then asks whether
+   you have an existing library to index and whether you want Downloads
+   auto-managed, popping up a folder picker for either one you say yes
+   to (not sure what these mean? see "Step 3b: Tell SPOOL which folders
+   to watch" above — same three folders, same meanings, just asked about
+   interactively here instead of typed into a file). It also generates a
    database password for you, starts everything, and tries
    to auto-detect your CAD/slicer apps the same way the macOS script
    does (scanning `Program Files` and similar folders for a recognizable
@@ -581,11 +581,29 @@ Tests run on the host (not in a container) against a real, separate
   equivalent step wired up yet, so a Windows-configured app just shows a
   plain two-letter badge next to a file instead of its real icon —
   cosmetic only, "Open in..." still works normally.
-- **Adding a *new* watched root isn't a UI action.** Docker can't attach a
-  new bind mount to an already-running container, so the admin page can
-  only edit/pause the three roots mounted at startup. To watch a fourth
-  folder, add it to `docker-compose.yml`'s volume mounts yourself and
-  `docker compose up -d --build`.
+- **Adding a folder you initially skipped isn't a single click** — this
+  covers both "I left Library/Downloads blank at setup and want it now"
+  and "I want a genuinely new, fourth watched folder." The admin page
+  can only edit/pause roots that already have a database row; it can't
+  create one.
+  - If you left **Library or Downloads blank** at setup: their bind
+    mounts already exist in `docker-compose.yml` (pointed at a harmless
+    placeholder folder while blank), so you just need to (1) set the
+    real path in `.env`, (2) run `docker compose up -d --build` to
+    remount it there, then (3) add the row yourself, since the one-time
+    seed script won't retroactively do it:
+    ```bash
+    docker compose exec postgres psql -U spool -d spool -c \
+      "INSERT INTO watched_roots (host_path, container_path, label, kind, ingest_mode, active) VALUES ('/real/path/here', '/roots/library', 'Library', 'existing_library', 'index_in_place', TRUE)"
+    ```
+    (swap `/roots/library`/`'Library'`/`'index_in_place'` for
+    `/roots/downloads`/`'Downloads'`/`'relocate_to_dropfolder'` if it's
+    Downloads you're adding.)
+  - For a genuinely new **fourth** folder beyond these three: Docker
+    can't attach a brand-new bind mount to an already-running container
+    at all, so you'd first need to add one to `docker-compose.yml`
+    yourself, then `docker compose up -d --build`, then the same manual
+    `INSERT` as above.
 - **Changing a path in `.env` after first setup doesn't re-seed the
   database** — the seed only runs once, against a brand-new `pgdata`
   volume. Update the path on the `/admin` page instead (and re-run

@@ -18,6 +18,12 @@ thumbnails/
 *.log
 .claude/skills/run-spool/screenshots/
 
+# Docker auto-creates these as empty dirs when LIBRARY_HOST_PATH/
+# DOWNLOADS_HOST_PATH are left blank in .env (see docker-compose.yml's
+# bind-mount fallbacks) — never anything worth committing.
+/data/unused-library/
+/data/unused-downloads/
+
 # macOS
 .DS_Store
 

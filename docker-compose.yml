@@ -6,7 +6,12 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
       # Only read once, by 003_seed_watched_roots.sh, on a truly empty
-      # pgdata volume — not used by postgres itself.
+      # pgdata volume — not used by postgres itself. DROPFOLDER_HOST_PATH
+      # is required; LIBRARY_HOST_PATH/DOWNLOADS_HOST_PATH may be left
+      # blank in .env if you only want SPOOL watching one folder — passed
+      # through as-is (not the `:-` fallback the bind mounts below use),
+      # since the seed script needs to see a real empty string to know to
+      # skip seeding that root at all, not a placeholder path.
       DROPFOLDER_HOST_PATH: ${DROPFOLDER_HOST_PATH}
       LIBRARY_HOST_PATH: ${LIBRARY_HOST_PATH}
       DOWNLOADS_HOST_PATH: ${DOWNLOADS_HOST_PATH}
@@ -56,8 +61,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     volumes:
       - "${DROPFOLDER_HOST_PATH}:/roots/dropfolder:rw"
-      - "${LIBRARY_HOST_PATH}:/roots/library:ro"
-      - "${DOWNLOADS_HOST_PATH}:/roots/downloads:rw"
+      - "${LIBRARY_HOST_PATH:-./data/unused-library}:/roots/library:ro"
+      - "${DOWNLOADS_HOST_PATH:-./data/unused-downloads}:/roots/downloads:rw"
     depends_on:
       postgres:
         condition: service_healthy
@@ -86,8 +91,8 @@ services:
       RESCAN_INTERVAL_SECONDS: ${RESCAN_INTERVAL_SECONDS:-300}
     volumes:
       - "${DROPFOLDER_HOST_PATH}:/roots/dropfolder:rw"
-      - "${LIBRARY_HOST_PATH}:/roots/library:ro"
-      - "${DOWNLOADS_HOST_PATH}:/roots/downloads:rw"
+      - "${LIBRARY_HOST_PATH:-./data/unused-library}:/roots/library:ro"
+      - "${DOWNLOADS_HOST_PATH:-./data/unused-downloads}:/roots/downloads:rw"
       - thumbnails:/data/thumbnails:rw
     depends_on:
       postgres:
@@ -114,8 +119,8 @@ services:
       RUN_BACKFILL: "false"
     volumes:
       - "${DROPFOLDER_HOST_PATH}:/roots/dropfolder:rw"
-      - "${LIBRARY_HOST_PATH}:/roots/library:ro"
-      - "${DOWNLOADS_HOST_PATH}:/roots/downloads:rw"
+      - "${LIBRARY_HOST_PATH:-./data/unused-library}:/roots/library:ro"
+      - "${DOWNLOADS_HOST_PATH:-./data/unused-downloads}:/roots/downloads:rw"
       - thumbnails:/data/thumbnails:rw
     depends_on:
       postgres:

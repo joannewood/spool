@@ -119,18 +119,30 @@ if ($Reconfigure) {
     Write-Host ""
 
     Note "1 of 3 -- your drop folder (where new downloads/exports land to be indexed)"
+    Write-Host "This one's required -- it's SPOOL's main working folder."
     $DefaultDrop = Join-Path $env:USERPROFILE "Documents\3DPrintFiles"
     New-Item -ItemType Directory -Force -Path $DefaultDrop | Out-Null
     $DropfolderHostPath = Select-Folder "Choose your SPOOL drop folder" $DefaultDrop
 
-    Note "2 of 3 -- your existing 3D print library (read-only; SPOOL only indexes it)"
-    $DefaultLibrary = Join-Path $env:USERPROFILE "Documents\3D Printing"
-    New-Item -ItemType Directory -Force -Path $DefaultLibrary | Out-Null
-    $LibraryHostPath = Select-Folder "Choose your existing 3D print library folder" $DefaultLibrary
+    Note "2 of 3 -- your existing 3D print library (optional; read-only, SPOOL only indexes it)"
+    $LibraryHostPath = ""
+    if (Read-YesNo "Do you have an existing 3D print library folder you'd like SPOOL to index too?" $false) {
+        $DefaultLibrary = Join-Path $env:USERPROFILE "Documents\3D Printing"
+        New-Item -ItemType Directory -Force -Path $DefaultLibrary | Out-Null
+        $LibraryHostPath = Select-Folder "Choose your existing 3D print library folder" $DefaultLibrary
+    } else {
+        Write-Host "    skipping -- SPOOL will only watch your drop folder for now. You can add"
+        Write-Host "    this later; see 'Known limitations' in README.md for how."
+    }
 
-    Note "3 of 3 -- your Downloads folder (new model files here get moved into your drop folder)"
-    $DownloadsHostPath = Join-Path $env:USERPROFILE "Downloads"
-    Write-Host "    using $DownloadsHostPath"
+    Note "3 of 3 -- your Downloads folder (optional; new model files here get moved into your drop folder)"
+    $DownloadsHostPath = ""
+    if (Read-YesNo "Auto-move new 3D-print files out of your Downloads folder into your drop folder?") {
+        $DownloadsHostPath = Join-Path $env:USERPROFILE "Downloads"
+        Write-Host "    using $DownloadsHostPath"
+    } else {
+        Write-Host "    skipping -- you can add this later; see 'Known limitations' in README.md for how."
+    }
 
     # Docker Compose (and this project's own container-side code, see
     # common/paths.py) both work fine with forward slashes in a Windows

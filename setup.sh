@@ -85,17 +85,30 @@ if [ "$RECONFIGURE" -eq 1 ]; then
   echo
 
   note "1 of 3 — your drop folder (where new downloads/exports land to be indexed)"
+  echo "This one's required — it's SPOOL's main working folder."
   DEFAULT_DROP="$HOME/Documents/3DPrintFiles"
   DROPFOLDER_HOST_PATH=$(pick_folder "Choose your SPOOL drop folder" "$DEFAULT_DROP")
   mkdir -p "$DROPFOLDER_HOST_PATH"
 
-  note "2 of 3 — your existing 3D print library (read-only; SPOOL only indexes it)"
-  LIBRARY_HOST_PATH=$(pick_folder "Choose your existing 3D print library folder" "$HOME/Documents/3D Printing")
-  mkdir -p "$LIBRARY_HOST_PATH"
+  note "2 of 3 — your existing 3D print library (optional; read-only, SPOOL only indexes it)"
+  LIBRARY_HOST_PATH=""
+  read -r -p "Do you have an existing 3D print library folder you'd like SPOOL to index too? [y/N] " has_library
+  if [[ "$has_library" =~ ^[Yy] ]]; then
+    LIBRARY_HOST_PATH=$(pick_folder "Choose your existing 3D print library folder" "$HOME/Documents/3D Printing")
+  else
+    echo "    skipping — SPOOL will only watch your drop folder for now. You can add"
+    echo "    this later; see \"Known limitations\" in README.md for how."
+  fi
 
-  note "3 of 3 — your Downloads folder (new model files here get moved into your drop folder)"
-  DOWNLOADS_HOST_PATH="$HOME/Downloads"
-  echo "    using $DOWNLOADS_HOST_PATH"
+  note "3 of 3 — your Downloads folder (optional; new model files here get moved into your drop folder)"
+  DOWNLOADS_HOST_PATH=""
+  read -r -p "Auto-move new 3D-print files out of your Downloads folder into your drop folder? [Y/n] " want_downloads
+  if [[ ! "$want_downloads" =~ ^[Nn] ]]; then
+    DOWNLOADS_HOST_PATH="$HOME/Downloads"
+    echo "    using $DOWNLOADS_HOST_PATH"
+  else
+    echo "    skipping — you can add this later; see \"Known limitations\" in README.md for how."
+  fi
 
   PGPASSWORD_GENERATED=$(openssl rand -hex 16 2>/dev/null || echo "spool-$(date +%s)")
 

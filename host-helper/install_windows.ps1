@@ -36,15 +36,14 @@ $DropfolderHostPath = Read-EnvVar "DROPFOLDER_HOST_PATH"
 $LibraryHostPath = Read-EnvVar "LIBRARY_HOST_PATH"
 $DownloadsHostPath = Read-EnvVar "DOWNLOADS_HOST_PATH"
 
-foreach ($pair in @(
-  @{ Name = "DROPFOLDER_HOST_PATH"; Value = $DropfolderHostPath },
-  @{ Name = "LIBRARY_HOST_PATH"; Value = $LibraryHostPath },
-  @{ Name = "DOWNLOADS_HOST_PATH"; Value = $DownloadsHostPath }
-)) {
-  if ([string]::IsNullOrWhiteSpace($pair.Value)) {
-    Write-Error "error: $($pair.Name) is not set in $EnvFile"
+# Only DROPFOLDER_HOST_PATH is required -- LIBRARY_HOST_PATH/
+# DOWNLOADS_HOST_PATH may be blank (skipped entirely, see
+# db/migrations/003_seed_watched_roots.sh), in which case they're just
+# passed through as empty strings below; host_helper_windows.py's
+# ALLOWED_DELETE_ROOTS already filters out any blank entry.
+if ([string]::IsNullOrWhiteSpace($DropfolderHostPath)) {
+    Write-Error "error: DROPFOLDER_HOST_PATH is not set in $EnvFile"
     exit 1
-  }
 }
 
 # macOS's install.sh copies host_helper.py out of ~/Documents to dodge a

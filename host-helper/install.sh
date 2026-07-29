@@ -26,12 +26,15 @@ read_env_var() {
 DROPFOLDER_HOST_PATH="$(read_env_var DROPFOLDER_HOST_PATH)"
 LIBRARY_HOST_PATH="$(read_env_var LIBRARY_HOST_PATH)"
 DOWNLOADS_HOST_PATH="$(read_env_var DOWNLOADS_HOST_PATH)"
-for var in DROPFOLDER_HOST_PATH LIBRARY_HOST_PATH DOWNLOADS_HOST_PATH; do
-  if [ -z "${!var:-}" ]; then
-    echo "error: $var is not set in $ENV_FILE" >&2
-    exit 1
-  fi
-done
+# Only DROPFOLDER_HOST_PATH is required — LIBRARY_HOST_PATH/
+# DOWNLOADS_HOST_PATH may be blank (skipped entirely, see
+# db/migrations/003_seed_watched_roots.sh), in which case they're just
+# passed through as empty strings below; host_helper.py's
+# ALLOWED_DELETE_ROOTS already filters out any blank entry.
+if [ -z "${DROPFOLDER_HOST_PATH:-}" ]; then
+  echo "error: DROPFOLDER_HOST_PATH is not set in $ENV_FILE" >&2
+  exit 1
+fi
 
 # macOS's TCC privacy protection blocks a launchd-spawned python3 (not
 # inherited from an already-authorized Terminal session) from even opening
