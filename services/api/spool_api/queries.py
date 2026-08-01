@@ -299,23 +299,40 @@ def _find_fully_matching_projects(cur, all_rows, where, params):
     return fully_matching
 
 
+MAX_PROJECT_CARD_THUMBNAILS = 4
+
+
 def _collapse_fully_matching_projects(all_rows, fully_matching):
     """Walks the full, already-correctly-sorted matching set (relevance
     tiering + the user's chosen sort, exactly as ORDER BY produced it —
     nothing here re-sorts anything) and replaces every file belonging to
     a fully-matching project with a single project-card entry at that
-    project's first occurrence in this order, carrying the representative
-    thumbnail from whichever file triggered it. A file could belong to
-    more than one fully-matching project at once; the alphabetically-
-    first one wins (memberships are already name-ordered), and the file
-    is simply dropped from the losing project's count-nothing further to
-    do, since the losing project still collapses correctly from its
-    *other* member files.
+    project's first occurrence in this order. The card carries up to
+    MAX_PROJECT_CARD_THUMBNAILS representative thumbnails (a small
+    collage, not just one file's image) so it actually reads as "a
+    project with several files" rather than looking identical to an
+    ordinary file card. A file could belong to more than one fully-
+    matching project at once; the alphabetically-first one wins
+    (memberships are already name-ordered), and the file is simply
+    dropped from the losing project's count — nothing further to do,
+    since the losing project still collapses correctly from its *other*
+    member files.
 
     This — not search_files' per-page LIMIT/OFFSET — is what makes
     collapsing work across the whole search, not just one page: this
     function runs on the *entire* matching set first, and simple list
     slicing afterward paginates the resulting (shorter) item list."""
+    thumbnails_by_project = {}
+    for r in all_rows:
+        if not r.get("thumbnail_path"):
+            continue
+        for p in r["projects"]:
+            if p["id"] not in fully_matching:
+                continue
+            bucket = thumbnails_by_project.setdefault(p["id"], [])
+            if len(bucket) < MAX_PROJECT_CARD_THUMBNAILS:
+                bucket.append({"thumbnail_path": r["thumbnail_path"], "content_hash": r["content_hash"]})
+
     items = []
     already_carded = set()
     for r in all_rows:
@@ -328,8 +345,7 @@ def _collapse_fully_matching_projects(all_rows, fully_matching):
                     "id": target["id"],
                     "name": target["name"],
                     "file_count": fully_matching[target["id"]],
-                    "thumbnail_path": r["thumbnail_path"],
-                    "content_hash": r["content_hash"],
+                    "thumbnails": thumbnails_by_project.get(target["id"], []),
                 }
             )
             already_carded.add(target["id"])

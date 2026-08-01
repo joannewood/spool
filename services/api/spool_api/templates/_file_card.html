@@ -49,16 +49,22 @@
 
 {# A whole project collapsed into one card — only used on the library
    search grid, when every one of a project's files matches the current
-   search/filter and all of them fit on the current page (see
-   queries.py::_collapse_fully_matching_projects). `p` needs: id, name,
-   file_count, thumbnail_path/content_hash (borrowed from whichever of
-   its files triggered the collapse, just for a representative image —
-   not itself a real file). #}
+   search/filter (see queries.py::_collapse_fully_matching_projects).
+   `p` needs: id, name, file_count, thumbnails (a list of up to
+   MAX_PROJECT_CARD_THUMBNAILS {thumbnail_path, content_hash} dicts
+   borrowed from its member files) — rendered as a small collage so the
+   card actually reads as "several files," not a single-file card. #}
 {% macro project_card(p) %}
 <a class="card card-project" href="/projects/{{ p.id }}">
   <div class="thumb">
-    {% if p.thumbnail_path %}
-      <img src="{{ thumb_url(p.thumbnail_path, p.content_hash) }}" alt="{{ p.name }}" loading="lazy">
+    {% if p.thumbnails|length == 1 %}
+      <img src="{{ thumb_url(p.thumbnails[0].thumbnail_path, p.thumbnails[0].content_hash) }}" alt="{{ p.name }}" loading="lazy">
+    {% elif p.thumbnails %}
+      <div class="thumb-collage thumb-collage-{{ p.thumbnails|length }}">
+        {% for t in p.thumbnails %}
+        <img src="{{ thumb_url(t.thumbnail_path, t.content_hash) }}" alt="" loading="lazy">
+        {% endfor %}
+      </div>
     {% else %}
       <div class="thumb-placeholder">
         <span class="ext-label">{{ p.file_count }}</span>

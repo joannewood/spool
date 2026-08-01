@@ -351,9 +351,26 @@ main {
    using the same accent hue as .card-project-badge elsewhere, so the two
    read as "the same concept" at a glance rather than needing a legend. */
 .card-project {
-  background: color-mix(in oklab, var(--accent) 14%, var(--surface));
-  border-color: color-mix(in oklab, var(--accent) 40%, var(--border));
+  background: color-mix(in oklab, var(--accent) 30%, var(--surface));
+  border: 2px solid var(--accent);
 }
+.card-project .thumb {
+  /* Replaces the plain-file-card checkerboard (a transparency cue that
+     doesn't apply here) with the same blue tint as the rest of the
+     card, so the whole card — not just the text area below the
+     thumbnail — reads as one solid, unmistakably-a-project surface. */
+  background: color-mix(in oklab, var(--accent) 22%, var(--surface));
+}
+/* Small collage of up to MAX_PROJECT_CARD_THUMBNAILS real file
+   thumbnails (queries.py), instead of one image indistinguishable from
+   an ordinary file card — makes it visually obvious this card stands in
+   for several files, not just one. */
+.thumb-collage { display: grid; gap: 2px; width: 100%; height: 100%; }
+.thumb-collage img { width: 100%; height: 100%; object-fit: cover; }
+.thumb-collage-2 { grid-template-columns: 1fr 1fr; }
+.thumb-collage-3 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.thumb-collage-3 img:first-child { grid-row: span 2; }
+.thumb-collage-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
 .thumb {
   position: relative;
   aspect-ratio: 1 / 1;
