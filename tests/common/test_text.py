@@ -126,3 +126,22 @@ def test_suggest_clean_project_name_fused_digits_are_not_treated_as_scale_notati
     # No separator between "1" and "12" here — genuinely ambiguous (could
     # be a part number, a size), so left alone rather than guessed at.
     assert suggest_clean_project_name("doll-house-kitchen-sink-112-model_files") == "Doll House Kitchen Sink 112"
+
+
+def test_suggest_clean_project_name_scale_conversion_is_idempotent():
+    # Real bug, caught live: re-running the heuristic on its own already-
+    # converted output ("1/12 Scale Bookshelf") matched the denominator
+    # "12" a second time (it starts with "1", and the retained "Scale"
+    # word satisfied the fused-form anchor), mangling it into
+    # "1/1/2 Scale Bookshelf". A "/" can only appear in text that already
+    # went through this exact conversion, so re-processing it must be a
+    # no-op no matter how many times it runs.
+    once = suggest_clean_project_name("1_12_scale_bookshelf")
+    assert once == "1/12 Scale Bookshelf"
+    assert suggest_clean_project_name(once) == once
+
+
+def test_suggest_clean_project_name_scale_conversion_idempotent_without_scale_word():
+    once = suggest_clean_project_name("1_12_US_Mail_box")
+    assert once == "1/12 US Mail Box"
+    assert suggest_clean_project_name(once) == once

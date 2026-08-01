@@ -1071,6 +1071,34 @@ def test_admin_duplicates_page_shows_delete_all_button_when_a_deletable_copy_exi
 
 # ---- bulk project-name cleanup ---------------------------------------------
 
+def test_projects_index_search_shows_matching_project_not_tree(client):
+    from spool_api import queries
+
+    project_id = queries.create_project("Route Search Widget", "", None)
+    try:
+        resp = client.get("/projects", params={"q": "Search Widget"})
+        assert resp.status_code == 200
+        assert "Route Search Widget" in resp.text
+        assert 'No projects match' not in resp.text
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_projects_index_no_query_shows_tree_not_search_results(client):
+    resp = client.get("/projects")
+    assert resp.status_code == 200
+    assert 'name="q"' in resp.text
+
+
+def test_projects_index_create_form_is_in_a_modal(client):
+    resp = client.get("/projects")
+    assert resp.status_code == 200
+    assert 'data-modal="create-project-modal"' in resp.text
+    assert '<dialog id="create-project-modal" class="modal">' in resp.text
+    assert 'action="/projects"' in resp.text
+
+
 def test_projects_page_links_to_bulk_rename_when_cleanup_needed(client):
     from spool_api import queries
 

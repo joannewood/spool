@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_icons.html" as icons %}
 {% block title %}Projects — SPOOL{% endblock %}
 {% block content %}
 
@@ -8,10 +9,12 @@
 <p class="note"><a href="/projects/bulk-rename">Clean up {{ cleanup_count }} messy project name{{ "s" if cleanup_count != 1 else "" }} →</a></p>
 {% endif %}
 
-<section class="panel">
-  <h2>Create a new project</h2>
+<button type="button" class="new-project-btn modal-trigger" data-modal="create-project-modal">{{ icons.plus() }} New project</button>
+
+<dialog id="create-project-modal" class="modal">
   <form class="stack-form" method="POST" action="/projects">
-    <label>Name <input type="text" name="name" required></label>
+    <h2>Create a new project</h2>
+    <label>Name <input type="text" name="name" required autofocus></label>
     <label>Description <input type="text" name="description"></label>
     <label>Parent project
       <select name="parent_project_id">
@@ -21,22 +24,47 @@
         {% endfor %}
       </select>
     </label>
-    <button type="submit">Create project</button>
+    <div class="modal-actions">
+      <button type="submit">Create project</button>
+      <button type="button" class="modal-cancel">Cancel</button>
+    </div>
   </form>
-</section>
+</dialog>
 
-<div class="project-tree">
-  {% for item in tree recursive %}
-  <div class="project-node">
-    <a href="/projects/{{ item.id }}">{{ item.name }}</a>
-    <span class="project-count">{{ item.file_count }} file{{ "s" if item.file_count != 1 else "" }}</span>
-    {% if item.children %}
-    <div class="project-children">{{ loop(item.children) }}</div>
-    {% endif %}
+<form class="searchbar" method="GET" action="/projects"
+      hx-get="/projects" hx-target="#project-list" hx-select="#project-list" hx-swap="outerHTML" hx-push-url="true"
+      hx-trigger="input changed delay:250ms from:input[name='q']">
+  <input type="search" name="q" placeholder="Search projects…" value="{{ q }}" autocomplete="off">
+  <button type="submit">Search</button>
+</form>
+
+<div id="project-list">
+{% if search_results is not none %}
+  <div class="project-tree">
+    {% for p in search_results %}
+    <div class="project-node">
+      {% if p.parent_path %}<span class="parent-path-prefix">{{ p.parent_path }} / </span>{% endif %}<a href="/projects/{{ p.id }}">{{ p.name }}</a>
+      <span class="project-count">{{ p.file_count }} file{{ "s" if p.file_count != 1 else "" }}</span>
+    </div>
+    {% else %}
+    <p class="empty">No projects match "{{ q }}".</p>
+    {% endfor %}
   </div>
-  {% else %}
-  <p class="empty">No projects yet — create one above.</p>
-  {% endfor %}
+{% else %}
+  <div class="project-tree">
+    {% for item in tree recursive %}
+    <div class="project-node">
+      <a href="/projects/{{ item.id }}">{{ item.name }}</a>
+      <span class="project-count">{{ item.file_count }} file{{ "s" if item.file_count != 1 else "" }}</span>
+      {% if item.children %}
+      <div class="project-children">{{ loop(item.children) }}</div>
+      {% endif %}
+    </div>
+    {% else %}
+    <p class="empty">No projects yet — click "New project" above to create one.</p>
+    {% endfor %}
+  </div>
+{% endif %}
 </div>
 
 {% endblock %}

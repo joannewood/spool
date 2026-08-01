@@ -260,7 +260,7 @@ def _build_project_tree(rows):
 
 
 @app.get("/projects", response_class=HTMLResponse)
-def projects_index(request: Request):
+def projects_index(request: Request, q: str = ""):
     projects = queries.list_projects()
     return templates.TemplateResponse(
         request,
@@ -268,6 +268,8 @@ def projects_index(request: Request):
         {
             "projects": projects,
             "tree": _build_project_tree(projects),
+            "q": q,
+            "search_results": queries.search_projects(q) if q else None,
             "cleanup_count": queries.count_projects_needing_name_cleanup(),
         },
     )

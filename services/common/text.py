@@ -26,7 +26,17 @@ _WHITESPACE_RUN_RE = re.compile(r"\s+")
 # reads unambiguously as a ratio in this domain. Either way "scale" is
 # preserved when already present, never invented when it isn't:
 # "1_12_US_Mail_box" -> "1/12 US Mail box", "1_12_scale_x" -> "1/12 scale x".
-_SCALE_RE = re.compile(r"\b1( ?)(\d{1,3})(st|nd|rd|th)?( scale)?\b", re.IGNORECASE)
+#
+# `(?<!/)` guards against re-processing an *already-converted* ratio —
+# confirmed live: re-running this on its own prior output "1/12 Scale
+# Bookshelf" matched "12 Scale" a second time (the denominator "12"
+# starts with "1", satisfying \b1(\d{1,3}), and the retained "Scale" word
+# satisfies the fused-form anchor above), producing the nonsensical
+# "1/1/2 Scale Bookshelf". A "/" can never appear in a real on-disk
+# folder name, so it only ever means "this text already went through a
+# scale conversion" — safe to blanket-exclude a match starting right
+# after one.
+_SCALE_RE = re.compile(r"(?<!/)\b1( ?)(\d{1,3})(st|nd|rd|th)?( scale)?\b", re.IGNORECASE)
 # The "model files"/"print files" suffix-strip above is a blind
 # substitution — if it happens to land right next to a parenthesis
 # (confirmed live: re-cleaning an already-qualified name like "Other

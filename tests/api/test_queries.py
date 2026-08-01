@@ -990,6 +990,40 @@ def test_get_files_bulk_handles_empty_list():
     assert queries.get_files_bulk([]) == {}
 
 
+# ---- project search ---------------------------------------------------------
+
+def test_search_projects_matches_substring_case_insensitively():
+    project_id = queries.create_project("Galaxys Edge Trash Can", "", None)
+    try:
+        results = queries.search_projects("edge")
+        assert any(p["id"] == project_id for p in results)
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_search_projects_excludes_non_matching():
+    project_id = queries.create_project("Totally Unrelated Name", "", None)
+    try:
+        results = queries.search_projects("zzz-no-match-zzz")
+        assert not any(p["id"] == project_id for p in results)
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_search_projects_includes_parent_path_for_nested_match():
+    parent_id = queries.create_project("Search Parent Kit", "", None)
+    child_id = queries.create_project("Search Child Widget", "", parent_id)
+    try:
+        results = queries.search_projects("Child Widget")
+        match = next(p for p in results if p["id"] == child_id)
+        assert match["parent_path"] == "Search Parent Kit"
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = ANY(%s)", ([parent_id, child_id],))
+
+
 # ---- bulk project-name cleanup ---------------------------------------------
 
 def test_list_projects_needing_name_cleanup_includes_a_messy_name():
@@ -1007,6 +1041,21 @@ def test_list_projects_needing_name_cleanup_includes_a_messy_name():
 
 def test_list_projects_needing_name_cleanup_excludes_already_clean_names():
     project_id = queries.create_project("Already Clean Name", "", None)
+    try:
+        suggestions, _ = queries.list_projects_needing_name_cleanup(page_size="all")
+        assert not any(s["id"] == project_id for s in suggestions)
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_list_projects_needing_name_cleanup_never_resuggests_an_already_converted_scale_ratio():
+    # Real bug, caught live: a project already renamed to "1/12 Scale
+    # Bookshelf" (a prior scale-ratio cleanup) got suggested *again* as
+    # "1/1/2 Scale Bookshelf" once it was re-scanned. Root cause fixed in
+    # suggest_clean_project_name itself, but this asserts the actual
+    # user-visible symptom — the project must never show up here again.
+    project_id = queries.create_project("1/12 Scale Bookshelf", "", None)
     try:
         suggestions, _ = queries.list_projects_needing_name_cleanup(page_size="all")
         assert not any(s["id"] == project_id for s in suggestions)

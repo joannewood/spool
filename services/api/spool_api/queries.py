@@ -446,6 +446,58 @@ def list_projects():
             return cur.fetchall()
 
 
+def _compute_parent_paths(by_id):
+    """Given {id: row} (each row needs 'parent_project_id' and 'name'),
+    returns {id: parent_path} — the joined chain of ancestor names
+    (top-level down to immediate parent, "/"-separated), empty for a
+    top-level row. Shared by the bulk-rename cleanup page and the
+    /projects search box, both of which need to show a nested project's
+    context since its own name alone doesn't say which parent it lives
+    under."""
+    paths = {}
+
+    def _path_for(row_id):
+        if row_id in paths:
+            return paths[row_id]
+        chain = []
+        seen = set()
+        parent_id = by_id[row_id]["parent_project_id"]
+        while parent_id and parent_id in by_id and parent_id not in seen:
+            seen.add(parent_id)
+            parent = by_id[parent_id]
+            chain.append(parent["name"])
+            parent_id = parent["parent_project_id"]
+        result = " / ".join(reversed(chain))
+        paths[row_id] = result
+        return result
+
+    for row_id in by_id:
+        _path_for(row_id)
+    return paths
+
+
+def search_projects(q):
+    """Flat, name-matching list of projects for /projects' search box —
+    plain case-insensitive substring match, same ILIKE-equivalent style
+    used throughout this app's search rather than full-text search.
+    Each result carries parent_path (see _compute_parent_paths) since a
+    flat list loses the tree's hierarchy cues a nested project's row
+    would otherwise show. Fetches every project (cheap at this app's
+    scale, same as list_projects) rather than filtering in SQL, since
+    computing an accurate parent_path for a matching nested project
+    needs its ancestors' names too, whether or not those ancestors
+    themselves match `q`."""
+    rows = list_projects()
+    by_id = {row["id"]: row for row in rows}
+    parent_paths = _compute_parent_paths(by_id)
+    q_lower = q.strip().lower()
+    return [
+        {**row, "parent_path": parent_paths[row["id"]]}
+        for row in rows
+        if q_lower in row["name"].lower()
+    ]
+
+
 def get_project(project_id):
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
@@ -548,34 +600,35 @@ def list_projects_needing_name_cleanup(page=1, page_size=BULK_REVIEW_PAGE_SIZE_D
     empty for a top-level project. A cleaned-up name reviewed in
     isolation doesn't say which parent folder it actually lives under,
     which matters for telling apart two similarly-named sub-projects
-    nested under different parents."""
+    nested under different parents.
+
+    Only surfaces a suggestion that's a stable fixed point — i.e.
+    re-running the heuristic on its own output produces the same string
+    again. A real bug of exactly this shape was caught live: an already-
+    converted scale ratio like "1/12 Scale Bookshelf" got suggested
+    *again* as "1/1/2 Scale Bookshelf" once that name was already
+    applied and re-scanned. The specific regex bug behind that one case
+    is fixed (see `_SCALE_RE` in `common/text.py`), but this check stays
+    as a general safety net against any other non-idempotent heuristic
+    output — a suggestion this page can't guarantee is actually final
+    shouldn't be offered as if it were."""
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute("SELECT id, name, parent_project_id FROM projects ORDER BY name")
             rows = cur.fetchall()
     by_id = {row["id"]: row for row in rows}
-
-    def _parent_path(row):
-        chain = []
-        seen = set()
-        parent_id = row["parent_project_id"]
-        while parent_id and parent_id in by_id and parent_id not in seen:
-            seen.add(parent_id)
-            parent = by_id[parent_id]
-            chain.append(parent["name"])
-            parent_id = parent["parent_project_id"]
-        return " / ".join(reversed(chain))
+    parent_paths = _compute_parent_paths(by_id)
 
     suggestions = [
         {
             "id": row["id"],
             "name": row["name"],
             "suggested_name": suggested,
-            "parent_path": _parent_path(row),
+            "parent_path": parent_paths[row["id"]],
         }
         for row in rows
         for suggested in [suggest_clean_project_name(row["name"])]
-        if suggested and suggested != row["name"]
+        if suggested and suggested != row["name"] and suggest_clean_project_name(suggested) == suggested
     ]
     total = len(suggestions)
     if page_size == "all":
@@ -623,14 +676,20 @@ def rename_all_projects_needing_cleanup():
     cleanup suggestions collide pairwise (the same kit's "-model_files"/
     "-print_files" folders both cleaning to the same string), so blindly
     accepting everything without this would immediately create duplicate
-    project names."""
+    project names.
+
+    Same stable-fixed-point guard as list_projects_needing_name_cleanup
+    (see its docstring) — never applies a suggestion that isn't its own
+    idempotent result, so this bulk "apply everything" action can't
+    silently apply a still-buggy heuristic output the review page itself
+    wouldn't have offered."""
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute("SELECT id, name, source_folder_path FROM projects ORDER BY name")
             rows = cur.fetchall()
             for row in rows:
                 suggested = suggest_clean_project_name(row["name"])
-                if not suggested or suggested == row["name"]:
+                if not suggested or suggested == row["name"] or suggest_clean_project_name(suggested) != suggested:
                     continue
                 unique_name = unique_project_name(cur, suggested, directory=row["source_folder_path"], exclude_id=row["id"])
                 cur.execute("UPDATE projects SET name = %s WHERE id = %s", (unique_name, row["id"]))
