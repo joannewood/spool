@@ -369,10 +369,16 @@ main {
    the rest of the now-solidly-blue card; the pairing also flips
    sensibly in dark mode (light banner on the darker blue) without a
    separate override. */
+/* Deliberately fixed dark/light regardless of theme — same reasoning as
+   .dims-overlay: it sits on top of unpredictable thumbnail image
+   content, not the page's own surface, so it needs to stay legible
+   (and look intentional) against anything behind it rather than
+   inverting per theme. */
 .project-banner {
   flex: 0 0 auto;
-  background: var(--ink);
-  color: var(--surface);
+  width: 100%;
+  background: rgba(20, 20, 20, 0.85);
+  color: #fff;
   text-align: center;
   font-size: var(--fs-2xs);
   font-weight: 700;
