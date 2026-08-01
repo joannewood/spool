@@ -1178,6 +1178,58 @@ def test_bulk_rename_apply_only_renames_checked_rows(client):
             cur.execute("DELETE FROM projects WHERE id = ANY(%s)", ([checked_id, unchecked_id],))
 
 
+def test_bulk_rename_apply_one_renames_only_that_row(client):
+    from spool_api import queries
+
+    target_id = queries.create_project("route-apply-one-target-model_files", "", None)
+    other_id = queries.create_project("route-apply-one-other-model_files", "", None)
+    try:
+        resp = client.post(
+            f"/projects/bulk-rename/{target_id}/apply",
+            data={
+                "project_ids": [str(target_id), str(other_id)],
+                "new_names": ["Route Apply One Target", "Route Apply One Other"],
+            },
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers["location"] == "/projects/bulk-rename"
+        assert queries.get_project(target_id)["name"] == "Route Apply One Target"
+        # The other row's data was in the same POST body (it's one shared
+        # form) but must not be touched — only the path param's row applies.
+        assert queries.get_project(other_id)["name"] == "route-apply-one-other-model_files"
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = ANY(%s)", ([target_id, other_id],))
+
+
+def test_bulk_rename_apply_one_missing_project_id_is_a_no_op(client):
+    resp = client.post(
+        "/projects/bulk-rename/999999999/apply",
+        data={"project_ids": [], "new_names": []},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303  # doesn't error even if the row isn't in the posted data
+
+
+def test_bulk_rename_page_apply_button_is_not_a_nested_form(client):
+    from spool_api import queries
+
+    project_id = queries.create_project("route-per-row-button-model_files", "", None)
+    try:
+        resp = client.get("/projects/bulk-rename", params={"page_size": "all"})
+        assert resp.status_code == 200
+        outer_form_start = resp.text.index('<form method="POST" action="/projects/bulk-rename">')
+        apply_all_button = resp.text.index("Apply selected renames")
+        between = resp.text[outer_form_start:apply_all_button]
+        assert between.count("<form") == 1  # only the outer form's own opening tag
+        assert "</form>" not in between
+        assert f'formaction="/projects/bulk-rename/{project_id}/apply"' in resp.text
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
 def test_bulk_rename_accept_all_route_renames_everything(client):
     from spool_api import queries
 

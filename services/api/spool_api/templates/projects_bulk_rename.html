@@ -35,7 +35,7 @@
 
   <div class="table-wrap">
     <table class="admin-table">
-      <thead><tr><th></th><th>Current name</th><th>New name</th></tr></thead>
+      <thead><tr><th></th><th>Current name</th><th>New name</th><th></th></tr></thead>
       <tbody>
         {% for s in suggestions %}
         <tr>
@@ -47,6 +47,9 @@
           <td class="rename-new-name">
             {% if s.parent_path %}<span class="parent-path-prefix">{{ s.parent_path }} / </span>{% endif %}
             <input type="text" name="new_names" value="{{ s.suggested_name }}">
+          </td>
+          <td>
+            <button type="submit" formaction="/projects/bulk-rename/{{ s.id }}/apply">Apply</button>
           </td>
         </tr>
         {% endfor %}

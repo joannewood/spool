@@ -314,6 +314,24 @@ def projects_bulk_rename_apply(
     return RedirectResponse("/projects/bulk-rename", status_code=303)
 
 
+# Per-row "Apply" button — a `formaction` on a bare <button> inside the
+# same outer form as the bulk checkbox/apply flow (not a nested <form>;
+# see the historical nested-form bug already fixed once on this exact
+# page). Still receives the whole form's project_ids/new_names arrays
+# either way (formaction only changes where the form posts to, not what
+# it sends), so this just picks out the one row's own (possibly hand-
+# edited) new_name by matching project_id against the path param,
+# ignoring every other row's data.
+@app.post("/projects/bulk-rename/{project_id}/apply")
+def projects_bulk_rename_apply_one(
+    project_id: int, project_ids: list[int] = Form([]), new_names: list[str] = Form([])
+):
+    if project_id in project_ids:
+        new_name = new_names[project_ids.index(project_id)]
+        queries.rename_projects_bulk([(project_id, new_name)])
+    return RedirectResponse("/projects/bulk-rename", status_code=303)
+
+
 # Deliberately takes no ids from the client at all — same reasoning as
 # /admin/suggested-projects/accept-all.
 @app.post("/projects/bulk-rename/accept-all")
