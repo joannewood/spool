@@ -57,12 +57,10 @@
 {% macro project_card(p) %}
 <a class="card card-project" href="/projects/{{ p.id }}">
   <div class="thumb">
-    {% if p.thumbnails|length == 1 %}
-      <img src="{{ thumb_url(p.thumbnails[0].thumbnail_path, p.thumbnails[0].content_hash) }}" alt="{{ p.name }}" loading="lazy">
-    {% elif p.thumbnails %}
+    {% if p.thumbnails %}
       <div class="thumb-collage thumb-collage-{{ p.thumbnails|length }}">
         {% for t in p.thumbnails %}
-        <img src="{{ thumb_url(t.thumbnail_path, t.content_hash) }}" alt="" loading="lazy">
+        <img src="{{ thumb_url(t.thumbnail_path, t.content_hash) }}" alt="{% if loop.first %}{{ p.name }}{% endif %}" loading="lazy">
         {% endfor %}
       </div>
     {% else %}

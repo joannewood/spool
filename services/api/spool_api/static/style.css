@@ -365,8 +365,15 @@ main {
    thumbnails (queries.py), instead of one image indistinguishable from
    an ordinary file card — makes it visually obvious this card stands in
    for several files, not just one. */
-.thumb-collage { display: grid; gap: 2px; width: 100%; height: 100%; }
-.thumb-collage img { width: 100%; height: 100%; object-fit: cover; }
+/* Padded/inset rather than edge-to-edge, and applied uniformly
+   regardless of thumbnail count (even a single-thumbnail project card
+   uses this, not a full-bleed <img>) — keeps every project card's
+   thumbnail area the exact same fixed size (.thumb's own aspect-ratio,
+   unchanged) while the images inside read as smaller, distinct photos
+   sitting on the blue backing, not a single image stretched to fill it. */
+.thumb-collage { display: grid; gap: 6px; width: 100%; height: 100%; padding: 10px; }
+.thumb-collage img { width: 100%; height: 100%; object-fit: cover; border-radius: 4px; }
+.thumb-collage-1 { grid-template-columns: 1fr; }
 .thumb-collage-2 { grid-template-columns: 1fr 1fr; }
 .thumb-collage-3 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
 .thumb-collage-3 img:first-child { grid-row: span 2; }
