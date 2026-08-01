@@ -1,0 +1,53 @@
+# Builds SPOOL-Installer.exe (see scripts/windows-installer.iss) on a
+# GitHub-hosted windows-latest runner. This exists specifically because
+# this project's normal dev loop has no Windows machine to build or test
+# this on at all — running it here is the only way to know the packaging
+# actually compiles, short of a real person doing it on real Windows
+# hardware. It doesn't prove the installer's interactive flow (the wizard,
+# setup.ps1's dialogs) works correctly — only that it builds. Manual
+# trigger only, matching scripts/build-mac-installer.sh's "run by hand
+# before cutting a release" convention — not run on every push.
+name: Build Windows Installer
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syntax-check setup.ps1
+        shell: pwsh
+        run: |
+          $parseErrors = $null
+          $tokens = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("setup.ps1", [ref]$tokens, [ref]$parseErrors) | Out-Null
+          if ($parseErrors.Count -gt 0) {
+            $parseErrors | ForEach-Object { Write-Host "::error::$_" }
+            throw "setup.ps1 has $($parseErrors.Count) parse error(s)"
+          }
+          Write-Host "setup.ps1 parses cleanly ($($tokens.Count) tokens)"
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          iscc.exe scripts\windows-installer.iss
+
+      - name: Verify installer was produced
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path dist -Filter "SPOOL-Installer.exe" -ErrorAction SilentlyContinue
+          if (-not $exe) { throw "SPOOL-Installer.exe not found in dist/ after build" }
+          Write-Host "Built: $($exe.FullName) ($('{0:N1}' -f ($exe.Length / 1MB)) MB)"
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SPOOL-Installer
+          path: dist/SPOOL-Installer.exe
+          retention-days: 14

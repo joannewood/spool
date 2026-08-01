@@ -19,11 +19,65 @@ Set-Location $Dir
 function Step($msg) { Write-Host ""; Write-Host "==> $msg" -ForegroundColor Cyan }
 function Note($msg) { Write-Host "    $msg" -ForegroundColor DarkGray }
 
+# Native dialogs instead of reading stdin -- this script never reads input
+# from the console at all now, so it works identically whether run from a
+# PowerShell window or from inside a wrapped installer (e.g. an Inno Setup
+# .exe running this as a post-install step), which isn't something to
+# depend on forwarding keystrokes correctly. Loaded once up front since
+# Read-YesNo's first real call (the "keep existing .env?" prompt) happens
+# before Select-Folder's own later Add-Type call used to.
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
 function Read-YesNo($prompt, $defaultYes = $true) {
-    $suffix = if ($defaultYes) { "[Y/n]" } else { "[y/N]" }
-    $answer = Read-Host "$prompt $suffix"
-    if ([string]::IsNullOrWhiteSpace($answer)) { return $defaultYes }
-    return $answer -match "^[Yy]"
+    $buttons = [System.Windows.Forms.MessageBoxButtons]::YesNo
+    $icon = [System.Windows.Forms.MessageBoxIcon]::Question
+    $defaultButton = if ($defaultYes) {
+        [System.Windows.Forms.MessageBoxDefaultButton]::Button1
+    } else {
+        [System.Windows.Forms.MessageBoxDefaultButton]::Button2
+    }
+    $result = [System.Windows.Forms.MessageBox]::Show($prompt, "SPOOL Setup", $buttons, $icon, $defaultButton)
+    return $result -eq [System.Windows.Forms.DialogResult]::Yes
+}
+
+# For the one destructive prompt -- MessageBox can't relabel its buttons
+# ("Yes"/"No" only), so this builds a small custom dialog instead, so the
+# affirmative button reads "Delete Everything" rather than a bare "Yes"
+# and the stakes are clear from the dialog alone. Enter/Escape/closing the
+# window all resolve to the safe Cancel option, matching the original
+# prompt's "press Enter to stop" default.
+function Confirm-Destructive($message) {
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = "SPOOL Setup"
+    $form.StartPosition = "CenterScreen"
+    $form.FormBorderStyle = "FixedDialog"
+    $form.MaximizeBox = $false
+    $form.MinimizeBox = $false
+    $form.TopMost = $true
+    $form.ClientSize = New-Object System.Drawing.Size(440, 190)
+
+    $label = New-Object System.Windows.Forms.Label
+    $label.Text = $message
+    $label.SetBounds(20, 15, 400, 120)
+    $form.Controls.Add($label)
+
+    $cancelButton = New-Object System.Windows.Forms.Button
+    $cancelButton.Text = "Cancel"
+    $cancelButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+    $cancelButton.SetBounds(180, 145, 100, 30)
+    $form.Controls.Add($cancelButton)
+    $form.CancelButton = $cancelButton
+    $form.AcceptButton = $cancelButton
+
+    $deleteButton = New-Object System.Windows.Forms.Button
+    $deleteButton.Text = "Delete Everything"
+    $deleteButton.DialogResult = [System.Windows.Forms.DialogResult]::Yes
+    $deleteButton.SetBounds(290, 145, 130, 30)
+    $form.Controls.Add($deleteButton)
+
+    $result = $form.ShowDialog()
+    return $result -eq [System.Windows.Forms.DialogResult]::Yes
 }
 
 # ---- Step 1: Docker Desktop ----------------------------------------------
@@ -81,15 +135,15 @@ if (Test-Path ".env") {
     if (-not $Reconfigure) { Write-Host "Keeping your existing .env -- skipping folder setup." }
 }
 
-Add-Type -AssemblyName System.Windows.Forms
-
 function Select-Folder($description, $default) {
     # FolderBrowserDialog needs an STA thread -- Windows PowerShell 5.1
     # (the default on most Windows installs, what most people get from
     # right-click > "Run with PowerShell") already runs as STA, but
     # PowerShell 7's "pwsh" defaults to MTA and would throw here instead.
-    # Falls back to a plain typed path either way rather than failing
-    # the whole script over one folder prompt.
+    # Falls back to a typed-path dialog either way rather than failing
+    # the whole script over one folder prompt -- Microsoft.VisualBasic's
+    # InputBox rather than Read-Host, for the same stdin-independence
+    # reason the Yes/No prompts above were converted.
     try {
         $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
         $dialog.Description = $description
@@ -102,7 +156,8 @@ function Select-Folder($description, $default) {
         return $default
     } catch {
         Write-Host "Couldn't open a folder picker window (this can happen under PowerShell 7's 'pwsh' -- try re-running this script with plain 'powershell.exe' instead if you'd rather use the picker)."
-        $typed = Read-Host "Type the full folder path instead (blank = $default)"
+        Add-Type -AssemblyName Microsoft.VisualBasic
+        $typed = [Microsoft.VisualBasic.Interaction]::InputBox("Type the full folder path instead:", "SPOOL Setup", $default)
         if ([string]::IsNullOrWhiteSpace($typed)) { return $default }
         return $typed
     }
@@ -130,8 +185,8 @@ if ($Reconfigure) {
         Write-Host "cannot connect to that existing database (the password won't match),"
         Write-Host "and continuing anyway means permanently deleting it first."
         Write-Host ""
-        $confirmWipe = Read-Host "Type 'delete' to permanently erase that existing data and start fresh, or press Enter to stop"
-        if ($confirmWipe -eq "delete") {
+        $confirmWipe = Confirm-Destructive "Found an existing SPOOL database from a previous setup, but there's no .env in this folder yet to match it.`n`nIf you want to keep your existing library, stop now and see 'Updating SPOOL' in README.md instead. Continuing here permanently deletes that existing database."
+        if ($confirmWipe) {
             Write-Host "Removing the old database..."
             docker volume rm spool_pgdata spool_thumbnails 2>$null 1>$null
             Write-Host "Done -- continuing with a fresh setup."
