@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "_icons.html" as icons %}
+{% import "_file_card.html" as cards %}
 {% block title %}Projects — SPOOL{% endblock %}
 {% block content %}
 
@@ -32,15 +33,31 @@
   </form>
 </dialog>
 
-<form class="searchbar" method="GET" action="/projects"
-      hx-get="/projects" hx-target="#project-list" hx-select="#project-list" hx-swap="outerHTML" hx-push-url="true"
-      hx-trigger="input changed delay:250ms from:input[name='q']">
-  <input type="search" name="q" placeholder="Search projects…" value="{{ q }}" autocomplete="off">
-  <button type="submit">Search</button>
-</form>
+<div class="searchbar-row">
+  <form class="searchbar" method="GET" action="/projects"
+        hx-get="/projects" hx-target="#project-list" hx-select="#project-list" hx-swap="outerHTML" hx-push-url="true"
+        hx-trigger="input changed delay:250ms from:input[name='q']">
+    <input type="search" name="q" placeholder="Search projects…" value="{{ q }}" autocomplete="off">
+    <input type="hidden" name="view" value="{{ view }}">
+    <button type="submit">Search</button>
+  </form>
+
+  <div class="view-toggle">
+    <a href="/projects?view=list{{ ('&q=' ~ (q | urlencode)) if q }}" class="{{ 'active' if view == 'list' }}">List</a>
+    <a href="/projects?view=cards{{ ('&q=' ~ (q | urlencode)) if q }}" class="{{ 'active' if view == 'cards' }}">Cards</a>
+  </div>
+</div>
 
 <div id="project-list">
-{% if search_results is not none %}
+{% if view == "cards" %}
+  <div class="grid">
+    {% for p in card_projects %}
+    {{ cards.project_card(p) }}
+    {% else %}
+    <p class="empty">{% if q %}No projects match "{{ q }}".{% else %}No projects yet — click the + next to "Projects" above to create one.{% endif %}</p>
+    {% endfor %}
+  </div>
+{% elif search_results is not none %}
   <div class="project-tree">
     {% for p in search_results %}
     <div class="project-node">

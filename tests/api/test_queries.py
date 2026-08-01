@@ -1393,6 +1393,48 @@ def test_search_projects_includes_parent_path_for_nested_match():
             cur.execute("DELETE FROM projects WHERE id = ANY(%s)", ([parent_id, child_id],))
 
 
+# ---- /projects card view ---------------------------------------------------
+
+def test_attach_project_card_visuals_gathers_thumbnails_and_extensions(make_file, db_conn):
+    stl_file = make_file(filename="cardviewkit-a.stl", ext=".stl", thumbnail_path="a.png", content_hash="ha")
+    step_file = make_file(filename="cardviewkit-b.step", ext=".step", thumbnail_path="b.png", content_hash="hb")
+    project_id = queries.create_project("Card View Kit", "", None)
+    try:
+        queries.add_file_to_project(stl_file, project_id)
+        queries.add_file_to_project(step_file, project_id)
+
+        projects = [{"id": project_id}]
+        queries.attach_project_card_visuals(projects)
+
+        assert projects[0]["extensions"] == [".step", ".stl"]
+        assert len(projects[0]["thumbnails"]) == 2
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_attach_project_card_visuals_only_counts_confirmed_membership(make_file, db_conn):
+    file_id = make_file(filename="cardviewsuggested.stl")
+    project_id = queries.create_project("Card View Suggested Only", "", None)
+    try:
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'suggested')",
+                (project_id, file_id),
+            )
+        projects = [{"id": project_id}]
+        queries.attach_project_card_visuals(projects)
+        assert projects[0]["thumbnails"] == []
+        assert projects[0]["extensions"] == []
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_attach_project_card_visuals_empty_list_is_a_no_op():
+    queries.attach_project_card_visuals([])  # must not raise
+
+
 # ---- bulk project-name cleanup ---------------------------------------------
 
 def test_list_projects_needing_name_cleanup_includes_a_messy_name():

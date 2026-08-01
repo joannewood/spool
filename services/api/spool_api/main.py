@@ -51,6 +51,7 @@ SORT_OPTIONS = [
 
 
 BULK_REVIEW_PAGE_SIZE_COOKIE = "bulk_review_page_size"
+PROJECTS_VIEW_COOKIE = "projects_view"
 
 
 def _resolve_bulk_review_paging(request, page, page_size_param):
@@ -259,19 +260,41 @@ def _build_project_tree(rows):
 
 
 @app.get("/projects", response_class=HTMLResponse)
-def projects_index(request: Request, q: str = ""):
+def projects_index(request: Request, q: str = "", view: str = None):
+    # An explicit `view` query value wins (the toggle links always send
+    # one); otherwise fall back to a previously-saved cookie, defaulting
+    # to the original tree/list view — same resolve-then-persist pattern
+    # already used for the bulk-review pages' page_size.
+    if view not in ("list", "cards"):
+        view = request.cookies.get(PROJECTS_VIEW_COOKIE, "list")
+    if view not in ("list", "cards"):
+        view = "list"
+
     projects = queries.list_projects()
-    return templates.TemplateResponse(
+    search_results = queries.search_projects(q) if q else None
+    card_projects = None
+    if view == "cards":
+        # Cards always render as a flat grid — reuses the search-results
+        # list when searching (already flat), or every project otherwise,
+        # since a nested tree doesn't have a natural grid layout anyway.
+        card_projects = search_results if search_results is not None else list(projects)
+        queries.attach_project_card_visuals(card_projects)
+
+    response = templates.TemplateResponse(
         request,
         "projects.html",
         {
             "projects": projects,
             "tree": _build_project_tree(projects),
             "q": q,
-            "search_results": queries.search_projects(q) if q else None,
+            "view": view,
+            "search_results": search_results,
+            "card_projects": card_projects,
             "cleanup_count": queries.count_projects_needing_name_cleanup(),
         },
     )
+    response.set_cookie(PROJECTS_VIEW_COOKIE, view, max_age=31536000)
+    return response
 
 
 @app.post("/projects")

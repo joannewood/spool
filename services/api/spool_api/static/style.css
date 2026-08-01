@@ -159,6 +159,29 @@ main {
   gap: 12px;
   margin-bottom: 18px;
 }
+/* /projects' list/cards toggle sits next to its search form — a plain
+   two-link segmented control (full page navigation on click, not
+   htmx-driven; occasional enough that a reload is unnoticeable) rather
+   than a <select>, since there are only ever the two options. */
+.searchbar-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.searchbar-row .searchbar { margin-bottom: 0; flex: 1 1 auto; }
+.view-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.view-toggle a {
+  padding: 8px 14px;
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+  text-decoration: none;
+  background: var(--surface);
+}
+.view-toggle a:hover { color: var(--accent); }
+.view-toggle a.active { background: var(--accent); color: #fff; font-weight: 600; }
+.view-toggle a + a { border-left: 1px solid var(--border); }
 /* Sits directly below the Job queue/Watched roots panels on
    /admin/status, outside their own .panel card — without this it reads
    as glued to the Watched roots table right above it. */

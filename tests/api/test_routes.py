@@ -1158,6 +1158,61 @@ def test_projects_index_create_form_is_in_a_modal(client):
     assert 'action="/projects"' in resp.text
 
 
+def test_projects_index_cards_view_shows_project_cards_not_tree(client):
+    from spool_api import queries
+
+    project_id = queries.create_project("Card View Route Test", "", None)
+    try:
+        resp = client.get("/projects", params={"view": "cards"})
+        assert resp.status_code == 200
+        assert "Card View Route Test" in resp.text
+        assert 'class="card card-project"' in resp.text
+        assert 'class="project-tree"' not in resp.text
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_projects_index_default_view_is_list_not_cards(client):
+    resp = client.get("/projects")
+    assert resp.status_code == 200
+    assert 'class="project-tree"' in resp.text
+    assert 'class="card card-project"' not in resp.text
+
+
+def test_projects_index_view_persists_via_cookie(client):
+    from spool_api import main
+
+    resp1 = client.get("/projects", params={"view": "cards"})
+    assert resp1.cookies.get(main.PROJECTS_VIEW_COOKIE) == "cards"
+
+    # A later request with no explicit ?view= should still get cards,
+    # via the cookie the first request just set.
+    resp2 = client.get("/projects")
+    assert 'class="card card-project"' in resp2.text or 'No projects yet' in resp2.text
+    assert 'class="project-tree"' not in resp2.text
+
+
+def test_projects_index_cards_view_respects_search(client):
+    from spool_api import queries
+
+    matching_id = queries.create_project("Cardsearch Match Test", "", None)
+    other_id = queries.create_project("Totally Different Name", "", None)
+    try:
+        resp = client.get("/projects", params={"view": "cards", "q": "Cardsearch"})
+        assert resp.status_code == 200
+        # "Totally Different Name" legitimately still appears elsewhere on
+        # the page (the create-project modal's parent-project dropdown
+        # always lists every project, unfiltered by the search box) — the
+        # results section itself is what must actually respect the search.
+        results_section = resp.text.split('<div id="project-list">')[1]
+        assert "Cardsearch Match Test" in results_section
+        assert "Totally Different Name" not in results_section
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = ANY(%s)", ([matching_id, other_id],))
+
+
 def test_projects_page_links_to_bulk_rename_when_cleanup_needed(client):
     from spool_api import queries
 

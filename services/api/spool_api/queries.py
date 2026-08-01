@@ -628,6 +628,48 @@ def search_projects(q):
     ]
 
 
+def attach_project_card_visuals(projects):
+    """Attaches `thumbnails` (up to MAX_PROJECT_CARD_THUMBNAILS real file
+    thumbnails) and `extensions` (sorted distinct file types, .step/.stp
+    merged) to each project dict in place — the same two fields
+    _collapse_fully_matching_projects computes for a collapsed search
+    result, reused here so /projects' card view can render with the
+    identical project_card() macro. One batched query keyed off every
+    given project's id (not one query per project), covering each
+    project's *own* confirmed active membership directly rather than
+    reusing any search/collapse machinery, since this isn't about a
+    search matching — every project just always shows its own files."""
+    project_ids = [p["id"] for p in projects]
+    if not project_ids:
+        return
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                SELECT pf.project_id, f.thumbnail_path, f.content_hash, f.ext
+                FROM project_files pf
+                JOIN files f ON f.id = pf.file_id AND f.status = 'active'
+                WHERE pf.status = 'confirmed' AND pf.project_id = ANY(%s)
+                ORDER BY f.first_seen_at DESC
+                """,
+                (project_ids,),
+            )
+            rows = cur.fetchall()
+    thumbnails_by_project = {}
+    extensions_by_project = {}
+    for r in rows:
+        pid = r["project_id"]
+        if r["thumbnail_path"]:
+            bucket = thumbnails_by_project.setdefault(pid, [])
+            if len(bucket) < MAX_PROJECT_CARD_THUMBNAILS:
+                bucket.append({"thumbnail_path": r["thumbnail_path"], "content_hash": r["content_hash"]})
+        ext = ".step" if r["ext"] in (".step", ".stp") else r["ext"]
+        extensions_by_project.setdefault(pid, set()).add(ext)
+    for p in projects:
+        p["thumbnails"] = thumbnails_by_project.get(p["id"], [])
+        p["extensions"] = sorted(extensions_by_project.get(p["id"], set()))
+
+
 def get_project(project_id):
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
