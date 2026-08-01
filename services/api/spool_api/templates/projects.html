@@ -3,13 +3,14 @@
 {% block title %}Projects — SPOOL{% endblock %}
 {% block content %}
 
-<h1>Projects</h1>
+<div class="page-header-row">
+  <h1>Projects</h1>
+  <button type="button" class="chip-add-btn modal-trigger" data-modal="create-project-modal" title="Create a new project">{{ icons.plus() }}</button>
+</div>
 
 {% if cleanup_count %}
 <p class="note"><a href="/projects/bulk-rename">Clean up {{ cleanup_count }} messy project name{{ "s" if cleanup_count != 1 else "" }} →</a></p>
 {% endif %}
-
-<button type="button" class="new-project-btn modal-trigger" data-modal="create-project-modal">{{ icons.plus() }} New project</button>
 
 <dialog id="create-project-modal" class="modal">
   <form class="stack-form" method="POST" action="/projects">
@@ -61,7 +62,7 @@
       {% endif %}
     </div>
     {% else %}
-    <p class="empty">No projects yet — click "New project" above to create one.</p>
+    <p class="empty">No projects yet — click the + next to "Projects" above to create one.</p>
     {% endfor %}
   </div>
 {% endif %}

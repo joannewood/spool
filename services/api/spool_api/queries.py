@@ -351,10 +351,13 @@ def search_files(
                        OR {_normalized('slicer')} ILIKE %s OR {_normalized('notes')} ILIKE %s
                 ) OR id IN (
                     SELECT file_id FROM print_log WHERE {_normalized('comments')} ILIKE %s
+                ) OR id IN (
+                    SELECT pf.file_id FROM project_files pf JOIN projects p ON p.id = pf.project_id
+                    WHERE pf.status = 'confirmed' AND {_normalized('p.name')} ILIKE %s
                 )
             )"""
         ]
-        q_params = [f"%{q_normalized}%"] * 7
+        q_params = [f"%{q_normalized}%"] * 8
 
         # Structured metadata matching (e.g. "0.2mm nozzle") works off
         # keyword presence in the raw query, not a substring match against

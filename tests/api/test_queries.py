@@ -205,6 +205,41 @@ def test_search_for_relationship_applies_separator_normalization(make_file):
 
 # ---- project associations surfaced on search/browse results ---------------
 
+def test_search_matches_by_project_name(make_file, db_conn):
+    # The file's own filename has no relation to the search term at all —
+    # this only matches via the project it belongs to.
+    file_id = make_file(filename="unrelated-filename-xyz.stl")
+    other_file = make_file(filename="also-unrelated.stl")
+    project_id = queries.create_project("Searchable Rocket Kit", "", None)
+    try:
+        queries.add_file_to_project(file_id, project_id)
+
+        rows, total = queries.search_files(q="Rocket Kit", extensions=None, tags=None, page=1)
+
+        assert total == 1
+        assert rows[0]["id"] == file_id
+        assert other_file not in [r["id"] for r in rows]
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_search_by_project_name_only_matches_confirmed_membership(make_file, db_conn):
+    file_id = make_file(filename="unrelated-suggested-name.stl")
+    project_id = queries.create_project("Suggested Rocket Project", "", None)
+    try:
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'suggested')",
+                (project_id, file_id),
+            )
+        rows, total = queries.search_files(q="Suggested Rocket", extensions=None, tags=None, page=1)
+        assert total == 0
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
 def test_search_attaches_project_membership_to_each_row(make_file, db_conn):
     grouped_a = make_file(filename="groupwidget-shared-project-a.stl")
     grouped_b = make_file(filename="groupwidget-shared-project-b.stl")

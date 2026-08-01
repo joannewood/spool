@@ -601,7 +601,7 @@ main {
   cursor: pointer;
 }
 .chip-add-btn:hover { border-color: var(--accent); color: var(--accent); }
-.new-project-btn { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 16px; }
+.page-header-row { display: flex; align-items: center; gap: 8px; }
 /* The "create new project" option (in the same <select> as picking an
    existing one) reveals a name input — CSS-only via :has(), no JS: an
    <option> gets :checked same as a radio/checkbox, so a parent can react
