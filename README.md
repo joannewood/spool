@@ -398,12 +398,43 @@ actual machine, not just a container.
    fine to skip it entirely and either configure those apps by hand
    later, or come back and install Python then if you change your
    mind.
-3. **Get the SPOOL code**: click the green **Code** button on this
+3. **Download and run the SPOOL Installer** (recommended): go to this
+   project's GitHub **Releases** page and download `SPOOL-Installer.exe`
+   (the latest release), then double-click it.
+
+   **A note on the security warning you'll see**: `SPOOL-Installer.exe`
+   isn't code-signed (a signing certificate is a real ongoing cost, not
+   yet part of this project), so Windows SmartScreen will show a blue
+   "Windows protected your PC" screen the first time you run it. This is
+   expected, not a sign anything is wrong — click **More info**, then
+   **Run anyway**. You'll only see this once.
+
+   The installer walks you through a normal Windows setup wizard, then
+   hands off to the same guided setup described below — a folder picker
+   for your drop folder (required), Yes/No dialogs for whether you have
+   an existing library and want Downloads auto-managed, then it
+   generates a database password for you, starts everything, tries to
+   auto-detect your CAD/slicer apps, and opens SPOOL in your browser
+   when it's done. **Safe to run again later** to update — it always
+   installs to the same location and finds your existing `.env`, offering
+   to keep it.
+
+   Skip ahead to [**Using SPOOL**](#using-spool) once it says you're done.
+
+   Prefer working in a terminal yourself, or don't see a release download
+   yet? Read on for the script instead, or see **Manual setup (Windows)**
+   below to control every step by hand.
+
+   <details>
+   <summary>Terminal-based script instead (equivalent to the installer above)</summary>
+
+   **Get the SPOOL code**: click the green **Code** button on this
    project's GitHub page, then **Download ZIP**, and unzip it (or
    `git clone` if you're comfortable with git) — then open it: right-click
    the folder in File Explorer and choose **"Open in Terminal"** (or
    **PowerShell**).
-4. **Run the setup script**:
+
+   **Run the setup script**:
 
    ```powershell
    .\setup.ps1
@@ -421,8 +452,8 @@ actual machine, not just a container.
 
    The script asks for your drop folder (required), then asks whether
    you have an existing library to index and whether you want Downloads
-   auto-managed, popping up a folder picker for either one you say yes to
-   (see the folder explanations near the top of this section for what
+   auto-managed, popping up a folder picker or a Yes/No dialog for either
+   one (see the folder explanations near the top of this section for what
    these mean). It also generates a database password for you, starts
    everything, and tries to auto-detect your CAD/slicer apps the same way
    the macOS script does (scanning `Program Files` and similar folders
@@ -435,9 +466,11 @@ actual machine, not just a container.
    files — Windows' own normal file permissions already cover that, so
    setup finishes in one fewer step.
 
-5. Once it says you're done, skip up to [**Using SPOOL**](#using-spool)
+   Once it says you're done, skip up to [**Using SPOOL**](#using-spool)
    — everything from there on is identical regardless of which OS you
    set up on.
+
+   </details>
 
 If anything above fails, or you'd rather understand/control every step
 yourself, see **Manual setup (Windows)** below — it does exactly the
@@ -717,12 +750,13 @@ reports — open an issue for those too rather than sitting on them.
 
 ## Updating SPOOL
 
-**If you set up using SPOOL Installer (the `.dmg`, Mac only):** updating
-is just downloading the newer `SPOOL-Installer.dmg` and running it again
-— it always installs to the same `~/Applications/SPOOL`, finds your
-existing `.env` there, and offers to keep it, so nothing about your
-configuration is lost. None of the steps below apply to you; they're for
-the ZIP/git-based setup paths.
+**If you set up using SPOOL Installer (the `.dmg` on Mac, or the `.exe` on
+Windows):** updating is just downloading the newer installer and running
+it again — it always installs to the same location (`~/Applications/SPOOL`
+on Mac, `%LOCALAPPDATA%\SPOOL` on Windows), finds your existing `.env`
+there, and offers to keep it, so nothing about your configuration is
+lost. None of the steps below apply to you; they're for the ZIP/git-based
+setup paths.
 
 When a new version comes out, **don't just download a fresh ZIP into a
 new folder** — your actual data (every file, tag, project, print log)
@@ -806,6 +840,13 @@ Tests run on the host (not in a container) against a real, separate
   Autodesk's own deeply-nested one), but if `setup.ps1` or the Windows
   host-helper hits something unexpected on your machine, please report
   it rather than assuming it's supposed to work that way.
+- **`SPOOL-Installer.exe` isn't code-signed.** A Windows code-signing
+  certificate is a real ongoing cost (unlike Apple's notarization, which
+  the Mac `.dmg` uses and is covered by a $99/year developer account) and
+  isn't part of this project yet — Windows SmartScreen will show a blue
+  "Windows protected your PC" warning the first time you run it. Click
+  **More info** → **Run anyway**; this is expected, not a sign of a
+  problem, and only shows once per machine.
 - **No automatic app icons on Windows yet.** macOS extracts each
   configured app's real icon from its `.icns`; Windows apps don't have an
   equivalent step wired up yet, so a Windows-configured app just shows a
