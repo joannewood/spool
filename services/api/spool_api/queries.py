@@ -255,37 +255,33 @@ def list_print_metadata_values(column):
             return [row[0] for row in cur.fetchall()]
 
 
-def _collapse_fully_matching_projects(cur, rows, where, params):
-    """If every one of a project's currently-active confirmed member
-    files matches the current search/filter, *and* all of those matching
-    files fit on this one page, collapse them into a single project card
-    instead of showing several near-identical-looking individual cards.
-    A project whose matching files are split across two pages is
-    deliberately left alone (falls back to showing whichever of its
-    files landed on this page as normal cards) — pagination happens at
-    the file level, not the project level, so there's no single "right"
-    page for a split project's one card to live on, and a card claiming
-    to represent "all of it" while actually missing files on another
-    page would be misleading.
+def _find_fully_matching_projects(cur, all_rows, where, params):
+    """Across *every* matching file (not just one page — see search_files,
+    which fetches the whole matching set unpaginated before this runs),
+    finds every project where every one of its currently-active confirmed
+    member files matches the current search/filter. Collapsing a project
+    into one card is only ever "misleading" if some of its matching files
+    would be left out — which page they land on doesn't matter once
+    collapsing always produces exactly one item regardless of how many
+    files a project has, so there's no page-fit condition here at all
+    (unlike an earlier version of this function, which had to reject a
+    project split across pages precisely because pagination was still
+    happening at the file level at that point).
 
-    Only ever re-checks projects that already appear via this page's own
-    confirmed memberships (`_attach_project_memberships` must already
-    have run) — a small, bounded set, not every project in the library.
-    `where`/`params` are the exact same WHERE clause and parameters
-    `search_files` used for its own main query, reused here (against a
-    bare, unaliased `files` table, same as the query above it) to check
-    how many of a candidate project's files match; total member count is
-    checked with a plain `count(*)` on the same file set."""
-    candidate_ids = {p["id"] for r in rows for p in r["projects"]}
-    if not candidate_ids:
-        return rows
+    Only checks projects that actually appear via some matching file's
+    own confirmed memberships (`_attach_project_memberships` must already
+    have run on `all_rows`) — a bounded set, not every project in the
+    library. One query per candidate project (not batched into a single
+    GROUP BY) — reusing `where`/`params` against a bare, unaliased
+    `files` table avoids a column-name collision between `files.status`
+    and `project_files.status` that a batched join version would have to
+    work around; at this app's personal-library scale, a few hundred
+    small indexed COUNT queries in the worst case is not worth the added
+    complexity/fragility of dodging that collision to save round trips.
 
-    page_counts = {}
-    for r in rows:
-        for p in r["projects"]:
-            page_counts[p["id"]] = page_counts.get(p["id"], 0) + 1
-
-    collapsible_file_counts = {}
+    Returns {project_id: matching_file_count}."""
+    candidate_ids = {p["id"] for r in all_rows for p in r["projects"]}
+    fully_matching = {}
     for project_id in candidate_ids:
         cur.execute(
             f"""
@@ -298,28 +294,40 @@ def _collapse_fully_matching_projects(cur, rows, where, params):
         )
         counts = cur.fetchone()
         matching_count = counts["matching_count"]
-        if (
-            matching_count > 1
-            and counts["total_count"] == matching_count
-            and page_counts.get(project_id) == matching_count
-        ):
-            collapsible_file_counts[project_id] = matching_count
+        if matching_count > 1 and counts["total_count"] == matching_count:
+            fully_matching[project_id] = matching_count
+    return fully_matching
 
-    if not collapsible_file_counts:
-        return rows
 
-    new_rows = []
+def _collapse_fully_matching_projects(all_rows, fully_matching):
+    """Walks the full, already-correctly-sorted matching set (relevance
+    tiering + the user's chosen sort, exactly as ORDER BY produced it —
+    nothing here re-sorts anything) and replaces every file belonging to
+    a fully-matching project with a single project-card entry at that
+    project's first occurrence in this order, carrying the representative
+    thumbnail from whichever file triggered it. A file could belong to
+    more than one fully-matching project at once; the alphabetically-
+    first one wins (memberships are already name-ordered), and the file
+    is simply dropped from the losing project's count-nothing further to
+    do, since the losing project still collapses correctly from its
+    *other* member files.
+
+    This — not search_files' per-page LIMIT/OFFSET — is what makes
+    collapsing work across the whole search, not just one page: this
+    function runs on the *entire* matching set first, and simple list
+    slicing afterward paginates the resulting (shorter) item list."""
+    items = []
     already_carded = set()
-    for r in rows:
-        own_collapsible = [p for p in r["projects"] if p["id"] in collapsible_file_counts]
+    for r in all_rows:
+        own_collapsible = [p for p in r["projects"] if p["id"] in fully_matching]
         target = next((p for p in own_collapsible if p["id"] not in already_carded), None)
         if target is not None:
-            new_rows.append(
+            items.append(
                 {
                     "is_project_card": True,
                     "id": target["id"],
                     "name": target["name"],
-                    "file_count": collapsible_file_counts[target["id"]],
+                    "file_count": fully_matching[target["id"]],
                     "thumbnail_path": r["thumbnail_path"],
                     "content_hash": r["content_hash"],
                 }
@@ -327,18 +335,15 @@ def _collapse_fully_matching_projects(cur, rows, where, params):
             already_carded.add(target["id"])
             continue
         if any(p["id"] in already_carded for p in own_collapsible):
-            # This file's collapsible project already got its one card
-            # from an earlier row (sort order) — don't show it again.
             continue
-        new_rows.append(r)
-    return new_rows
+        items.append(r)
+    return items
 
 
 def search_files(
     q, extensions, tags, page, sort="newest",
     ratings=None, printed=None, material=None, printer_profile=None, slicer=None,
 ):
-    offset = (page - 1) * PAGE_SIZE
     conditions = ["status = 'active'"]
     params = []
     if q:
@@ -423,8 +428,19 @@ def search_files(
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(f"SELECT count(*) AS n FROM files WHERE {where}", params)
-            total = cur.fetchone()["n"]
+            total_files = cur.fetchone()["n"]
 
+            # Fetches *every* matching file, already in the final sort
+            # order (relevance tiering + the user's chosen sort — nothing
+            # downstream re-sorts anything), not just one page's worth.
+            # Deciding whether a project's files should collapse requires
+            # knowing about every matching file across the whole search,
+            # not just whichever ones happen to land on one LIMIT/OFFSET
+            # page — otherwise a project split across pages could never
+            # collapse at all, which was the entire point of doing this.
+            # Fine at this app's personal-library scale (a few thousand
+            # rows even for a broad query) — revisit only if that stops
+            # being true.
             cur.execute(
                 f"""
                 SELECT files.id, files.filename, files.display_name, files.ext,
@@ -435,15 +451,21 @@ def search_files(
                 LEFT JOIN print_log ON print_log.file_id = files.id
                 WHERE {where}
                 ORDER BY {order_by}
-                LIMIT %s OFFSET %s
                 """,
-                params + order_params + [PAGE_SIZE, offset],
+                params + order_params,
             )
-            rows = cur.fetchall()
-            _attach_project_memberships(cur, rows)
-            _attach_render_errors(cur, rows)
-            rows = _collapse_fully_matching_projects(cur, rows, where, params)
-    return rows, total
+            all_rows = cur.fetchall()
+            _attach_project_memberships(cur, all_rows)
+
+            fully_matching = _find_fully_matching_projects(cur, all_rows, where, params)
+            items = _collapse_fully_matching_projects(all_rows, fully_matching) if fully_matching else all_rows
+
+            offset = (page - 1) * PAGE_SIZE
+            rows = items[offset : offset + PAGE_SIZE]
+            _attach_render_errors(cur, [r for r in rows if not r.get("is_project_card")])
+
+    total_pages = max(1, -(-len(items) // PAGE_SIZE))  # ceil division, over post-collapse items
+    return rows, total_files, total_pages
 
 
 def get_file(file_id):

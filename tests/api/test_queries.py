@@ -137,7 +137,7 @@ def test_search_ranks_prefix_match_above_substring_match(make_file):
     substring_id = make_file(filename="dessicantcontainer-top.stl")
     prefix_id = make_file(filename="Top.stl")
 
-    rows, _ = queries.search_files(q="top", extensions=None, tags=None, page=1)
+    rows, _, _ = queries.search_files(q="top", extensions=None, tags=None, page=1)
     ids = [r["id"] for r in rows]
     assert ids.index(prefix_id) < ids.index(substring_id)
 
@@ -151,7 +151,7 @@ def test_search_ranks_name_match_above_metadata_only_match(make_file, db_conn):
             (metadata_only_id, "findme material"),
         )
 
-    rows, _ = queries.search_files(q="findme", extensions=None, tags=None, page=1)
+    rows, _, _ = queries.search_files(q="findme", extensions=None, tags=None, page=1)
     ids = [r["id"] for r in rows]
     assert ids.index(name_match_id) < ids.index(metadata_only_id)
 
@@ -161,7 +161,7 @@ def test_search_without_query_does_not_apply_relevance_ranking(make_file):
     # clause still runs without error and returns both rows.
     a = make_file(filename="alpha.stl")
     b = make_file(filename="beta.stl")
-    rows, total = queries.search_files(q="", extensions=None, tags=None, page=1, sort="name_asc")
+    rows, total, _ = queries.search_files(q="", extensions=None, tags=None, page=1, sort="name_asc")
     ids = {r["id"] for r in rows}
     assert {a, b} <= ids
 
@@ -170,19 +170,19 @@ def test_search_without_query_does_not_apply_relevance_ranking(make_file):
 
 def test_search_query_with_spaces_matches_filename_with_underscores(make_file):
     file_id = make_file(filename="cake_stand.stl")
-    rows, _ = queries.search_files(q="cake stand", extensions=None, tags=None, page=1)
+    rows, _, _ = queries.search_files(q="cake stand", extensions=None, tags=None, page=1)
     assert file_id in [r["id"] for r in rows]
 
 
 def test_search_query_with_spaces_matches_filename_with_hyphens(make_file):
     file_id = make_file(filename="cake-stand.stl")
-    rows, _ = queries.search_files(q="cake stand", extensions=None, tags=None, page=1)
+    rows, _, _ = queries.search_files(q="cake stand", extensions=None, tags=None, page=1)
     assert file_id in [r["id"] for r in rows]
 
 
 def test_search_query_with_underscores_matches_filename_with_spaces(make_file):
     file_id = make_file(filename="cake stand.stl")
-    rows, _ = queries.search_files(q="cake_stand", extensions=None, tags=None, page=1)
+    rows, _, _ = queries.search_files(q="cake_stand", extensions=None, tags=None, page=1)
     assert file_id in [r["id"] for r in rows]
 
 
@@ -193,7 +193,7 @@ def test_search_separator_normalization_applies_to_print_metadata_too(make_file,
             "INSERT INTO print_metadata (file_id, material, source) VALUES (%s, %s, 'manual')",
             (file_id, "wood_fill"),
         )
-    rows, _ = queries.search_files(q="wood fill", extensions=None, tags=None, page=1)
+    rows, _, _ = queries.search_files(q="wood fill", extensions=None, tags=None, page=1)
     assert file_id in [r["id"] for r in rows]
 
 
@@ -214,7 +214,7 @@ def test_search_matches_by_project_name(make_file, db_conn):
     try:
         queries.add_file_to_project(file_id, project_id)
 
-        rows, total = queries.search_files(q="Rocket Kit", extensions=None, tags=None, page=1)
+        rows, total, _ = queries.search_files(q="Rocket Kit", extensions=None, tags=None, page=1)
 
         assert total == 1
         assert rows[0]["id"] == file_id
@@ -233,7 +233,7 @@ def test_search_by_project_name_only_matches_confirmed_membership(make_file, db_
                 "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'suggested')",
                 (project_id, file_id),
             )
-        rows, total = queries.search_files(q="Suggested Rocket", extensions=None, tags=None, page=1)
+        rows, total, _ = queries.search_files(q="Suggested Rocket", extensions=None, tags=None, page=1)
         assert total == 0
     finally:
         with db_conn.cursor() as cur:
@@ -255,7 +255,7 @@ def test_search_attaches_project_membership_to_each_row(make_file, db_conn):
         queries.add_file_to_project(grouped_b, project_id)
         queries.add_file_to_project(non_matching_member, project_id)
 
-        rows, _ = queries.search_files(q="groupwidget", extensions=None, tags=None, page=1)
+        rows, _, _ = queries.search_files(q="groupwidget", extensions=None, tags=None, page=1)
         by_id = {r["id"]: r for r in rows}
 
         assert [p["name"] for p in by_id[grouped_a]["projects"]] == ["Shared Test Project"]
@@ -275,7 +275,7 @@ def test_search_only_shows_confirmed_project_membership(make_file, db_conn):
                 "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'suggested')",
                 (project_id, file_id),
             )
-        rows, _ = queries.search_files(q="suggestedwidget", extensions=None, tags=None, page=1)
+        rows, _, _ = queries.search_files(q="suggestedwidget", extensions=None, tags=None, page=1)
         assert rows[0]["projects"] == []
     finally:
         with db_conn.cursor() as cur:
@@ -292,7 +292,7 @@ def test_search_collapses_project_when_every_member_file_matches(make_file, db_c
         queries.add_file_to_project(file_a, project_id)
         queries.add_file_to_project(file_b, project_id)
 
-        rows, total = queries.search_files(q="collapsekit", extensions=None, tags=None, page=1)
+        rows, total, _ = queries.search_files(q="collapsekit", extensions=None, tags=None, page=1)
 
         assert total == 2  # the underlying file count is unaffected by collapsing
         assert len(rows) == 1
@@ -316,7 +316,7 @@ def test_search_does_not_collapse_a_partially_matching_project(make_file, db_con
         queries.add_file_to_project(matching_b, project_id)
         queries.add_file_to_project(non_matching, project_id)  # doesn't match "partialkit"
 
-        rows, total = queries.search_files(q="partialkit", extensions=None, tags=None, page=1)
+        rows, total, _ = queries.search_files(q="partialkit", extensions=None, tags=None, page=1)
 
         assert total == 2
         assert not any(r.get("is_project_card") for r in rows)
@@ -332,11 +332,39 @@ def test_search_does_not_collapse_a_single_file_project(make_file, db_conn):
     try:
         queries.add_file_to_project(file_id, project_id)
 
-        rows, _ = queries.search_files(q="lonelykit", extensions=None, tags=None, page=1)
+        rows, _, _ = queries.search_files(q="lonelykit", extensions=None, tags=None, page=1)
 
         assert len(rows) == 1
         assert not rows[0].get("is_project_card")
         assert rows[0]["id"] == file_id
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_search_collapses_across_page_boundaries(make_file, db_conn, monkeypatch):
+    # The whole point of this feature working "across pages": a project
+    # whose matching files would have been split by a small page size
+    # (2 on page 1, 1 on page 2, under the old per-page-only design)
+    # still collapses into a single card, since collapsing now happens
+    # on the full matching set *before* pagination, not after.
+    monkeypatch.setattr(queries, "PAGE_SIZE", 2)
+    file_a = make_file(filename="pagesplitkit-a.stl")
+    file_b = make_file(filename="pagesplitkit-b.stl")
+    file_c = make_file(filename="pagesplitkit-c.stl")
+    project_id = queries.create_project("Page Split Kit", "", None)
+    try:
+        queries.add_file_to_project(file_a, project_id)
+        queries.add_file_to_project(file_b, project_id)
+        queries.add_file_to_project(file_c, project_id)
+
+        rows, total, total_pages = queries.search_files(q="pagesplitkit", extensions=None, tags=None, page=1)
+
+        assert total == 3  # true file count, unaffected by collapsing
+        assert total_pages == 1  # one collapsed item fits in one page of size 2
+        assert len(rows) == 1
+        assert rows[0]["is_project_card"] is True
+        assert rows[0]["file_count"] == 3
     finally:
         with db_conn.cursor() as cur:
             cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
@@ -355,7 +383,7 @@ def test_search_collapse_ignores_missing_member_files(make_file, db_conn):
         queries.add_file_to_project(active_b, project_id)
         queries.add_file_to_project(gone, project_id)
 
-        rows, total = queries.search_files(q="missingkit", extensions=None, tags=None, page=1)
+        rows, total, _ = queries.search_files(q="missingkit", extensions=None, tags=None, page=1)
 
         assert total == 2  # the missing file is already excluded from the main search
         assert len(rows) == 1
@@ -441,10 +469,10 @@ def test_search_files_attaches_render_error_only_for_failed(make_file, db_conn):
             "INSERT INTO jobs (file_id, job_type, status, error) VALUES (%s, 'render', 'failed', %s)",
             (failed_id, "3MF's inner mesh data is 99,000,000 bytes uncompressed, over the 12,000,000-byte safety limit"),
         )
-    rows, _ = queries.search_files(q="broken", extensions=None, tags=None, page=1)
+    rows, _, _ = queries.search_files(q="broken", extensions=None, tags=None, page=1)
     assert rows[0]["render_error"].startswith("3MF's inner mesh data")
 
-    rows, _ = queries.search_files(q="fine", extensions=None, tags=None, page=1)
+    rows, _, _ = queries.search_files(q="fine", extensions=None, tags=None, page=1)
     assert rows[0]["render_error"] is None
 
 

@@ -145,11 +145,10 @@ def index(
         sort = "newest"
     if printed not in ("", "yes", "no"):
         printed = ""
-    files, total = queries.search_files(
+    files, total, total_pages = queries.search_files(
         q, ext, tag, page, sort,
         ratings=rating, printed=printed, material=material, printer_profile=printer_profile, slicer=slicer,
     )
-    total_pages = max(1, -(-total // queries.PAGE_SIZE))  # ceil division
 
     qs_params = (
         ([("q", q)] if q else [])
