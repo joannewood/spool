@@ -346,6 +346,14 @@ main {
   border-color: var(--accent);
   transform: translateY(-1px);
 }
+/* A whole project collapsed into one card (see
+   queries.py::_collapse_fully_matching_projects) — light blue background
+   using the same accent hue as .card-project-badge elsewhere, so the two
+   read as "the same concept" at a glance rather than needing a legend. */
+.card-project {
+  background: color-mix(in oklab, var(--accent) 14%, var(--surface));
+  border-color: color-mix(in oklab, var(--accent) 40%, var(--border));
+}
 .thumb {
   position: relative;
   aspect-ratio: 1 / 1;

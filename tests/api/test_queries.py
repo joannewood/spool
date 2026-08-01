@@ -209,10 +209,16 @@ def test_search_attaches_project_membership_to_each_row(make_file, db_conn):
     grouped_a = make_file(filename="groupwidget-shared-project-a.stl")
     grouped_b = make_file(filename="groupwidget-shared-project-b.stl")
     ungrouped = make_file(filename="groupwidget-lonesome.stl")
+    # A third member that doesn't match "groupwidget" keeps this project a
+    # *partial* match, so it stays as individual cards rather than
+    # collapsing into one project card (see the "collapsing" tests below)
+    # — this test is specifically about per-row membership attachment.
+    non_matching_member = make_file(filename="unrelated-third-member.stl")
     project_id = queries.create_project("Shared Test Project", "", None)
     try:
         queries.add_file_to_project(grouped_a, project_id)
         queries.add_file_to_project(grouped_b, project_id)
+        queries.add_file_to_project(non_matching_member, project_id)
 
         rows, _ = queries.search_files(q="groupwidget", extensions=None, tags=None, page=1)
         by_id = {r["id"]: r for r in rows}
@@ -236,6 +242,90 @@ def test_search_only_shows_confirmed_project_membership(make_file, db_conn):
             )
         rows, _ = queries.search_files(q="suggestedwidget", extensions=None, tags=None, page=1)
         assert rows[0]["projects"] == []
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+# ---- collapsing a fully-matching project into one card ---------------------
+
+def test_search_collapses_project_when_every_member_file_matches(make_file, db_conn):
+    file_a = make_file(filename="collapsekit-part-a.stl")
+    file_b = make_file(filename="collapsekit-part-b.stl")
+    project_id = queries.create_project("Collapse Kit", "", None)
+    try:
+        queries.add_file_to_project(file_a, project_id)
+        queries.add_file_to_project(file_b, project_id)
+
+        rows, total = queries.search_files(q="collapsekit", extensions=None, tags=None, page=1)
+
+        assert total == 2  # the underlying file count is unaffected by collapsing
+        assert len(rows) == 1
+        card = rows[0]
+        assert card["is_project_card"] is True
+        assert card["id"] == project_id
+        assert card["name"] == "Collapse Kit"
+        assert card["file_count"] == 2
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_search_does_not_collapse_a_partially_matching_project(make_file, db_conn):
+    matching_a = make_file(filename="partialkit-hit-a.stl")
+    matching_b = make_file(filename="partialkit-hit-b.stl")
+    non_matching = make_file(filename="unrelated-name.stl")
+    project_id = queries.create_project("Partial Kit", "", None)
+    try:
+        queries.add_file_to_project(matching_a, project_id)
+        queries.add_file_to_project(matching_b, project_id)
+        queries.add_file_to_project(non_matching, project_id)  # doesn't match "partialkit"
+
+        rows, total = queries.search_files(q="partialkit", extensions=None, tags=None, page=1)
+
+        assert total == 2
+        assert not any(r.get("is_project_card") for r in rows)
+        assert {r["id"] for r in rows} == {matching_a, matching_b}
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_search_does_not_collapse_a_single_file_project(make_file, db_conn):
+    file_id = make_file(filename="lonelykit-only-file.stl")
+    project_id = queries.create_project("Lonely Kit", "", None)
+    try:
+        queries.add_file_to_project(file_id, project_id)
+
+        rows, _ = queries.search_files(q="lonelykit", extensions=None, tags=None, page=1)
+
+        assert len(rows) == 1
+        assert not rows[0].get("is_project_card")
+        assert rows[0]["id"] == file_id
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_search_collapse_ignores_missing_member_files(make_file, db_conn):
+    # A file that's gone missing (rescan drift) shouldn't block collapsing
+    # the rest of a project that's otherwise fully matching — it isn't
+    # really "in the library" to match or not match anymore.
+    active_a = make_file(filename="missingkit-active-a.stl")
+    active_b = make_file(filename="missingkit-active-b.stl")
+    gone = make_file(filename="missingkit-gone.stl", status="missing")
+    project_id = queries.create_project("Missing Member Kit", "", None)
+    try:
+        queries.add_file_to_project(active_a, project_id)
+        queries.add_file_to_project(active_b, project_id)
+        queries.add_file_to_project(gone, project_id)
+
+        rows, total = queries.search_files(q="missingkit", extensions=None, tags=None, page=1)
+
+        assert total == 2  # the missing file is already excluded from the main search
+        assert len(rows) == 1
+        assert rows[0]["is_project_card"] is True
+        assert rows[0]["file_count"] == 2
     finally:
         with db_conn.cursor() as cur:
             cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))

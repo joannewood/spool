@@ -19,7 +19,11 @@
 
   <div class="grid">
     {% for f in files %}
+    {% if f.is_project_card %}
+    {{ cards.project_card(f) }}
+    {% else %}
     {{ cards.file_card(f) }}
+    {% endif %}
     {% else %}
     <p class="empty">No files match.</p>
     {% endfor %}

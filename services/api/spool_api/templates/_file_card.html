@@ -46,3 +46,31 @@
   </div>
 </a>
 {% endmacro %}
+
+{# A whole project collapsed into one card — only used on the library
+   search grid, when every one of a project's files matches the current
+   search/filter and all of them fit on the current page (see
+   queries.py::_collapse_fully_matching_projects). `p` needs: id, name,
+   file_count, thumbnail_path/content_hash (borrowed from whichever of
+   its files triggered the collapse, just for a representative image —
+   not itself a real file). #}
+{% macro project_card(p) %}
+<a class="card card-project" href="/projects/{{ p.id }}">
+  <div class="thumb">
+    {% if p.thumbnail_path %}
+      <img src="{{ thumb_url(p.thumbnail_path, p.content_hash) }}" alt="{{ p.name }}" loading="lazy">
+    {% else %}
+      <div class="thumb-placeholder">
+        <span class="ext-label">{{ p.file_count }}</span>
+      </div>
+    {% endif %}
+  </div>
+  <div class="meta">
+    <div class="filename" title="{{ p.name }}">{{ p.name }}</div>
+    <div class="badges">
+      <span class="card-project-badge">Project</span>
+      <span class="note-inline">{{ p.file_count }} file{{ "s" if p.file_count != 1 else "" }}</span>
+    </div>
+  </div>
+</a>
+{% endmacro %}
