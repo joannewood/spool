@@ -48,572 +48,92 @@ Fusion or Bambu Studio — no more digging through folders full of
 - macOS or Windows (the "open in your CAD/slicer app" and "delete a
   duplicate" pieces need a small native helper program specific to each —
   everything else is just Docker, so both platforms get the exact same
-  web app)
-- Docker Desktop (free — see step 1 below). **Install and open this
-  before running the setup script** — the script checks for it and will
-  stop and point you to the download page if it's missing, so it's
-  smoother to just get it out of the way first. SPOOL runs inside
-  Docker, which keeps everything it needs (the database, the web
-  server, etc.) neatly contained instead of installed loose on your
-  computer — this is why every setup guide below starts by installing
-  it. **It needs to be open and running every time you use SPOOL** — if
-  you restart your computer and SPOOL doesn't seem to be working, check
-  that Docker Desktop is open first before anything else.
-- Python 3 — **optional**. (macOS usually already has this; Windows
-  needs a separate install — see the Windows section below, itself an
-  optional step there.) Used by the setup script to auto-detect your
-  CAD/slicer apps, and separately to run the automated test suite.
-  Neither of those is required to actually use SPOOL day to day — if
-  Python isn't there, setup just skips the app auto-detection step with
-  a note, and you can configure that part by hand later (or skip the
-  test suite entirely, most people setting this up just to use it never
-  need it).
-
-Setup below is split into four self-contained guides (a quick script and
-a full manual walkthrough for each OS) — expand whichever one matches
-you. (The Windows path is newer and has seen less real-world use than
-the macOS one — if something looks off, the "Known limitations" section
-has a couple of Windows-specific notes.)
+  web app).
+- Docker Desktop (free) — install it and keep it open. SPOOL runs inside
+  Docker, so it needs to be open and running every time you use SPOOL; if
+  you restart your computer and SPOOL doesn't seem to work, check that
+  Docker Desktop is open first.
+- Python 3 — **optional**. Only used to auto-detect your CAD/slicer apps
+  during setup (Mac usually already has it; Windows needs a separate
+  install, and the installer below will tell you if it's missing).
+  SPOOL works fully without it — you'd just configure those apps by hand
+  afterward instead.
 
 ## Setting up on your own machine
 
-Every path below (script or manual, Mac or Windows) ends up asking about
-the same three folders, so here's what they mean, once, up front:
-
-- **Drop folder** — SPOOL's main working folder. It's read-write, and
-  it's where you'd put a new kit you've downloaded and unzipped, or
-  where files land after being auto-moved out of Downloads (see below).
-  **This one's required** — it's the folder SPOOL is built around, and
-  the only one it can't run without.
-- **Library** — your *existing*, already-organized collection of 3D
-  print files, if you have one (e.g. years of files sitting in a folder
-  from before you had SPOOL). It's mounted **read-only** — SPOOL only
-  looks at what's already there to index and search it; it will never
-  move, rename, or delete anything inside it. **Optional** — if you
-  don't have an existing library, just leave this one out and SPOOL will
-  only watch your drop folder.
-- **Downloads** — normally your computer's actual Downloads folder.
-  SPOOL watches it specifically for new 3D-print files and
-  **automatically moves them into your drop folder** the moment they
-  finish downloading, so Downloads doesn't just become another pile of
-  clutter. **Optional** — leave it out if you'd rather manage Downloads
-  yourself and just drop files into your drop folder directly.
-
-**Only the drop folder is required.** Leaving Library and/or Downloads
-out means SPOOL simply won't have that feature active — nothing breaks,
-there's just one less (or two less) folder(s) being watched. One thing
-worth knowing if you skip one now and want it later: adding it isn't as
-simple as updating a setting and restarting (the same is true of adding
-any watched folder after first setup) — see "Adding a folder you
-initially skipped" under Known limitations for the extra step involved.
-
-**Starting SPOOL and opening it**: every guide below ends the same way —
-building and starting everything (`docker compose up -d --build`, either
-run for you by a setup script or typed by hand), which takes several
-minutes the first time you ever do it (a lot of text scrolls by; that's
-normal) and is much faster every time after. The setup scripts then open
-SPOOL for you automatically in your default browser. If you're setting
-up by hand instead, or the automatic open doesn't happen, open any
-browser (Safari, Chrome, Firefox, Edge — whatever you normally use) and
-go to `http://localhost:8000` yourself — this isn't a real website out
-on the internet, "localhost" is a special address that always means
-"the thing running on this same computer," so it works fine even with
-Wi-Fi off and nobody outside your own computer can reach it. Once it's
-loaded, bookmark it (the star icon in the address bar) so you can get
-back without retyping the address — you'll come back to this same one
-every time you use SPOOL.
-
-Four self-contained setup guides follow — expand whichever matches you.
-Each one gets you all the way to a running SPOOL; there's no need to
-read the others first (or at all).
-
-<details>
-<summary><h2>🍎 Mac setup</h2></summary>
-
-These steps assume you've never used Terminal or Docker before — if you
-already have, skip ahead freely. The recommended path below (Steps 1-2)
-never needs Terminal at all; it's only the alternate Terminal-based
-script and the Manual setup guide further down that use it.
-
-### Step 1: Install Docker Desktop
-
-1. Go to <https://www.docker.com/products/docker-desktop/> and download
-   Docker Desktop for Mac (pick Apple Silicon or Intel — if you're not
-   sure which, click the Apple logo top-left → "About This Mac" and check
-   the chip listed there).
-2. Open the downloaded file and drag Docker into Applications, same as
-   any other Mac app.
-3. Open Docker Desktop from Applications. The first launch asks for a
-   few permissions — accept them. Wait until the little whale icon in
-   your menu bar (top of the screen) stops animating and Docker Desktop's
-   own window says it's running.
-
-### Step 2: Download and run the SPOOL Installer (recommended)
-
-This is the easiest path — no Terminal, no typing commands.
-
-1. Go to this project's GitHub **Releases** page and download
-   `SPOOL-Installer.dmg` (the latest release).
-2. Double-click the downloaded file to mount it, then double-click
-   **SPOOL Installer** inside the window that opens.
-3. The first time you open it, macOS shows a one-time "'SPOOL Installer'
-   was downloaded from the internet — are you sure you want to open it?"
-   confirmation — click **Open**. SPOOL Installer is signed and
-   notarized by Apple, so that's the only prompt you'll see; you won't
-   hit the scarier "can't be opened because the developer cannot be
-   verified" block some downloaded apps trigger.
-4. A window opens and walks you through the same folder questions
-   described above, using native Yes/No dialogs and Finder folder
-   pickers instead of typed answers — just read each one and click a
-   button. It installs SPOOL to `~/Applications/SPOOL`, starts it, sets
-   up "open in" for your CAD/slicer apps, and opens SPOOL in your
-   browser when it's done.
-
-**Safe to run again later** — download and re-run a newer
-`SPOOL-Installer.dmg` any time to update; it finds your existing
-`.env` and offers to keep it, so re-running never undoes your
-configuration.
-
-Skip ahead to [**Using SPOOL**](#using-spool) once it says you're done.
-
-Prefer working in Terminal yourself, or don't see a release download
-yet? Read on for the Terminal-based script instead, or see **Manual
-setup (Mac)** below to control every step by hand.
-
-<details>
-<summary>Terminal-based script instead (equivalent to the installer above)</summary>
-
-#### Get the SPOOL code onto your Mac
-
-If you were sent a link to this project's GitHub page: click the green
-**Code** button, then **Download ZIP**. Once it downloads, double-click the
-ZIP file in your Downloads folder to unzip it, then drag the resulting
-folder somewhere you'll remember (your Documents folder is a good choice).
-
-(If you're comfortable with git instead: `git clone <the repo URL>`
-creates the folder directly — skip ahead either way.)
-
-#### Open Terminal
-
-Terminal is the app you'll paste commands into for the rest of this.
-Open it with **Spotlight**: press `Cmd + Space`, type `Terminal`, press
-Return. A window with a text prompt appears — that's it, that's
-Terminal. Leave it open; every command from here on gets typed (or
-pasted) there.
-
-Now tell it to work inside the SPOOL folder you just downloaded — type
-`cd ` (with a trailing space), then drag that folder itself from Finder
-into the Terminal window (this pastes its full path in automatically),
-then press Return. Your prompt should now show the folder's name,
-confirming you're "in" it.
-
-#### Run the setup script
-
-The rest of setup — telling SPOOL which folders to watch, starting it,
-and wiring up "open in" for your CAD/slicer apps — is one script:
-
-```bash
-./setup.sh
-```
-
-It asks for your **drop folder** (required — your main working folder,
-the one that actually needs real files in it), then asks whether you
-have an **existing library** to index too and whether you want
-**Downloads** auto-managed, popping up a native Yes/No dialog and a
-Finder window for either one you say yes to and leaving it out of your
-setup entirely if you say no (see the folder explanations above for
-what each one means). Rather than making you hand-edit a config file,
-it generates a database password for you so there's nothing to
-remember, waits for each step to actually finish before moving to the
-next, and tells you plainly if something didn't work. It also looks at
-what's in your `~/Applications`/`/Applications` folder and tries to
-guess your CAD program and slicer automatically, asking you to confirm
-or pick from a list rather than requiring you to know the exact `.app`
-file name up front.
-
-**It's completely safe to run more than once** — if it finds a `.env` you
-already set up, it asks whether to keep it before touching anything, so
-re-running it later (say, after downloading an updated copy of SPOOL) to
-pick up changes won't undo your configuration.
-
-Follow the prompts it prints, and skip ahead to
-[**Using SPOOL**](#using-spool) once it says you're done. If anything
-about it fails, or you'd rather understand/control every step yourself,
-the **Manual setup (Mac)** guide below does exactly the same thing by
-hand.
-
-</details>
-
-</details>
-
-<details>
-<summary><h2>🛠️ Manual setup (Mac)</h2></summary>
-
-Full control over every step, or a fallback if `./setup.sh` above hit a
-snag — everything here uses macOS commands and apps (Terminal, Finder,
-TextEdit). On Windows? See **Manual setup (Windows)** further down
-instead.
-
-### Step 1: Tell SPOOL which folders to watch
-
-See "Setting up on your own machine" above for what the drop folder,
-Library, and Downloads each actually do, and which are required —
-here's just the mechanics of setting them.
-
-These paths are set in a file called `.env`, which doesn't exist yet —
-you copy it from a template.
-
-Paste this into Terminal and press Return:
-
-```bash
-cp .env.example .env
-```
-
-Nothing appears to happen — that's normal, it just means it worked. Now
-open the new `.env` file in TextEdit by pasting this and pressing Return:
-
-```bash
-open -e .env
-```
-
-You'll see a handful of lines like `DROPFOLDER_HOST_PATH=...`. Set
-`DROPFOLDER_HOST_PATH` to a real folder on your Mac. For `LIBRARY_HOST_PATH`
-and `DOWNLOADS_HOST_PATH`, either set them too, or leave them exactly as
-`LIBRARY_HOST_PATH=` (nothing after the `=`) to skip that one entirely —
-for example, to use a library but skip Downloads auto-move:
-
-```
-DROPFOLDER_HOST_PATH=/Users/yourname/Documents/3DPrintFiles
-LIBRARY_HOST_PATH=/Users/yourname/Documents/3D Printing
-DOWNLOADS_HOST_PATH=
-```
-
-(Tip: if a folder doesn't exist yet, create it in Finder first — Docker
-needs the real folder to already be there.) Also change
-`POSTGRES_PASSWORD` from the placeholder to anything else — it's just a
-password for the database SPOOL keeps on your own Mac, not something you
-need to remember or share. Save the file (`Cmd + S`) and close TextEdit.
-
-### Step 2: Start SPOOL
-
-Back in Terminal, paste this and press Return:
-
-```bash
-docker compose up -d --build
-```
-
-This downloads and builds everything SPOOL needs — the first time, it can
-take several minutes (you'll see a lot of text scroll by; that's normal).
-When it finishes and gives you a new prompt, check that everything started
-correctly:
-
-```bash
-docker compose ps
-```
-
-You should see five services (`postgres`, `api`, `watcher`, `worker`,
-`worker-step`) all saying `running` or `Up`. Now open
-`http://localhost:8000` in your browser (see "Starting SPOOL and opening
-it" above if you skipped straight here) — you should see SPOOL's search
-page, currently empty or nearly so. Your folders from `.env` start being
-indexed automatically in the background — if they contain a lot of
-files, thumbnails will keep appearing over the next while as SPOOL works
-through them; there's nothing else you need to click or run for that to
-happen, just wait and refresh the page occasionally.
-
-*(If you ever change a folder path in `.env` later, editing the file
-alone won't update an already-running SPOOL — go to the `/admin` page in
-the browser and edit the path there instead.)*
-
-### Step 3: Install the host-helper (lets SPOOL open files in Fusion/Bambu Studio)
-
-Everything above runs inside Docker, which — deliberately, for safety —
-can't reach out and open another app on your actual Mac. One small
-separate helper program handles just that piece; it's not Docker, it's a
-tiny program that starts automatically in the background whenever you log
-in to your Mac.
-
-Every Mac already comes with Python 3, so just run this and let it look
-at what's installed and ask you to confirm:
-
-```bash
-python3 host-helper/configure_apps.py
-```
-
-It scans `~/Applications`/`/Applications`, guesses your CAD app and
-slicer, and asks you to pick from a numbered list if it finds more than
-one candidate (or if it finds none, lets you type the exact name
-yourself). This is exactly what `./setup.sh` already ran for you if you
-used the setup script instead of this manual guide — running it again
-re-asks and overwrites the previous choice, so it's fine to change your
-mind later.
-
-Then finish by running:
-
-```bash
-host-helper/install.sh
-```
-
-If you ever change `host_helper.py`, `host_helper_client.py`, or `.env`
-again later, re-run that same command (and `docker compose up -d --build
-api` too, if you changed `host_helper_client.py`) to pick up the change.
-
-### Step 4: One-time permission for deleting duplicate files
-
-Everything works right away except one specific feature: actually
-deleting a file from the duplicate-files review page (opening a file in
-Fusion/Bambu Studio needs no extra setup). If you try to delete a
-duplicate and see "Operation not permitted," macOS is blocking it for
-safety. To allow it, only once:
-
-1. Open **System Settings**.
-2. Go to **Privacy & Security → Full Disk Access**.
-3. Click the **+** button, press `Cmd + Shift + G` to open the "Go to
-   folder" box, type `/usr/bin`, press Return, then select `python3` and
-   add it.
-
-That's it — SPOOL is fully set up. Bookmark `http://localhost:8000` and
-come back to it any time Docker Desktop is running.
-
-</details>
-
-<details>
-<summary><h2>🪟 Windows setup</h2></summary>
-
-The underlying app (Docker, Postgres, the web page) is identical to the
-Mac version above — the only thing that's genuinely different per OS is
-the small native helper that lets SPOOL open a file in Fusion/Bambu
-Studio and delete duplicates, since that needs real access to your
-actual machine, not just a container.
-
-1. **Install Docker Desktop** from
-   <https://www.docker.com/products/docker-desktop/> — download it, run
-   the installer, then open Docker Desktop from the Start menu and wait
-   until it says it's running (see the Requirements section above for
-   why this needs to stay open).
-2. **Install Python (optional)** from
-   <https://www.python.org/downloads/> if you don't already have it —
-   during setup, check the box that says **"Add python.exe to PATH"**.
-   This step is only used to auto-detect your CAD/slicer apps; it's
-   fine to skip it entirely and either configure those apps by hand
-   later, or come back and install Python then if you change your
-   mind.
-3. **Download and run the SPOOL Installer** (recommended): go to this
-   project's GitHub **Releases** page and download `SPOOL-Installer.exe`
-   (the latest release), then double-click it.
-
-   **A note on the security warning you'll see**: `SPOOL-Installer.exe`
-   isn't code-signed (a signing certificate is a real ongoing cost, not
-   yet part of this project), so Windows SmartScreen will show a blue
-   "Windows protected your PC" screen the first time you run it. This is
-   expected, not a sign anything is wrong — click **More info**, then
-   **Run anyway**. You'll only see this once.
-
-   The installer walks you through a normal Windows setup wizard, then
-   hands off to the same guided setup described below — a folder picker
-   for your drop folder (required), Yes/No dialogs for whether you have
-   an existing library and want Downloads auto-managed, then it
-   generates a database password for you, starts everything, tries to
-   auto-detect your CAD/slicer apps, and opens SPOOL in your browser
-   when it's done. **Safe to run again later** to update — it always
-   installs to the same location and finds your existing `.env`, offering
-   to keep it.
-
-   Skip ahead to [**Using SPOOL**](#using-spool) once it says you're done.
-
-   Prefer working in a terminal yourself, or don't see a release download
-   yet? Read on for the script instead, or see **Manual setup (Windows)**
-   below to control every step by hand.
-
-   <details>
-   <summary>Terminal-based script instead (equivalent to the installer above)</summary>
-
-   **Get the SPOOL code**: click the green **Code** button on this
-   project's GitHub page, then **Download ZIP**, and unzip it (or
-   `git clone` if you're comfortable with git) — then open it: right-click
-   the folder in File Explorer and choose **"Open in Terminal"** (or
-   **PowerShell**).
-
-   **Run the setup script**:
-
-   ```powershell
-   .\setup.ps1
-   ```
-
-   If you see an error like *"running scripts is disabled on this
-   system"*, that's PowerShell's default safety setting blocking an
-   unsigned script — run this first, in the same window (it only affects
-   this one window, not your whole computer), then try `.\setup.ps1`
-   again:
-
-   ```powershell
-   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-   ```
-
-   The script asks for your drop folder (required), then asks whether
-   you have an existing library to index and whether you want Downloads
-   auto-managed, popping up a folder picker or a Yes/No dialog for either
-   one (see the folder explanations near the top of this section for what
-   these mean). It also generates a database password for you, starts
-   everything, and tries to auto-detect your CAD/slicer apps the same way
-   the macOS script does (scanning `Program Files` and similar folders
-   for a recognizable install, asking you to confirm or type the exact
-   path if it's not sure). Right at the end it opens SPOOL for you
-   automatically in your default web browser — that's how you'll know it
-   worked, no need to type any address in yourself. It's safe to run this
-   whole script more than once. One genuine difference from macOS:
-   there's no separate permission step needed for deleting duplicate
-   files — Windows' own normal file permissions already cover that, so
-   setup finishes in one fewer step.
-
-   Once it says you're done, skip up to [**Using SPOOL**](#using-spool)
-   — everything from there on is identical regardless of which OS you
-   set up on.
-
-   </details>
-
-If anything above fails, or you'd rather understand/control every step
-yourself, see **Manual setup (Windows)** below — it does exactly the
-same thing by hand.
-
-</details>
-
-<details>
-<summary><h2>🛠️ Manual setup (Windows)</h2></summary>
-
-Full control over every step, or a fallback if `.\setup.ps1` above hit a
-snag — everything here uses Windows commands and apps (PowerShell,
-File Explorer, Notepad). On a Mac? See **Manual setup (Mac)** above
-instead.
-
-### Step 1: Tell SPOOL which folders to watch
-
-See "Setting up on your own machine" near the top of this page for what
-the drop folder, Library, and Downloads each actually do, and which are
-required — here's just the mechanics of setting them.
-
-These paths are set in a file called `.env`, which doesn't exist yet —
-you copy it from a template. In PowerShell (or Command Prompt), in your
-SPOOL folder:
-
-```powershell
-copy .env.example .env
-```
-
-Nothing appears to happen — that's normal, it just means it worked. Now
-open the new `.env` file in Notepad:
-
-```powershell
-notepad .env
-```
-
-You'll see a handful of lines like `DROPFOLDER_HOST_PATH=...`. Set
-`DROPFOLDER_HOST_PATH` to a real folder on your PC — **using forward
-slashes, not backslashes**, even though that looks unusual for a Windows
-path (e.g. `C:/Users/you/Documents/3DPrintFiles`, not
-`C:\Users\you\Documents\3DPrintFiles`; see the comment at the top of
-`.env.example` for why). For `LIBRARY_HOST_PATH` and
-`DOWNLOADS_HOST_PATH`, either set them too, or leave them exactly as
-`LIBRARY_HOST_PATH=` (nothing after the `=`) to skip that one entirely —
-for example, to use a library but skip Downloads auto-move:
-
-```
-DROPFOLDER_HOST_PATH=C:/Users/yourname/Documents/3DPrintFiles
-LIBRARY_HOST_PATH=C:/Users/yourname/Documents/3D Printing
-DOWNLOADS_HOST_PATH=
-```
-
-(Tip: if a folder doesn't exist yet, create it in File Explorer first —
-Docker needs the real folder to already be there.) Also change
-`POSTGRES_PASSWORD` from the placeholder to anything else — it's just a
-password for the database SPOOL keeps on your own PC, not something you
-need to remember or share. Save the file (`Ctrl + S`) and close Notepad.
-
-### Step 2: Start SPOOL
-
-Back in PowerShell, paste this and press Return:
-
-```powershell
-docker compose up -d --build
-```
-
-This downloads and builds everything SPOOL needs — the first time, it
-can take several minutes (you'll see a lot of text scroll by; that's
-normal). When it finishes, check that everything started correctly:
-
-```powershell
-docker compose ps
-```
-
-You should see five services (`postgres`, `api`, `watcher`, `worker`,
-`worker-step`) all saying `running` or `Up`. Now open
-`http://localhost:8000` in your browser (see "Starting SPOOL and opening
-it" near the top of this page if you skipped straight here) — you
-should see SPOOL's search page, currently empty or nearly so. Your
-folders from `.env` start being indexed automatically in the
-background — if they contain a lot of files, thumbnails will keep
-appearing over the next while as SPOOL works through them; there's
-nothing else you need to click or run for that to happen, just wait and
-refresh the page occasionally.
-
-*(If you ever change a folder path in `.env` later, editing the file
-alone won't update an already-running SPOOL — go to the `/admin` page in
-the browser and edit the path there instead.)*
-
-### Step 3: Install the host-helper (lets SPOOL open files in Fusion/Bambu Studio)
-
-Everything above runs inside Docker, which — deliberately, for safety —
-can't reach out and open another app on your actual PC. One small
-separate helper program handles just that piece; it's not Docker, it's a
-tiny program that starts automatically in the background whenever you
-log in.
-
-Easiest path (needs Python — **optional**, see Requirements above; if
-you don't have it and would rather not install it just for this, skip
-straight to the "by hand" alternative below) — let it look at what's
-installed and ask you to confirm:
-
-```powershell
-python host-helper\configure_apps.py
-```
-
-It scans common install folders (`Program Files`, etc.), guesses your
-CAD app and slicer, and asks you to pick from a numbered list if it
-finds more than one candidate (or if it finds none, lets you type the
-exact `.exe` path yourself). This is exactly what `.\setup.ps1` already
-ran for you if you used the setup script instead of this manual guide —
-running it again re-asks and overwrites the previous choice, so it's
-fine to change your mind later.
-
-If you'd rather do it by hand instead: open `host-helper\host_helper_windows.py`
-(find it in File Explorer, inside the SPOOL folder, and open it with
-Notepad) and look for two sections, `APP_MAP` and `APP_PATHS` — unlike
-macOS, Windows needs both, since there's no equivalent of `open -a` that
-resolves an app name to a real program on its own. To find an app's real
-`.exe` path: find it in the Start menu, right-click it → **More** →
-**Open file location** (this reveals a shortcut in File Explorer),
-then right-click *that* shortcut → **Properties** — the **Target** field
-shows the real path. There's a matching `APP_MAP` (not `APP_PATHS`, that
-one's Windows-only) in `services/api/spool_api/host_helper_client.py`
-too — keep both in sync.
-
-Either way, finish by running:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File host-helper\install_windows.ps1
-```
-
-If you ever change `host_helper_windows.py`, `host_helper_client.py`, or
-`.env` again later, re-run that same command (and `docker compose up -d
---build api` too, if you changed `host_helper_client.py`) to pick up the
-change.
-
-That's it — SPOOL is fully set up, with no extra permission step needed
-(unlike macOS, Windows' own normal file permissions already cover
-deleting duplicates). Bookmark `http://localhost:8000` and come back to
-it any time Docker Desktop is running.
-
-</details>
+Setup asks about three folders — here's what they mean, once, up front:
+
+- **Drop folder** — SPOOL's main working folder, read-write. It's where
+  you'd put a new kit you've downloaded and unzipped, or where files land
+  after being auto-moved out of Downloads. **Required.**
+- **Library** — your *existing*, already-organized collection of 3D print
+  files, if you have one. Mounted **read-only** — SPOOL only indexes what's
+  already there; it will never move, rename, or delete anything inside it.
+  **Optional.**
+- **Downloads** — normally your computer's actual Downloads folder. SPOOL
+  watches it for new 3D-print files and **automatically moves them into
+  your drop folder** the moment they finish downloading. **Optional.**
+
+Only the drop folder is required — leaving Library and/or Downloads out
+just means SPOOL won't have that feature active, nothing breaks. (Adding
+one back later isn't quite as simple as flipping a setting — see "Adding
+a folder you initially skipped" under Known limitations.)
+
+**Download the installer for your OS below, run it, and follow the
+prompts** — it handles everything: picking your folders, starting SPOOL,
+and setting up "open in" for your CAD/slicer apps. It opens SPOOL in your
+browser automatically when it's done; if that doesn't happen, go to
+`http://localhost:8000` yourself (that's a special address that always
+means "this same computer," so it works with Wi-Fi off and nobody outside
+your machine can reach it — bookmark it once you're there).
+
+### 🍎 Mac
+
+1. Install [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/)
+   (pick Apple Silicon or Intel — Apple menu → **About This Mac** tells you
+   which chip you have if you're not sure). Open it from Applications and
+   wait until the whale icon in your menu bar stops animating.
+2. Go to the [**Releases** page](https://github.com/joannewood/spool/releases/latest)
+   and download `SPOOL-Installer.dmg`. Double-click it to mount, then
+   double-click **SPOOL Installer** inside.
+3. The first time you open it, macOS shows a one-time "downloaded from
+   the internet — are you sure?" confirmation — click **Open**.
+   `SPOOL Installer` is signed and notarized by Apple, so that's the only
+   prompt you'll see.
+4. Follow the prompts — native Yes/No dialogs and Finder folder pickers,
+   no typing required. It installs to `~/Applications/SPOOL`.
+
+Skip ahead to [**Using SPOOL**](#using-spool).
+
+### 🪟 Windows
+
+1. Install [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/),
+   open it from the Start menu, and wait until it says it's running.
+2. *(Optional)* Install [Python](https://www.python.org/downloads/) if you
+   don't already have it, checking **"Add python.exe to PATH"** during
+   setup — only needed for auto-detecting your CAD/slicer apps; skip it
+   freely and configure those by hand later if you'd rather not.
+3. Go to the [**Releases** page](https://github.com/joannewood/spool/releases/latest)
+   and download `SPOOL-Installer.exe`, then double-click it.
+4. Windows SmartScreen will show a blue "Windows protected your PC"
+   warning the first time — this is expected, not a sign anything's
+   wrong (the installer isn't code-signed yet, a real ongoing cost not
+   yet part of this project). Click **More info**, then **Run anyway**.
+   You'll only see this once.
+5. Follow the installer wizard, then the guided setup that runs
+   afterward — folder pickers and Yes/No dialogs, no typing required. It
+   installs to `%LOCALAPPDATA%\SPOOL`.
+
+Skip ahead to [**Using SPOOL**](#using-spool).
+
+---
+
+**Prefer a terminal script, or want every step spelled out by hand
+instead?** See [**Advanced setup: scripts and manual
+installation**](#advanced-setup-scripts-and-manual-installation) at the
+very bottom of this page. The vast majority of people should just use the
+installer above — the advanced routes exist for troubleshooting, or if
+you'd rather understand/control every step yourself.
 
 ## Using SPOOL
 
@@ -750,52 +270,21 @@ reports — open an issue for those too rather than sitting on them.
 
 ## Updating SPOOL
 
-**If you set up using SPOOL Installer (the `.dmg` on Mac, or the `.exe` on
-Windows):** updating is just downloading the newer installer and running
-it again — it always installs to the same location (`~/Applications/SPOOL`
+Download the newer installer from the [**Releases**
+page](https://github.com/joannewood/spool/releases/latest) and run it
+again — it always installs to the same location (`~/Applications/SPOOL`
 on Mac, `%LOCALAPPDATA%\SPOOL` on Windows), finds your existing `.env`
 there, and offers to keep it, so nothing about your configuration is
-lost. None of the steps below apply to you; they're for the ZIP/git-based
-setup paths.
+lost.
 
-When a new version comes out, **don't just download a fresh ZIP into a
-new folder** — your actual data (every file, tag, project, print log)
-lives in Docker's own storage, not in the SPOOL folder itself, and a
-new folder can leave that data behind without any obvious warning. The
-one thing that *does* live in the SPOOL folder and matters is `.env`
-(your folder paths and database password) — it's never part of any
-download, so it has to survive the update in place.
-
-**The clean way — update the same folder instead of making a new one:**
-
-1. Download the new ZIP and extract it anywhere temporary (double-click
-   it in Downloads, that's fine).
-2. Select everything inside that freshly-extracted folder and drag it
-   into your **existing** SPOOL folder — the same one you've been using.
-   - **Mac:** Finder will ask *"An item named X already exists — Replace?"*
-     — choose **Replace All** (or **Apply to All** + **Replace**).
-   - **Windows:** File Explorer will ask to confirm overwriting — choose
-     **Replace the files in the destination**.
-3. `.env` was never part of the ZIP, so this leaves it completely
-   untouched — your paths and password come along automatically.
-4. Delete the now-empty temporary extracted folder, then re-run
-   `./setup.sh` / `.\setup.ps1` (or just `docker compose up -d --build`)
-   from your real SPOOL folder.
-
-(If you set this up with `git clone` instead of a ZIP: `git pull` in
-that same folder does the same thing, even more simply.)
-
-**If you (or a fellow tester) do end up extracting a fresh copy into a
-new folder anyway** — running the setup script there is designed to
-catch this rather than fail silently or confusingly: it checks for an
-existing SPOOL database before writing a new `.env`, and if it finds
-one sitting there unmatched, it stops and tells you exactly what
-happened, offering two options — go find your old `.env` and use the
-steps above instead (safe, nothing is touched), or type `delete` to
-confirm permanently erasing that old data and starting completely
-fresh. It never silently guesses on your behalf either way.
+Set up via the terminal script or fully manually instead? See "Updating
+without the installer" in [**Advanced setup**](#advanced-setup-scripts-and-manual-installation)
+below.
 
 ## Day-to-day operations
+
+Run these from your SPOOL folder (`~/Applications/SPOOL` on Mac,
+`%LOCALAPPDATA%\SPOOL` on Windows, if you used the installer above).
 
 ### Useful commands
 
@@ -837,9 +326,12 @@ Tests run on the host (not in a container) against a real, separate
   hardware** the way the macOS path has (this project was built on a
   Mac) — the app-detection logic in `configure_apps.py` was validated
   against synthetic test cases for real installer layouts (including
-  Autodesk's own deeply-nested one), but if `setup.ps1` or the Windows
-  host-helper hits something unexpected on your machine, please report
-  it rather than assuming it's supposed to work that way.
+  Autodesk's own deeply-nested one), and `SPOOL-Installer.exe` has been
+  verified to build correctly in CI, but neither has been run
+  interactively on real Windows hardware yet. If `setup.ps1`, the
+  installer, or the Windows host-helper hits something unexpected on
+  your machine, please report it rather than assuming it's supposed to
+  work that way.
 - **`SPOOL-Installer.exe` isn't code-signed.** A Windows code-signing
   certificate is a real ongoing cost (unlike Apple's notarization, which
   the Mac `.dmg` uses and is covered by a $99/year developer account) and
@@ -917,12 +409,13 @@ tags/projects/print metadata, relationships, drift reconciliation, the native
 open-in-app helper, and a growing backlog of quality-of-life features (search
 across print metadata, duplicate cleanup, a printed/rating tracker, and more).
 308 automated tests covering the ingestion pipeline and the API. Runnable
-on someone else's Mac or Windows machine via a single guided `./setup.sh`
-/ `.\setup.ps1` — watched-root paths and CAD/slicer app choices are both
-configured interactively rather than hardcoded (see setup instructions
-above), with the fully manual, step-by-step path still available for
-anyone who wants it. The Windows path is newer and less battle-tested
-than the macOS one (see Known limitations).
+on someone else's Mac or Windows machine via a signed/notarized installer
+(Mac) or an installer built in CI (Windows), or the underlying guided
+`./setup.sh` / `.\setup.ps1` scripts either one wraps — watched-root paths
+and CAD/slicer app choices are both configured interactively rather than
+hardcoded, with the fully manual, step-by-step path still available for
+anyone who wants it (see Advanced setup below). The Windows path is newer
+and less battle-tested than the macOS one (see Known limitations).
 
 ## License
 
@@ -933,3 +426,400 @@ modified version, it needs to stay open under the same license. Copyright
 ## Credits
 
 <a href="https://www.flaticon.com/free-icons/3d" title="3d icons">3d icons created by Flat-icons-com - Flaticon</a>
+
+<details>
+<summary><h2>Advanced setup: scripts and manual installation</h2></summary>
+
+**Most people should use the installer above instead** — everything here
+does exactly the same thing, just with more steps you run yourself. Use
+this if the installer didn't work for you, you'd rather not run an
+unsigned `.exe` (Windows), or you just want to understand/control every
+step.
+
+### 🍎 Mac: guided script (`setup.sh`)
+
+Equivalent to the Mac installer above, minus the native install wizard —
+useful if you'd rather work in Terminal, or the `.dmg` didn't work for
+you.
+
+1. **Install Docker Desktop** — see step 1 of the Mac installer section
+   above.
+2. **Get the SPOOL code**: click the green **Code** button on this
+   project's GitHub page, then **Download ZIP**. Once it downloads,
+   double-click the ZIP file in your Downloads folder to unzip it, then
+   drag the resulting folder somewhere you'll remember (your Documents
+   folder is a good choice). (Comfortable with git instead? `git clone
+   <the repo URL>` creates the folder directly.)
+3. **Open Terminal**: press `Cmd + Space`, type `Terminal`, press Return.
+   Type `cd ` (with a trailing space), drag the SPOOL folder from Finder
+   into the Terminal window (pastes its path automatically), then press
+   Return.
+4. **Run the setup script**:
+
+   ```bash
+   ./setup.sh
+   ```
+
+   It asks for your **drop folder** (required), then whether you have an
+   **existing library** to index and whether you want **Downloads**
+   auto-managed, popping up a native Yes/No dialog and a Finder window
+   for either one you say yes to (see "Setting up on your own machine"
+   above for what each folder means). It generates a database password
+   for you, waits for each step to finish before moving to the next, and
+   tells you plainly if something didn't work. It also scans
+   `~/Applications`/`/Applications` and tries to guess your CAD program
+   and slicer automatically, asking you to confirm or pick from a list.
+
+   **Safe to run more than once** — if it finds a `.env` you already set
+   up, it asks whether to keep it before touching anything.
+
+Follow the prompts it prints, and skip ahead to [**Using
+SPOOL**](#using-spool) once it says you're done. If anything fails, see
+**Mac: fully manual** below.
+
+### 🍎 Mac: fully manual
+
+Full control over every step, or a fallback if `./setup.sh` above hit a
+snag — everything here uses macOS commands and apps (Terminal, Finder,
+TextEdit).
+
+#### Step 1: Tell SPOOL which folders to watch
+
+See "Setting up on your own machine" near the top of this page for what
+the drop folder, Library, and Downloads each actually do, and which are
+required — here's just the mechanics of setting them.
+
+These paths are set in a file called `.env`, which doesn't exist yet —
+you copy it from a template.
+
+Paste this into Terminal and press Return:
+
+```bash
+cp .env.example .env
+```
+
+Nothing appears to happen — that's normal, it just means it worked. Now
+open the new `.env` file in TextEdit by pasting this and pressing Return:
+
+```bash
+open -e .env
+```
+
+You'll see a handful of lines like `DROPFOLDER_HOST_PATH=...`. Set
+`DROPFOLDER_HOST_PATH` to a real folder on your Mac. For `LIBRARY_HOST_PATH`
+and `DOWNLOADS_HOST_PATH`, either set them too, or leave them exactly as
+`LIBRARY_HOST_PATH=` (nothing after the `=`) to skip that one entirely —
+for example, to use a library but skip Downloads auto-move:
+
+```
+DROPFOLDER_HOST_PATH=/Users/yourname/Documents/3DPrintFiles
+LIBRARY_HOST_PATH=/Users/yourname/Documents/3D Printing
+DOWNLOADS_HOST_PATH=
+```
+
+(Tip: if a folder doesn't exist yet, create it in Finder first — Docker
+needs the real folder to already be there.) Also change
+`POSTGRES_PASSWORD` from the placeholder to anything else — it's just a
+password for the database SPOOL keeps on your own Mac, not something you
+need to remember or share. Save the file (`Cmd + S`) and close TextEdit.
+
+#### Step 2: Start SPOOL
+
+Back in Terminal, paste this and press Return:
+
+```bash
+docker compose up -d --build
+```
+
+This downloads and builds everything SPOOL needs — the first time, it can
+take several minutes (you'll see a lot of text scroll by; that's normal).
+When it finishes and gives you a new prompt, check that everything started
+correctly:
+
+```bash
+docker compose ps
+```
+
+You should see five services (`postgres`, `api`, `watcher`, `worker`,
+`worker-step`) all saying `running` or `Up`. Now open
+`http://localhost:8000` in your browser — you should see SPOOL's search
+page, currently empty or nearly so. Your folders from `.env` start being
+indexed automatically in the background — if they contain a lot of
+files, thumbnails will keep appearing over the next while as SPOOL works
+through them; there's nothing else you need to click or run for that to
+happen, just wait and refresh the page occasionally.
+
+*(If you ever change a folder path in `.env` later, editing the file
+alone won't update an already-running SPOOL — go to the `/admin` page in
+the browser and edit the path there instead.)*
+
+#### Step 3: Install the host-helper (lets SPOOL open files in Fusion/Bambu Studio)
+
+Everything above runs inside Docker, which — deliberately, for safety —
+can't reach out and open another app on your actual Mac. One small
+separate helper program handles just that piece; it's not Docker, it's a
+tiny program that starts automatically in the background whenever you log
+in to your Mac.
+
+Every Mac already comes with Python 3, so just run this and let it look
+at what's installed and ask you to confirm:
+
+```bash
+python3 host-helper/configure_apps.py
+```
+
+It scans `~/Applications`/`/Applications`, guesses your CAD app and
+slicer, and asks you to pick from a numbered list if it finds more than
+one candidate (or if it finds none, lets you type the exact name
+yourself). This is exactly what `./setup.sh` already ran for you if you
+used the setup script instead of this manual guide — running it again
+re-asks and overwrites the previous choice, so it's fine to change your
+mind later.
+
+Then finish by running:
+
+```bash
+host-helper/install.sh
+```
+
+If you ever change `host_helper.py`, `host_helper_client.py`, or `.env`
+again later, re-run that same command (and `docker compose up -d --build
+api` too, if you changed `host_helper_client.py`) to pick up the change.
+
+#### Step 4: One-time permission for deleting duplicate files
+
+Everything works right away except one specific feature: actually
+deleting a file from the duplicate-files review page (opening a file in
+Fusion/Bambu Studio needs no extra setup). If you try to delete a
+duplicate and see "Operation not permitted," macOS is blocking it for
+safety. To allow it, only once:
+
+1. Open **System Settings**.
+2. Go to **Privacy & Security → Full Disk Access**.
+3. Click the **+** button, press `Cmd + Shift + G` to open the "Go to
+   folder" box, type `/usr/bin`, press Return, then select `python3` and
+   add it.
+
+That's it — SPOOL is fully set up. Bookmark `http://localhost:8000` and
+come back to it any time Docker Desktop is running.
+
+### 🪟 Windows: guided script (`setup.ps1`)
+
+Equivalent to the Windows installer above, minus the install wizard —
+useful if you'd rather work in PowerShell, or don't want to run an
+unsigned `.exe`.
+
+1. **Install Docker Desktop** — see step 1 of the Windows installer
+   section above.
+2. **Install Python (optional)** — see step 2 of the Windows installer
+   section above.
+3. **Get the SPOOL code**: click the green **Code** button on this
+   project's GitHub page, then **Download ZIP**, and unzip it (or
+   `git clone` if you're comfortable with git) — then open it: right-click
+   the folder in File Explorer and choose **"Open in Terminal"** (or
+   **PowerShell**).
+4. **Run the setup script**:
+
+   ```powershell
+   .\setup.ps1
+   ```
+
+   If you see an error like *"running scripts is disabled on this
+   system"*, that's PowerShell's default safety setting blocking an
+   unsigned script — run this first, in the same window (it only affects
+   this one window, not your whole computer), then try `.\setup.ps1`
+   again:
+
+   ```powershell
+   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+   ```
+
+   The script asks for your drop folder (required), then asks whether
+   you have an existing library to index and whether you want Downloads
+   auto-managed, popping up a folder picker or a Yes/No dialog for either
+   one (see "Setting up on your own machine" near the top of this page
+   for what these mean). It also generates a database password for you,
+   starts everything, and tries to auto-detect your CAD/slicer apps the
+   same way the macOS script does (scanning `Program Files` and similar
+   folders for a recognizable install, asking you to confirm or type the
+   exact path if it's not sure). Right at the end it opens SPOOL for you
+   automatically in your default web browser. It's safe to run this
+   whole script more than once. One genuine difference from macOS:
+   there's no separate permission step needed for deleting duplicate
+   files — Windows' own normal file permissions already cover that.
+
+Once it says you're done, skip up to [**Using SPOOL**](#using-spool). If
+anything fails, see **Windows: fully manual** below.
+
+### 🪟 Windows: fully manual
+
+Full control over every step, or a fallback if `.\setup.ps1` above hit a
+snag — everything here uses Windows commands and apps (PowerShell,
+File Explorer, Notepad).
+
+#### Step 1: Tell SPOOL which folders to watch
+
+See "Setting up on your own machine" near the top of this page for what
+the drop folder, Library, and Downloads each actually do, and which are
+required — here's just the mechanics of setting them.
+
+These paths are set in a file called `.env`, which doesn't exist yet —
+you copy it from a template. In PowerShell (or Command Prompt), in your
+SPOOL folder:
+
+```powershell
+copy .env.example .env
+```
+
+Nothing appears to happen — that's normal, it just means it worked. Now
+open the new `.env` file in Notepad:
+
+```powershell
+notepad .env
+```
+
+You'll see a handful of lines like `DROPFOLDER_HOST_PATH=...`. Set
+`DROPFOLDER_HOST_PATH` to a real folder on your PC — **using forward
+slashes, not backslashes**, even though that looks unusual for a Windows
+path (e.g. `C:/Users/you/Documents/3DPrintFiles`, not
+`C:\Users\you\Documents\3DPrintFiles`; see the comment at the top of
+`.env.example` for why). For `LIBRARY_HOST_PATH` and
+`DOWNLOADS_HOST_PATH`, either set them too, or leave them exactly as
+`LIBRARY_HOST_PATH=` (nothing after the `=`) to skip that one entirely —
+for example, to use a library but skip Downloads auto-move:
+
+```
+DROPFOLDER_HOST_PATH=C:/Users/yourname/Documents/3DPrintFiles
+LIBRARY_HOST_PATH=C:/Users/yourname/Documents/3D Printing
+DOWNLOADS_HOST_PATH=
+```
+
+(Tip: if a folder doesn't exist yet, create it in File Explorer first —
+Docker needs the real folder to already be there.) Also change
+`POSTGRES_PASSWORD` from the placeholder to anything else — it's just a
+password for the database SPOOL keeps on your own PC, not something you
+need to remember or share. Save the file (`Ctrl + S`) and close Notepad.
+
+#### Step 2: Start SPOOL
+
+Back in PowerShell, paste this and press Return:
+
+```powershell
+docker compose up -d --build
+```
+
+This downloads and builds everything SPOOL needs — the first time, it
+can take several minutes (you'll see a lot of text scroll by; that's
+normal). When it finishes, check that everything started correctly:
+
+```powershell
+docker compose ps
+```
+
+You should see five services (`postgres`, `api`, `watcher`, `worker`,
+`worker-step`) all saying `running` or `Up`. Now open
+`http://localhost:8000` in your browser — you should see SPOOL's search
+page, currently empty or nearly so. Your folders from `.env` start being
+indexed automatically in the background — if they contain a lot of
+files, thumbnails will keep appearing over the next while as SPOOL works
+through them; there's nothing else you need to click or run for that to
+happen, just wait and refresh the page occasionally.
+
+*(If you ever change a folder path in `.env` later, editing the file
+alone won't update an already-running SPOOL — go to the `/admin` page in
+the browser and edit the path there instead.)*
+
+#### Step 3: Install the host-helper (lets SPOOL open files in Fusion/Bambu Studio)
+
+Everything above runs inside Docker, which — deliberately, for safety —
+can't reach out and open another app on your actual PC. One small
+separate helper program handles just that piece; it's not Docker, it's a
+tiny program that starts automatically in the background whenever you
+log in.
+
+Easiest path (needs Python — **optional**, see Requirements above; if
+you don't have it and would rather not install it just for this, skip
+straight to the "by hand" alternative below) — let it look at what's
+installed and ask you to confirm:
+
+```powershell
+python host-helper\configure_apps.py
+```
+
+It scans common install folders (`Program Files`, etc.), guesses your
+CAD app and slicer, and asks you to pick from a numbered list if it
+finds more than one candidate (or if it finds none, lets you type the
+exact `.exe` path yourself). This is exactly what `.\setup.ps1` already
+ran for you if you used the setup script instead of this manual guide —
+running it again re-asks and overwrites the previous choice, so it's
+fine to change your mind later.
+
+If you'd rather do it by hand instead: open `host-helper\host_helper_windows.py`
+(find it in File Explorer, inside the SPOOL folder, and open it with
+Notepad) and look for two sections, `APP_MAP` and `APP_PATHS` — unlike
+macOS, Windows needs both, since there's no equivalent of `open -a` that
+resolves an app name to a real program on its own. To find an app's real
+`.exe` path: find it in the Start menu, right-click it → **More** →
+**Open file location** (this reveals a shortcut in File Explorer),
+then right-click *that* shortcut → **Properties** — the **Target** field
+shows the real path. There's a matching `APP_MAP` (not `APP_PATHS`, that
+one's Windows-only) in `services/api/spool_api/host_helper_client.py`
+too — keep both in sync.
+
+Either way, finish by running:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File host-helper\install_windows.ps1
+```
+
+If you ever change `host_helper_windows.py`, `host_helper_client.py`, or
+`.env` again later, re-run that same command (and `docker compose up -d
+--build api` too, if you changed `host_helper_client.py`) to pick up the
+change.
+
+That's it — SPOOL is fully set up, with no extra permission step needed
+(unlike macOS, Windows' own normal file permissions already cover
+deleting duplicates). Bookmark `http://localhost:8000` and come back to
+it any time Docker Desktop is running.
+
+### Updating without the installer
+
+If you set up via the ZIP/script/manual routes above (not
+`SPOOL-Installer.dmg`/`.exe`), **don't just download a fresh ZIP into a
+new folder** — your actual data (every file, tag, project, print log)
+lives in Docker's own storage, not in the SPOOL folder itself, and a new
+folder can leave that data behind without any obvious warning. The one
+thing that *does* live in the SPOOL folder and matters is `.env` (your
+folder paths and database password) — it's never part of any download,
+so it has to survive the update in place.
+
+**The clean way — update the same folder instead of making a new one:**
+
+1. Download the new ZIP and extract it anywhere temporary (double-click
+   it in Downloads, that's fine).
+2. Select everything inside that freshly-extracted folder and drag it
+   into your **existing** SPOOL folder — the same one you've been using.
+   - **Mac:** Finder will ask *"An item named X already exists — Replace?"*
+     — choose **Replace All** (or **Apply to All** + **Replace**).
+   - **Windows:** File Explorer will ask to confirm overwriting — choose
+     **Replace the files in the destination**.
+3. `.env` was never part of the ZIP, so this leaves it completely
+   untouched — your paths and password come along automatically.
+4. Delete the now-empty temporary extracted folder, then re-run
+   `./setup.sh` / `.\setup.ps1` (or just `docker compose up -d --build`)
+   from your real SPOOL folder.
+
+(If you set this up with `git clone` instead of a ZIP: `git pull` in
+that same folder does the same thing, even more simply.)
+
+**If you (or a fellow tester) do end up extracting a fresh copy into a
+new folder anyway** — running the setup script there is designed to
+catch this rather than fail silently or confusingly: it checks for an
+existing SPOOL database before writing a new `.env`, and if it finds
+one sitting there unmatched, it stops and tells you exactly what
+happened, offering two options — go find your old `.env` and use the
+steps above instead (safe, nothing is touched), or confirm permanently
+erasing that old data and starting completely fresh. It never silently
+guesses on your behalf either way.
+
+</details>
