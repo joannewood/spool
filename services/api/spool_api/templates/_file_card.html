@@ -57,22 +57,24 @@
 {% macro project_card(p) %}
 <a class="card card-project" href="/projects/{{ p.id }}">
   <div class="thumb">
-    {% if p.thumbnails %}
-      <div class="thumb-collage thumb-collage-{{ p.thumbnails|length }}">
-        {% for t in p.thumbnails %}
-        <img src="{{ thumb_url(t.thumbnail_path, t.content_hash) }}" alt="{% if loop.first %}{{ p.name }}{% endif %}" loading="lazy">
-        {% endfor %}
-      </div>
-    {% else %}
-      <div class="thumb-placeholder">
-        <span class="ext-label">{{ p.file_count }}</span>
-      </div>
-    {% endif %}
+    <div class="project-banner">Project</div>
+    <div class="thumb-collage-wrap">
+      {% if p.thumbnails %}
+        <div class="thumb-collage thumb-collage-{{ p.thumbnails|length }}">
+          {% for t in p.thumbnails %}
+          <img src="{{ thumb_url(t.thumbnail_path, t.content_hash) }}" alt="{% if loop.first %}{{ p.name }}{% endif %}" loading="lazy">
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="thumb-placeholder">
+          <span class="ext-label">{{ p.file_count }}</span>
+        </div>
+      {% endif %}
+    </div>
   </div>
   <div class="meta">
     <div class="filename" title="{{ p.name }}">{{ p.name }}</div>
     <div class="badges">
-      <span class="card-project-badge">Project</span>
       <span class="note-inline">{{ p.file_count }} file{{ "s" if p.file_count != 1 else "" }}</span>
     </div>
   </div>

@@ -360,6 +360,32 @@ main {
      card, so the whole card — not just the text area below the
      thumbnail — reads as one solid, unmistakably-a-project surface. */
   background: color-mix(in oklab, var(--accent) 22%, var(--surface));
+  display: flex;
+  flex-direction: column;
+}
+/* A contrasting banner across the top of the thumbnail, not just a
+   small chip below it — --ink/--surface (swapped, not the card's own
+   blue) so it reads as a deliberate label rather than blending into
+   the rest of the now-solidly-blue card; the pairing also flips
+   sensibly in dark mode (light banner on the darker blue) without a
+   separate override. */
+.project-banner {
+  flex: 0 0 auto;
+  background: var(--ink);
+  color: var(--surface);
+  text-align: center;
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4px 0;
+}
+.thumb-collage-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 /* Small collage of up to MAX_PROJECT_CARD_THUMBNAILS real file
    thumbnails (queries.py), instead of one image indistinguishable from
