@@ -354,6 +354,12 @@ def project_detail(request: Request, project_id: int, open_status: str = ""):
     # worth showing here.
     for f in files + suggested_files:
         f["projects"] = [p for p in f["projects"] if p["id"] != project_id]
+    # "Move to..."/"Merge into..." can't meaningfully target this project
+    # itself or anything already nested under it (a cycle for the first,
+    # a self-containing no-op for the second) — excluded from the picker
+    # rather than offered and then rejected server-side.
+    excluded_ids = {project_id} | queries.get_project_descendant_ids(project_id)
+    other_projects = [p for p in queries.list_projects() if p["id"] not in excluded_ids]
     return templates.TemplateResponse(
         request,
         "project_detail.html",
@@ -365,6 +371,7 @@ def project_detail(request: Request, project_id: int, open_status: str = ""):
             "parent": queries.get_project(project["parent_project_id"]) if project["parent_project_id"] else None,
             "sidecars": queries.get_project_sidecars(project_id),
             "open_status": open_status,
+            "other_projects": other_projects,
         },
     )
 
@@ -373,6 +380,24 @@ def project_detail(request: Request, project_id: int, open_status: str = ""):
 def update_project_name(project_id: int, name: str = Form(...)):
     queries.set_project_name(project_id, name)
     return RedirectResponse(f"/projects/{project_id}", status_code=303)
+
+
+@app.post("/projects/{project_id}/parent")
+def update_project_parent(project_id: int, parent_project_id: str = Form("")):
+    new_parent_id = int(parent_project_id) if parent_project_id else None
+    queries.set_project_parent(project_id, new_parent_id)
+    return RedirectResponse(f"/projects/{project_id}", status_code=303)
+
+
+# Merging is real, irreversible deletion of the source project (its files
+# move to the target first — see merge_projects' own docstring for exactly
+# what happens to a file already in both, and to the source's own
+# sub-projects) — redirects to the *target*, since the source no longer
+# exists to redirect back to.
+@app.post("/projects/{project_id}/merge")
+def merge_project(project_id: int, target_project_id: int = Form(...)):
+    queries.merge_projects(project_id, target_project_id)
+    return RedirectResponse(f"/projects/{target_project_id}", status_code=303)
 
 
 # Same effect as the existing /files/{file_id}/projects/{project_id}/confirm

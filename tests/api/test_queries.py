@@ -113,6 +113,189 @@ def test_add_file_to_project_and_back(make_file, db_conn):
             cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
 
 
+# ---- re-parenting an existing project ("move to another project") --------
+
+def test_set_project_parent_moves_a_top_level_project_under_another(db_conn):
+    parent_id = queries.create_project("New Parent", "", None)
+    child_id = queries.create_project("Formerly Top Level", "", None)
+    try:
+        assert queries.set_project_parent(child_id, parent_id) is True
+        assert queries.get_project(child_id)["parent_project_id"] == parent_id
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = ANY(%s)", ([parent_id, child_id],))
+
+
+def test_set_project_parent_to_none_moves_to_top_level(db_conn):
+    parent_id = queries.create_project("Old Parent", "", None)
+    child_id = queries.create_project("Child", "", parent_id)
+    try:
+        assert queries.set_project_parent(child_id, None) is True
+        assert queries.get_project(child_id)["parent_project_id"] is None
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = ANY(%s)", ([parent_id, child_id],))
+
+
+def test_set_project_parent_rejects_self_parent(db_conn):
+    project_id = queries.create_project("Self Parent Test", "", None)
+    try:
+        assert queries.set_project_parent(project_id, project_id) is False
+        assert queries.get_project(project_id)["parent_project_id"] is None
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_set_project_parent_rejects_a_cycle(db_conn):
+    grandparent_id = queries.create_project("Cycle Grandparent", "", None)
+    parent_id = queries.create_project("Cycle Parent", "", grandparent_id)
+    child_id = queries.create_project("Cycle Child", "", parent_id)
+    try:
+        # Trying to make the grandparent a child of its own grandchild.
+        assert queries.set_project_parent(grandparent_id, child_id) is False
+        assert queries.get_project(grandparent_id)["parent_project_id"] is None
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = ANY(%s)", ([grandparent_id, parent_id, child_id],))
+
+
+def test_get_project_descendant_ids_multi_level(db_conn):
+    grandparent_id = queries.create_project("Descendants Grandparent", "", None)
+    parent_id = queries.create_project("Descendants Parent", "", grandparent_id)
+    child_id = queries.create_project("Descendants Child", "", parent_id)
+    unrelated_id = queries.create_project("Descendants Unrelated", "", None)
+    try:
+        descendants = queries.get_project_descendant_ids(grandparent_id)
+        assert descendants == {parent_id, child_id}
+        assert unrelated_id not in descendants
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM projects WHERE id = ANY(%s)",
+                ([grandparent_id, parent_id, child_id, unrelated_id],),
+            )
+
+
+# ---- merging two projects --------------------------------------------------
+
+def test_merge_projects_moves_files_and_deletes_source(make_file, db_conn):
+    file_a = make_file(filename="merge-source-a.stl")
+    file_b = make_file(filename="merge-target-b.stl")
+    source_id = queries.create_project("Merge Source", "", None)
+    target_id = queries.create_project("Merge Target", "", None)
+    try:
+        queries.add_file_to_project(file_a, source_id)
+        queries.add_file_to_project(file_b, target_id)
+
+        assert queries.merge_projects(source_id, target_id) is True
+
+        assert queries.get_project(source_id) is None  # source is gone
+        target_file_ids = {p["id"] for p in queries.get_file_projects(file_a)}
+        assert target_id in target_file_ids
+        assert {p["id"] for p in queries.get_file_projects(file_b)} == {target_id}
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (target_id,))
+
+
+def test_merge_projects_promotes_suggested_to_confirmed_on_overlap(make_file, db_conn):
+    shared_file = make_file(filename="merge-overlap.stl")
+    source_id = queries.create_project("Overlap Source", "", None)
+    target_id = queries.create_project("Overlap Target", "", None)
+    try:
+        # Confirmed in source, only suggested in target.
+        queries.add_file_to_project(shared_file, source_id)
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'suggested')",
+                (target_id, shared_file),
+            )
+
+        queries.merge_projects(source_id, target_id)
+
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "SELECT status FROM project_files WHERE project_id = %s AND file_id = %s",
+                (target_id, shared_file),
+            )
+            assert cur.fetchone()[0] == "confirmed"
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (target_id,))
+
+
+def test_merge_projects_reparents_source_children_to_target(db_conn):
+    source_id = queries.create_project("Reparent Source", "", None)
+    target_id = queries.create_project("Reparent Target", "", None)
+    source_child_id = queries.create_project("Reparent Source Child", "", source_id)
+    try:
+        queries.merge_projects(source_id, target_id)
+        assert queries.get_project(source_child_id)["parent_project_id"] == target_id
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = ANY(%s)", ([target_id, source_child_id],))
+
+
+def test_merge_projects_parent_into_own_child_does_not_self_reference(db_conn):
+    # Merging a project into its own direct child: the child (target)
+    # must never end up with parent_project_id pointing at itself.
+    source_id = queries.create_project("Merge Into Child Source", "", None)
+    target_id = queries.create_project("Merge Into Child Target", "", source_id)
+    other_child_id = queries.create_project("Merge Into Child Sibling", "", source_id)
+    try:
+        queries.merge_projects(source_id, target_id)
+
+        target = queries.get_project(target_id)
+        assert target["parent_project_id"] != target_id  # no self-reference
+        assert target["parent_project_id"] is None  # source (its old parent) is gone
+        # The sibling should still be correctly re-parented to the target.
+        assert queries.get_project(other_child_id)["parent_project_id"] == target_id
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = ANY(%s)", ([target_id, other_child_id],))
+
+
+def test_merge_projects_copies_source_folder_path_only_if_target_has_none(db_conn):
+    source_id = queries.create_project("Folder Source", "", None)
+    target_id = queries.create_project("Folder Target", "", None)
+    try:
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "UPDATE projects SET source_folder_path = %s WHERE id = %s",
+                ("/roots/library/some-kit", source_id),
+            )
+        queries.merge_projects(source_id, target_id)
+        assert queries.get_project(target_id)["source_folder_path"] == "/roots/library/some-kit"
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (target_id,))
+
+
+def test_merge_projects_does_not_overwrite_targets_existing_folder_path(db_conn):
+    source_id = queries.create_project("Folder Source 2", "", None)
+    target_id = queries.create_project("Folder Target 2", "", None)
+    try:
+        with db_conn.cursor() as cur:
+            cur.execute("UPDATE projects SET source_folder_path = %s WHERE id = %s", ("/roots/library/a", source_id))
+            cur.execute("UPDATE projects SET source_folder_path = %s WHERE id = %s", ("/roots/library/b", target_id))
+        queries.merge_projects(source_id, target_id)
+        assert queries.get_project(target_id)["source_folder_path"] == "/roots/library/b"
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (target_id,))
+
+
+def test_merge_projects_self_merge_is_a_no_op(db_conn):
+    project_id = queries.create_project("Self Merge Test", "", None)
+    try:
+        assert queries.merge_projects(project_id, project_id) is False
+        assert queries.get_project(project_id) is not None  # still exists
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
 # ---- print metadata (regression coverage for the None-literal bug) --------
 
 def test_print_metadata_partial_fields_stay_none_not_string(make_file, db_conn):

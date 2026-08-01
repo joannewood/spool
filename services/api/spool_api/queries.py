@@ -686,6 +686,131 @@ def set_project_name(project_id, name):
             cur.execute("UPDATE projects SET name = %s WHERE id = %s", (name.strip(), project_id))
 
 
+def get_project_descendant_ids(project_id):
+    """Every id nested (at any depth) under project_id — used to keep a
+    project out of its own "move to..."/"merge into..." dropdown options,
+    since either action targeting a descendant would be rejected anyway
+    (a cycle for re-parenting, a meaningless self-containing merge) but
+    is clearer to just not offer in the first place."""
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("SELECT id, parent_project_id FROM projects")
+            rows = cur.fetchall()
+    children_by_parent = {}
+    for r in rows:
+        if r["parent_project_id"] is not None:
+            children_by_parent.setdefault(r["parent_project_id"], []).append(r["id"])
+    descendants = set()
+    frontier = [project_id]
+    while frontier:
+        current = frontier.pop()
+        for child_id in children_by_parent.get(current, []):
+            if child_id not in descendants:
+                descendants.add(child_id)
+                frontier.append(child_id)
+    return descendants
+
+
+def set_project_parent(project_id, new_parent_id):
+    """Re-parents an existing project — the create-project form can only
+    set a parent once, at creation time; this is the only way to change
+    it afterward. Rejects (returns False, no change made) a no-op
+    self-parent or anything that would turn the tree into a cycle (make
+    project_id its own descendant's child) — walks new_parent_id's own
+    ancestor chain looking for project_id. new_parent_id=None moves the
+    project to top level, always allowed."""
+    if new_parent_id is not None:
+        if new_parent_id == project_id:
+            return False
+        with get_connection() as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute("SELECT id, parent_project_id FROM projects")
+                by_id = {r["id"]: r for r in cur.fetchall()}
+        ancestor_id = new_parent_id
+        seen = set()
+        while ancestor_id is not None and ancestor_id not in seen:
+            if ancestor_id == project_id:
+                return False  # would make project_id its own descendant
+            seen.add(ancestor_id)
+            row = by_id.get(ancestor_id)
+            ancestor_id = row["parent_project_id"] if row else None
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE projects SET parent_project_id = %s WHERE id = %s", (new_parent_id, project_id))
+    return True
+
+
+def merge_projects(source_id, target_id):
+    """Merges `source_id` into `target_id`: every one of source's
+    project_files rows moves to target (a file already in both keeps
+    target's row — promoted from 'suggested' to 'confirmed' first if
+    source had it confirmed, so merging never silently downgrades a
+    confirmed membership), source's own sub-projects are re-parented
+    under target, and source itself is deleted. No-op (returns False)
+    for a meaningless self-merge.
+
+    Two things deliberately left as-is on target, not copied from
+    source: `description` (keeping target's own is simplest — there's
+    no clearly "correct" way to combine two free-text descriptions) and,
+    the one exception, `source_folder_path` (the folder-grouping
+    auto-create tracking column) — copied over only if target doesn't
+    already have one of its own, since the column is UNIQUE and a
+    project can only ever track one folder. If target already has its
+    own folder association, source's is simply lost when source is
+    deleted, meaning a new file appearing later in source's original
+    folder will spawn a fresh project rather than rejoining target — a
+    real, narrow limitation of merging two folder-tracked projects,
+    not a bug: the schema has no way to make one project answer for two
+    folders.
+
+    A project re-parented here that happens to equal `target_id` itself
+    (only possible if target was a *direct* child of source — merging a
+    parent into its own child) is explicitly excluded, or it would try
+    to make target its own parent. If target itself was a child of
+    source, its parent_project_id already goes to NULL for free once
+    source is deleted (`ON DELETE SET NULL` on that column) — surfacing
+    at the top level is the sensible outcome, not left dangling."""
+    if source_id == target_id:
+        return False
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE project_files SET status = 'confirmed'
+                WHERE project_id = %s AND status = 'suggested'
+                  AND file_id IN (SELECT file_id FROM project_files WHERE project_id = %s AND status = 'confirmed')
+                """,
+                (target_id, source_id),
+            )
+            cur.execute(
+                """
+                UPDATE project_files SET project_id = %s
+                WHERE project_id = %s
+                  AND file_id NOT IN (SELECT file_id FROM project_files WHERE project_id = %s)
+                """,
+                (target_id, source_id, target_id),
+            )
+            cur.execute("DELETE FROM project_files WHERE project_id = %s", (source_id,))
+            cur.execute(
+                "UPDATE projects SET parent_project_id = %s WHERE parent_project_id = %s AND id != %s",
+                (target_id, source_id, target_id),
+            )
+            cur.execute("SELECT source_folder_path FROM projects WHERE id = %s", (source_id,))
+            source_folder_path = cur.fetchone()[0]
+            # Source has to actually be deleted *before* target can take
+            # over its source_folder_path — the column is UNIQUE, so both
+            # rows briefly holding the same value (source not yet gone)
+            # would violate that constraint even though the end state
+            # (one row, not two) is perfectly valid.
+            cur.execute("DELETE FROM projects WHERE id = %s", (source_id,))
+            if source_folder_path:
+                cur.execute(
+                    "UPDATE projects SET source_folder_path = %s WHERE id = %s AND source_folder_path IS NULL",
+                    (source_folder_path, target_id),
+                )
+    return True
+
+
 def count_projects_needing_name_cleanup():
     _, total = list_projects_needing_name_cleanup(page_size="all")
     return total

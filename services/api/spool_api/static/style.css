@@ -602,6 +602,20 @@ main {
 }
 .chip-add-btn:hover { border-color: var(--accent); color: var(--accent); }
 .page-header-row { display: flex; align-items: center; gap: 8px; }
+/* Occasional, secondary project actions (move/merge) — plain understated
+   text links rather than solid CTA buttons, so they don't compete with
+   the actual file grid below for attention. */
+.project-actions { display: flex; gap: 16px; margin: 4px 0 20px; }
+.project-actions button {
+  background: none;
+  color: var(--ink-muted);
+  padding: 0;
+  font-size: var(--fs-sm);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.project-actions button:hover { color: var(--accent); }
 /* The "create new project" option (in the same <select> as picking an
    existing one) reveals a name input — CSS-only via :has(), no JS: an
    <option> gets :checked same as a radio/checkbox, so a parent can react

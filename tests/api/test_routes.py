@@ -163,6 +163,65 @@ def test_rename_project_via_route(client, db_conn):
             cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
 
 
+def test_move_project_via_route(client, db_conn):
+    from spool_api import queries
+
+    new_parent_id = queries.create_project("Route Move New Parent", "", None)
+    project_id = queries.create_project("Route Move Child", "", None)
+    try:
+        resp = client.post(
+            f"/projects/{project_id}/parent",
+            data={"parent_project_id": str(new_parent_id)},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert queries.get_project(project_id)["parent_project_id"] == new_parent_id
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = ANY(%s)", ([new_parent_id, project_id],))
+
+
+def test_project_detail_excludes_self_and_descendants_from_move_merge_options(client, db_conn):
+    from spool_api import queries
+
+    parent_id = queries.create_project("Exclude Test Parent", "", None)
+    child_id = queries.create_project("Exclude Test Child", "", parent_id)
+    unrelated_id = queries.create_project("Exclude Test Unrelated", "", None)
+    try:
+        resp = client.get(f"/projects/{parent_id}")
+        assert resp.status_code == 200
+        # The parent's own dropdowns must not offer itself or its own child.
+        assert f'value="{parent_id}"' not in resp.text.split('id="move-project-modal"')[1].split("</dialog>")[0]
+        assert f'value="{child_id}"' not in resp.text.split('id="move-project-modal"')[1].split("</dialog>")[0]
+        assert f'value="{unrelated_id}"' in resp.text
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = ANY(%s)", ([parent_id, child_id, unrelated_id],))
+
+
+def test_merge_project_via_route_redirects_to_target(client, make_file, db_conn):
+    from spool_api import queries
+
+    source_id = queries.create_project("Route Merge Source", "", None)
+    target_id = queries.create_project("Route Merge Target", "", None)
+    file_id = make_file(filename="route-merge-file.stl")
+    try:
+        queries.add_file_to_project(file_id, source_id)
+
+        resp = client.post(
+            f"/projects/{source_id}/merge",
+            data={"target_project_id": str(target_id)},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers["location"] == f"/projects/{target_id}"
+        assert queries.get_project(source_id) is None
+        assert target_id in {p["id"] for p in queries.get_file_projects(file_id)}
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (target_id,))
+
+
 def test_project_detail_shows_suggested_files_section(client, make_file, db_conn):
     from spool_api import queries
 
