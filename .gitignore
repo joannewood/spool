@@ -39,3 +39,10 @@ CLAUDE.md
 # Editors
 .vscode/
 .idea/
+
+# Mac installer build tooling/output — .platypus-tools/ is a locally
+# extracted copy of Platypus's CLI (see scripts/setup-platypus-tools.sh,
+# BSD-licensed, https://github.com/sveinbjornt/Platypus), not something to
+# commit; dist/ is scripts/build-mac-installer.sh's own build output.
+.platypus-tools/
+dist/

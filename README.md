@@ -131,10 +131,9 @@ read the others first (or at all).
 <summary><h2>🍎 Mac setup</h2></summary>
 
 These steps assume you've never used Terminal or Docker before — if you
-already have, skip ahead freely. Every command below is meant to be copied
-and pasted exactly as written, one at a time, pressing Return after each.
-The first two steps are just downloads (no Terminal needed yet) — Terminal
-only comes into it once, right before you actually need it.
+already have, skip ahead freely. The recommended path below (Steps 1-2)
+never needs Terminal at all; it's only the alternate Terminal-based
+script and the Manual setup guide further down that use it.
 
 ### Step 1: Install Docker Desktop
 
@@ -149,7 +148,42 @@ only comes into it once, right before you actually need it.
    your menu bar (top of the screen) stops animating and Docker Desktop's
    own window says it's running.
 
-### Step 2: Get the SPOOL code onto your Mac
+### Step 2: Download and run the SPOOL Installer (recommended)
+
+This is the easiest path — no Terminal, no typing commands.
+
+1. Go to this project's GitHub **Releases** page and download
+   `SPOOL-Installer.dmg` (the latest release).
+2. Double-click the downloaded file to mount it, then double-click
+   **SPOOL Installer** inside the window that opens.
+3. The first time you open it, macOS shows a one-time "'SPOOL Installer'
+   was downloaded from the internet — are you sure you want to open it?"
+   confirmation — click **Open**. SPOOL Installer is signed and
+   notarized by Apple, so that's the only prompt you'll see; you won't
+   hit the scarier "can't be opened because the developer cannot be
+   verified" block some downloaded apps trigger.
+4. A window opens and walks you through the same folder questions
+   described above, using native Yes/No dialogs and Finder folder
+   pickers instead of typed answers — just read each one and click a
+   button. It installs SPOOL to `~/Applications/SPOOL`, starts it, sets
+   up "open in" for your CAD/slicer apps, and opens SPOOL in your
+   browser when it's done.
+
+**Safe to run again later** — download and re-run a newer
+`SPOOL-Installer.dmg` any time to update; it finds your existing
+`.env` and offers to keep it, so re-running never undoes your
+configuration.
+
+Skip ahead to [**Using SPOOL**](#using-spool) once it says you're done.
+
+Prefer working in Terminal yourself, or don't see a release download
+yet? Read on for the Terminal-based script instead, or see **Manual
+setup (Mac)** below to control every step by hand.
+
+<details>
+<summary>Terminal-based script instead (equivalent to the installer above)</summary>
+
+#### Get the SPOOL code onto your Mac
 
 If you were sent a link to this project's GitHub page: click the green
 **Code** button, then **Download ZIP**. Once it downloads, double-click the
@@ -157,9 +191,9 @@ ZIP file in your Downloads folder to unzip it, then drag the resulting
 folder somewhere you'll remember (your Documents folder is a good choice).
 
 (If you're comfortable with git instead: `git clone <the repo URL>`
-creates the folder directly — skip ahead to Step 3 either way.)
+creates the folder directly — skip ahead either way.)
 
-### Step 3: Open Terminal
+#### Open Terminal
 
 Terminal is the app you'll paste commands into for the rest of this.
 Open it with **Spotlight**: press `Cmd + Space`, type `Terminal`, press
@@ -173,7 +207,7 @@ into the Terminal window (this pastes its full path in automatically),
 then press Return. Your prompt should now show the folder's name,
 confirming you're "in" it.
 
-### Step 4: Run the setup script (recommended)
+#### Run the setup script
 
 The rest of setup — telling SPOOL which folders to watch, starting it,
 and wiring up "open in" for your CAD/slicer apps — is one script:
@@ -185,17 +219,17 @@ and wiring up "open in" for your CAD/slicer apps — is one script:
 It asks for your **drop folder** (required — your main working folder,
 the one that actually needs real files in it), then asks whether you
 have an **existing library** to index too and whether you want
-**Downloads** auto-managed, popping up a native Finder window for
-either one you say yes to and leaving it out of your setup entirely if
-you say no (see the folder explanations above for what each one means).
-Rather than making you hand-edit a config file, it generates a
-database password for you so there's nothing to remember, waits for
-each step to actually finish before moving to the next, and tells you
-plainly if something didn't work. It also looks at what's in your
-`~/Applications`/`/Applications` folder and tries to guess your CAD
-program and slicer automatically, asking you to confirm or pick from a
-list rather than requiring you to know the exact `.app` file name up
-front.
+**Downloads** auto-managed, popping up a native Yes/No dialog and a
+Finder window for either one you say yes to and leaving it out of your
+setup entirely if you say no (see the folder explanations above for
+what each one means). Rather than making you hand-edit a config file,
+it generates a database password for you so there's nothing to
+remember, waits for each step to actually finish before moving to the
+next, and tells you plainly if something didn't work. It also looks at
+what's in your `~/Applications`/`/Applications` folder and tries to
+guess your CAD program and slicer automatically, asking you to confirm
+or pick from a list rather than requiring you to know the exact `.app`
+file name up front.
 
 **It's completely safe to run more than once** — if it finds a `.env` you
 already set up, it asks whether to keep it before touching anything, so
@@ -207,6 +241,8 @@ Follow the prompts it prints, and skip ahead to
 about it fails, or you'd rather understand/control every step yourself,
 the **Manual setup (Mac)** guide below does exactly the same thing by
 hand.
+
+</details>
 
 </details>
 
@@ -680,6 +716,13 @@ feedback ("this would be more useful if...") is just as welcome as bug
 reports — open an issue for those too rather than sitting on them.
 
 ## Updating SPOOL
+
+**If you set up using SPOOL Installer (the `.dmg`, Mac only):** updating
+is just downloading the newer `SPOOL-Installer.dmg` and running it again
+— it always installs to the same `~/Applications/SPOOL`, finds your
+existing `.env` there, and offers to keep it, so nothing about your
+configuration is lost. None of the steps below apply to you; they're for
+the ZIP/git-based setup paths.
 
 When a new version comes out, **don't just download a fresh ZIP into a
 new folder** — your actual data (every file, tag, project, print log)

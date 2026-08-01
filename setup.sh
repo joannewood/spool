@@ -17,6 +17,44 @@ RESET=$(tput sgr0 2>/dev/null || true)
 step() { echo; echo "${BOLD}==> $1${RESET}"; }
 note() { echo "${DIM}    $1${RESET}"; }
 
+# Native Yes/No dialogs instead of reading stdin — this script never reads
+# input from the terminal at all now, so it works identically whether run
+# from a Terminal window or from inside a wrapped/double-clicked installer
+# app (e.g. a Platypus "Text Window" app, which only displays output —
+# forwarding keystrokes back into the script's stdin isn't something to
+# depend on). Escape/closing the dialog is treated as "No" either way,
+# since osascript's own "user canceled" error just leaves $answer empty.
+# A bare ASCII double quote inside a prompt string would otherwise close the
+# AppleScript string literal early and break the dialog (confirmed live:
+# an un-escaped embedded quote produced a real "Expected "," but found
+# identifier" syntax error from osascript) — escape any that show up so a
+# future edit to a message can't reintroduce that bug.
+_as_escape() { printf '%s' "${1//\"/\\\"}"; }
+
+confirm_yes_default() {  # [Y/n]
+  local prompt answer
+  prompt=$(_as_escape "$1")
+  answer=$(osascript -e "button returned of (display dialog \"$prompt\" buttons {\"No\", \"Yes\"} default button \"Yes\")" 2>/dev/null)
+  [ "$answer" = "Yes" ]
+}
+
+confirm_no_default() {  # [y/N]
+  local prompt answer
+  prompt=$(_as_escape "$1")
+  answer=$(osascript -e "button returned of (display dialog \"$prompt\" buttons {\"No\", \"Yes\"} default button \"No\")" 2>/dev/null)
+  [ "$answer" = "Yes" ]
+}
+
+# For the one destructive prompt — default button stays the safe choice, and
+# the affirmative one is spelled out rather than a bare "Yes" so the dialog
+# alone (without reading the surrounding text) makes the stakes clear.
+confirm_destructive() {
+  local prompt answer
+  prompt=$(_as_escape "$1")
+  answer=$(osascript -e "button returned of (display dialog \"$prompt\" buttons {\"Cancel\", \"Delete Everything\"} default button \"Cancel\" with icon caution)" 2>/dev/null)
+  [ "$answer" = "Delete Everything" ]
+}
+
 # ---- Step 1: Docker Desktop -------------------------------------------
 
 step "Checking for Docker Desktop"
@@ -59,8 +97,7 @@ step "Configuring your folders"
 RECONFIGURE=1
 if [ -f .env ]; then
   echo "Found an existing .env file."
-  read -r -p "Keep it as-is? [Y/n] " keep_env
-  if [[ ! "$keep_env" =~ ^[Nn] ]]; then
+  if confirm_yes_default "Found an existing .env file. Keep it as-is?"; then
     RECONFIGURE=0
     echo "Keeping your existing .env — skipping folder setup."
   fi
@@ -96,8 +133,7 @@ if [ "$RECONFIGURE" -eq 1 ]; then
     echo "  cannot connect to that existing database (the password won't match),"
     echo "  and continuing anyway means permanently deleting it first."
     echo
-    read -r -p "Type 'delete' to permanently erase that existing data and start fresh, or press Return to stop: " confirm_wipe
-    if [ "$confirm_wipe" = "delete" ]; then
+    if confirm_destructive "Found an existing SPOOL database from a previous setup, but there's no .env in this folder yet to match it.\n\nIf you want to keep your existing library, stop now and see “Updating SPOOL” in README.md instead. Continuing here permanently deletes that existing database."; then
       echo "Removing the old database..."
       docker volume rm spool_pgdata spool_thumbnails >/dev/null 2>&1 || true
       echo "Done — continuing with a fresh setup."
@@ -122,8 +158,7 @@ if [ "$RECONFIGURE" -eq 1 ]; then
 
   note "2 of 3 — your existing 3D print library (optional; read-only, SPOOL only indexes it)"
   LIBRARY_HOST_PATH=""
-  read -r -p "Do you have an existing 3D print library folder you'd like SPOOL to index too? [y/N] " has_library
-  if [[ "$has_library" =~ ^[Yy] ]]; then
+  if confirm_no_default "Do you have an existing 3D print library folder you'd like SPOOL to index too?"; then
     LIBRARY_HOST_PATH=$(pick_folder "Choose your existing 3D print library folder" "$HOME/Documents/3D Printing")
   else
     echo "    skipping — SPOOL will only watch your drop folder for now. You can add"
@@ -132,8 +167,7 @@ if [ "$RECONFIGURE" -eq 1 ]; then
 
   note "3 of 3 — your Downloads folder (optional; new model files here get moved into your drop folder)"
   DOWNLOADS_HOST_PATH=""
-  read -r -p "Auto-move new 3D-print files out of your Downloads folder into your drop folder? [Y/n] " want_downloads
-  if [[ ! "$want_downloads" =~ ^[Nn] ]]; then
+  if confirm_yes_default "Auto-move new 3D-print files out of your Downloads folder into your drop folder?"; then
     DOWNLOADS_HOST_PATH="$HOME/Downloads"
     echo "    using $DOWNLOADS_HOST_PATH"
   else
@@ -185,8 +219,7 @@ fi
 
 step "Setting up 'Open in...' for your CAD/slicer apps"
 
-read -r -p "Auto-detect your installed CAD/slicer apps now? [Y/n] " do_apps
-if [[ ! "$do_apps" =~ ^[Nn] ]]; then
+if confirm_yes_default "Auto-detect your installed CAD/slicer apps now?"; then
   if command -v python3 >/dev/null 2>&1; then
     python3 host-helper/configure_apps.py
   else
@@ -210,8 +243,7 @@ echo
 echo "One thing that still needs a one-time manual click: deleting a"
 echo "duplicate file needs Full Disk Access, which macOS won't let any"
 echo "script grant on your behalf."
-read -r -p "Open that Settings page now? [Y/n] " do_privacy
-if [[ ! "$do_privacy" =~ ^[Nn] ]]; then
+if confirm_yes_default "Open that Settings page now?"; then
   open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles" 2>/dev/null || true
   echo "Add /usr/bin/python3 there (click +, press Cmd+Shift+G, type /usr/bin, select python3)."
 fi
