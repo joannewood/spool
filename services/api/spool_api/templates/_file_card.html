@@ -52,8 +52,10 @@
    search/filter (see queries.py::_collapse_fully_matching_projects).
    `p` needs: id, name, file_count, thumbnails (a list of up to
    MAX_PROJECT_CARD_THUMBNAILS {thumbnail_path, content_hash} dicts
-   borrowed from its member files) — rendered as a small collage so the
-   card actually reads as "several files," not a single-file card. #}
+   borrowed from its member files, rendered as a small collage so the
+   card actually reads as "several files," not a single-file card), and
+   extensions (the sorted set of distinct file types across every
+   member, not just the ones pictured). #}
 {% macro project_card(p) %}
 <a class="card card-project" href="/projects/{{ p.id }}">
   <div class="thumb">
@@ -75,6 +77,9 @@
   <div class="meta">
     <div class="filename" title="{{ p.name }}">{{ p.name }}</div>
     <div class="badges">
+      {% for ext in p.extensions %}
+      <span class="ext-badge {{ ext | ext_class }}">{{ ext }}</span>
+      {% endfor %}
       <span class="note-inline">{{ p.file_count }} file{{ "s" if p.file_count != 1 else "" }}</span>
     </div>
   </div>

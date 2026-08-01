@@ -311,27 +311,35 @@ def _collapse_fully_matching_projects(all_rows, fully_matching):
     MAX_PROJECT_CARD_THUMBNAILS representative thumbnails (a small
     collage, not just one file's image) so it actually reads as "a
     project with several files" rather than looking identical to an
-    ordinary file card. A file could belong to more than one fully-
-    matching project at once; the alphabetically-first one wins
-    (memberships are already name-ordered), and the file is simply
-    dropped from the losing project's count — nothing further to do,
-    since the losing project still collapses correctly from its *other*
-    member files.
+    ordinary file card, plus the sorted set of distinct extensions
+    across *every* matching member (not just the ones with a rendered
+    thumbnail) so the card's ext badges reflect the whole project, not
+    just whichever files happened to have a thumbnail. A file could
+    belong to more than one fully-matching project at once; the
+    alphabetically-first one wins (memberships are already name-
+    ordered), and the file is simply dropped from the losing project's
+    count — nothing further to do, since the losing project still
+    collapses correctly from its *other* member files.
 
     This — not search_files' per-page LIMIT/OFFSET — is what makes
     collapsing work across the whole search, not just one page: this
     function runs on the *entire* matching set first, and simple list
     slicing afterward paginates the resulting (shorter) item list."""
     thumbnails_by_project = {}
+    extensions_by_project = {}
     for r in all_rows:
-        if not r.get("thumbnail_path"):
-            continue
         for p in r["projects"]:
             if p["id"] not in fully_matching:
                 continue
-            bucket = thumbnails_by_project.setdefault(p["id"], [])
-            if len(bucket) < MAX_PROJECT_CARD_THUMBNAILS:
-                bucket.append({"thumbnail_path": r["thumbnail_path"], "content_hash": r["content_hash"]})
+            if r.get("thumbnail_path"):
+                bucket = thumbnails_by_project.setdefault(p["id"], [])
+                if len(bucket) < MAX_PROJECT_CARD_THUMBNAILS:
+                    bucket.append({"thumbnail_path": r["thumbnail_path"], "content_hash": r["content_hash"]})
+            # .step/.stp merged into one badge — same format, just spelled
+            # two ways (see filters.py::ext_class, which colors them
+            # identically for the same reason).
+            ext = ".step" if r["ext"] in (".step", ".stp") else r["ext"]
+            extensions_by_project.setdefault(p["id"], set()).add(ext)
 
     items = []
     already_carded = set()
@@ -346,6 +354,7 @@ def _collapse_fully_matching_projects(all_rows, fully_matching):
                     "name": target["name"],
                     "file_count": fully_matching[target["id"]],
                     "thumbnails": thumbnails_by_project.get(target["id"], []),
+                    "extensions": sorted(extensions_by_project.get(target["id"], set())),
                 }
             )
             already_carded.add(target["id"])

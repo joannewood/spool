@@ -484,6 +484,39 @@ def test_search_collapses_project_when_every_member_file_matches(make_file, db_c
         assert card["id"] == project_id
         assert card["name"] == "Collapse Kit"
         assert card["file_count"] == 2
+        assert card["extensions"] == [".stl"]
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_search_collapsed_project_card_shows_all_distinct_extensions(make_file, db_conn):
+    stl_file = make_file(filename="extmixkit-part.stl", ext=".stl")
+    threemf_file = make_file(filename="extmixkit-other.3mf", ext=".3mf")
+    project_id = queries.create_project("Ext Mix Kit", "", None)
+    try:
+        queries.add_file_to_project(stl_file, project_id)
+        queries.add_file_to_project(threemf_file, project_id)
+
+        rows, _, _ = queries.search_files(q="extmixkit", extensions=None, tags=None, page=1)
+
+        assert rows[0]["extensions"] == [".3mf", ".stl"]
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_search_collapsed_project_card_merges_step_and_stp(make_file, db_conn):
+    step_file = make_file(filename="stepmergekit-a.step", ext=".step")
+    stp_file = make_file(filename="stepmergekit-b.stp", ext=".stp")
+    project_id = queries.create_project("Step Merge Kit", "", None)
+    try:
+        queries.add_file_to_project(step_file, project_id)
+        queries.add_file_to_project(stp_file, project_id)
+
+        rows, _, _ = queries.search_files(q="stepmergekit", extensions=None, tags=None, page=1)
+
+        assert rows[0]["extensions"] == [".step"]  # .stp merged in, not shown separately
     finally:
         with db_conn.cursor() as cur:
             cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
