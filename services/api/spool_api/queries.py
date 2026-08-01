@@ -541,13 +541,38 @@ def list_projects_needing_name_cleanup(page=1, page_size=BULK_REVIEW_PAGE_SIZE_D
     a "model_files" container suffix, a long asset id), which is exactly
     what that heuristic targets. The suggestion is computed in Python, not
     SQL, so filtering/pagination happens here rather than in the query —
-    fine at this app's scale (a couple thousand projects, one cheap query)."""
+    fine at this app's scale (a couple thousand projects, one cheap query).
+
+    Each suggestion also carries `parent_path` — the joined chain of
+    ancestor names (top-level down to immediate parent, "/"-separated),
+    empty for a top-level project. A cleaned-up name reviewed in
+    isolation doesn't say which parent folder it actually lives under,
+    which matters for telling apart two similarly-named sub-projects
+    nested under different parents."""
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute("SELECT id, name FROM projects ORDER BY name")
+            cur.execute("SELECT id, name, parent_project_id FROM projects ORDER BY name")
             rows = cur.fetchall()
+    by_id = {row["id"]: row for row in rows}
+
+    def _parent_path(row):
+        chain = []
+        seen = set()
+        parent_id = row["parent_project_id"]
+        while parent_id and parent_id in by_id and parent_id not in seen:
+            seen.add(parent_id)
+            parent = by_id[parent_id]
+            chain.append(parent["name"])
+            parent_id = parent["parent_project_id"]
+        return " / ".join(reversed(chain))
+
     suggestions = [
-        {"id": row["id"], "name": row["name"], "suggested_name": suggested}
+        {
+            "id": row["id"],
+            "name": row["name"],
+            "suggested_name": suggested,
+            "parent_path": _parent_path(row),
+        }
         for row in rows
         for suggested in [suggest_clean_project_name(row["name"])]
         if suggested and suggested != row["name"]

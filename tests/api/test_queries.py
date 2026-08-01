@@ -1015,6 +1015,30 @@ def test_list_projects_needing_name_cleanup_excludes_already_clean_names():
             cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
 
 
+def test_list_projects_needing_name_cleanup_top_level_has_empty_parent_path():
+    project_id = queries.create_project("top-level-messy-model_files", "", None)
+    try:
+        suggestions, _ = queries.list_projects_needing_name_cleanup(page_size="all")
+        match = next(s for s in suggestions if s["id"] == project_id)
+        assert match["parent_path"] == ""
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_list_projects_needing_name_cleanup_nested_shows_ancestor_chain():
+    grandparent_id = queries.create_project("Grandparent Kit", "", None)
+    parent_id = queries.create_project("Parent Kit", "", grandparent_id)
+    child_id = queries.create_project("nested-messy-model_files", "", parent_id)
+    try:
+        suggestions, _ = queries.list_projects_needing_name_cleanup(page_size="all")
+        match = next(s for s in suggestions if s["id"] == child_id)
+        assert match["parent_path"] == "Grandparent Kit / Parent Kit"
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = ANY(%s)", ([grandparent_id, parent_id, child_id],))
+
+
 def test_rename_projects_bulk_applies_selected_renames():
     project_id = queries.create_project("rename-me-model_files", "", None)
     try:

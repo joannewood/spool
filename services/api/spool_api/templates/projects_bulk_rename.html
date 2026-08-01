@@ -44,7 +44,10 @@
             <input type="checkbox" class="bulk-rename-checkbox" name="checked_ids" value="{{ s.id }}">
           </td>
           <td>{{ s.name }}</td>
-          <td><input type="text" name="new_names" value="{{ s.suggested_name }}"></td>
+          <td class="rename-new-name">
+            {% if s.parent_path %}<span class="parent-path-prefix">{{ s.parent_path }} / </span>{% endif %}
+            <input type="text" name="new_names" value="{{ s.suggested_name }}">
+          </td>
         </tr>
         {% endfor %}
       </tbody>

@@ -1148,6 +1148,14 @@ button.card {
    not the browser's default ~20-character text input width. */
 .bulk-rename-checkbox { width: auto; }
 input[name="new_names"] { width: 100%; min-width: 220px; }
+/* A nested project's cleaned-up name reviewed alone doesn't say which
+   parent folder it actually lives under — .rename-new-name shows that
+   parent chain as plain uneditable text directly in front of the
+   editable field, flowing together as "Parent / New Name" so it's easy
+   to tell nested projects apart and see the name in its real context. */
+.rename-new-name { display: flex; align-items: center; gap: 4px; }
+.rename-new-name input[name="new_names"] { flex: 1 1 auto; width: auto; min-width: 160px; }
+.parent-path-prefix { color: var(--ink-muted); white-space: nowrap; }
 .admin-table select {
   padding-right: 24px;
   background-color: var(--bg);
