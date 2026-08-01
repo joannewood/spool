@@ -244,6 +244,27 @@ def test_project_detail_shows_suggested_files_section(client, make_file, db_conn
             cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
 
 
+def test_project_detail_shows_file_summary(client, make_file, db_conn):
+    from spool_api import queries
+
+    project_id = queries.create_project("Summary Block Test", "", None)
+    stl_file = make_file(filename="summary-a.stl", ext=".stl")
+    step_file = make_file(filename="summary-b.step", ext=".step")
+    try:
+        queries.add_file_to_project(stl_file, project_id)
+        queries.add_file_to_project(step_file, project_id)
+
+        resp = client.get(f"/projects/{project_id}")
+        assert resp.status_code == 200
+        summary_section = resp.text.split('class="project-summary"')[1].split("</div>")[0]
+        assert "2 files" in summary_section
+        assert ">.STEP<" in summary_section or ".step" in summary_section.lower()
+        assert "created" in summary_section
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
 def test_confirm_suggested_project_file_via_project_route(client, make_file, db_conn):
     from spool_api import queries
 

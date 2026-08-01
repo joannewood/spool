@@ -302,6 +302,29 @@ def _find_fully_matching_projects(cur, all_rows, where, params):
 MAX_PROJECT_CARD_THUMBNAILS = 4
 
 
+def _merge_step_ext(ext):
+    """.step/.stp are the same format, just spelled two ways — same
+    reasoning as filters.py::ext_class, which colors them identically.
+    Shared by every place that needs a project's *distinct* file types
+    (project cards, the project detail page's summary) so a project
+    with both spellings present doesn't show two near-identical badges."""
+    return ".step" if ext in (".step", ".stp") else ext
+
+
+def summarize_project_files(files):
+    """file_count + sorted distinct extensions (.step/.stp merged) for
+    an already-fetched list of file rows (each needs 'ext') — no new
+    query, since the project detail page already has its own file list
+    in hand by the time it needs this. Shared shape with the project-
+    card fields (`_collapse_fully_matching_projects`,
+    `attach_project_card_visuals`) even though this one's simpler (no
+    thumbnails — the detail page already shows the real file grid)."""
+    return {
+        "file_count": len(files),
+        "extensions": sorted({_merge_step_ext(f["ext"]) for f in files}),
+    }
+
+
 def _collapse_fully_matching_projects(all_rows, fully_matching):
     """Walks the full, already-correctly-sorted matching set (relevance
     tiering + the user's chosen sort, exactly as ORDER BY produced it —
@@ -335,11 +358,7 @@ def _collapse_fully_matching_projects(all_rows, fully_matching):
                 bucket = thumbnails_by_project.setdefault(p["id"], [])
                 if len(bucket) < MAX_PROJECT_CARD_THUMBNAILS:
                     bucket.append({"thumbnail_path": r["thumbnail_path"], "content_hash": r["content_hash"]})
-            # .step/.stp merged into one badge — same format, just spelled
-            # two ways (see filters.py::ext_class, which colors them
-            # identically for the same reason).
-            ext = ".step" if r["ext"] in (".step", ".stp") else r["ext"]
-            extensions_by_project.setdefault(p["id"], set()).add(ext)
+            extensions_by_project.setdefault(p["id"], set()).add(_merge_step_ext(r["ext"]))
 
     items = []
     already_carded = set()
@@ -560,12 +579,15 @@ def remove_tag_from_file(file_id, tag_id):
 # ---- projects ---------------------------------------------------------------
 
 def list_projects():
-    """All projects with their parent + a member-file count, for the tree page."""
+    """All projects with their parent + a member-file count, for the tree
+    page — also the base data for /projects' Cards view and its search,
+    so `created_at` is included here too even though the plain tree/list
+    rendering doesn't show it."""
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
                 """
-                SELECT p.id, p.name, p.description, p.parent_project_id,
+                SELECT p.id, p.name, p.description, p.parent_project_id, p.created_at,
                        count(pf.file_id) FILTER (WHERE pf.status = 'confirmed') AS file_count
                 FROM projects p
                 LEFT JOIN project_files pf ON pf.project_id = p.id
@@ -663,8 +685,7 @@ def attach_project_card_visuals(projects):
             bucket = thumbnails_by_project.setdefault(pid, [])
             if len(bucket) < MAX_PROJECT_CARD_THUMBNAILS:
                 bucket.append({"thumbnail_path": r["thumbnail_path"], "content_hash": r["content_hash"]})
-        ext = ".step" if r["ext"] in (".step", ".stp") else r["ext"]
-        extensions_by_project.setdefault(pid, set()).add(ext)
+        extensions_by_project.setdefault(pid, set()).add(_merge_step_ext(r["ext"]))
     for p in projects:
         p["thumbnails"] = thumbnails_by_project.get(p["id"], [])
         p["extensions"] = sorted(extensions_by_project.get(p["id"], set()))

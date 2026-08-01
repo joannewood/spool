@@ -1435,6 +1435,28 @@ def test_attach_project_card_visuals_empty_list_is_a_no_op():
     queries.attach_project_card_visuals([])  # must not raise
 
 
+def test_list_projects_includes_created_at():
+    project_id = queries.create_project("Created At List Test", "", None)
+    try:
+        row = next(p for p in queries.list_projects() if p["id"] == project_id)
+        assert row["created_at"] is not None
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_summarize_project_files_counts_and_merges_step_stp():
+    files = [{"ext": ".stl"}, {"ext": ".stl"}, {"ext": ".step"}, {"ext": ".stp"}]
+    summary = queries.summarize_project_files(files)
+    assert summary["file_count"] == 4
+    assert summary["extensions"] == [".step", ".stl"]
+
+
+def test_summarize_project_files_empty_list():
+    summary = queries.summarize_project_files([])
+    assert summary == {"file_count": 0, "extensions": []}
+
+
 # ---- bulk project-name cleanup ---------------------------------------------
 
 def test_list_projects_needing_name_cleanup_includes_a_messy_name():

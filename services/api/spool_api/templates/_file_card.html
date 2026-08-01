@@ -55,7 +55,11 @@
    borrowed from its member files, rendered as a small collage so the
    card actually reads as "several files," not a single-file card), and
    extensions (the sorted set of distinct file types across every
-   member, not just the ones pictured). #}
+   member, not just the ones pictured), and optionally created_at (only
+   present on /projects' Cards view, not the search page's collapsed
+   cards — a "when was this searched-for group of files put together"
+   date doesn't really mean anything, whereas the project's own actual
+   creation date does). #}
 {% macro project_card(p) %}
 <a class="card card-project" href="/projects/{{ p.id }}">
   <div class="thumb">
@@ -81,6 +85,7 @@
       <span class="ext-badge {{ ext | ext_class }}">{{ ext }}</span>
       {% endfor %}
       <span class="note-inline">{{ p.file_count }} file{{ "s" if p.file_count != 1 else "" }}</span>
+      {% if p.created_at %}<span class="note-inline">· {{ p.created_at | format_date }}</span>{% endif %}
     </div>
   </div>
 </a>

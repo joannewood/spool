@@ -15,6 +15,14 @@
 </h1>
 {% if project.description %}<p class="note">{{ project.description }}</p>{% endif %}
 
+<div class="project-summary">
+  {% for ext in file_summary.extensions %}
+  <span class="ext-badge {{ ext | ext_class }}">{{ ext }}</span>
+  {% endfor %}
+  <span class="note-inline">{{ file_summary.file_count }} file{{ "s" if file_summary.file_count != 1 else "" }}</span>
+  <span class="note-inline">created {{ project.created_at | format_date }}</span>
+</div>
+
 <div class="project-actions">
   <button type="button" class="project-action-btn modal-trigger" data-modal="move-project-modal">Move to another project…</button>
   <button type="button" class="project-action-btn modal-trigger" data-modal="merge-project-modal">Merge into another project…</button>

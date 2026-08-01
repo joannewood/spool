@@ -53,6 +53,16 @@ def render_error_label(error_text):
     return "Render failed"
 
 
+def format_date(dt):
+    """Short, human-readable date — "Jul 28, 2026" — instead of the raw
+    datetime's own verbose default str() (full timestamp + microseconds
+    + timezone offset), for contexts where only the day actually
+    matters (e.g. "created" on a project summary)."""
+    if dt is None:
+        return "—"
+    return dt.strftime("%b %-d, %Y")
+
+
 def format_size(num_bytes):
     if num_bytes is None:
         return "—"

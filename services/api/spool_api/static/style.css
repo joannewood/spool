@@ -680,6 +680,11 @@ main {
 }
 .chip-add-btn:hover { border-color: var(--accent); color: var(--accent); }
 .page-header-row { display: flex; align-items: center; gap: 8px; }
+/* File count/type mix/created date, directly under the name+description
+   — enough to confirm "yes, this is the project I meant" without
+   scrolling the file grid below. Same .ext-badge styling as file cards
+   and the /projects Cards view, for visual consistency. */
+.project-summary { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 6px 0 4px; }
 /* Occasional, secondary project actions (move/merge) — plain understated
    text links rather than solid CTA buttons, so they don't compete with
    the actual file grid below for attention. */

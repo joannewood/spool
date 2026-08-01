@@ -1,4 +1,15 @@
-from spool_api.filters import ext_class, format_size, render_error_label, thumb_url
+import datetime
+
+from spool_api.filters import ext_class, format_date, format_size, render_error_label, thumb_url
+
+
+def test_format_date_none_is_an_em_dash():
+    assert format_date(None) == "—"
+
+
+def test_format_date_formats_short_and_readable():
+    dt = datetime.datetime(2026, 7, 4, 12, 30, 0, tzinfo=datetime.timezone.utc)
+    assert format_date(dt) == "Jul 4, 2026"
 
 
 def test_thumb_url_none_thumbnail_path():
