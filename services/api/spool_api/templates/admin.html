@@ -11,9 +11,26 @@
 <div id="live-status" hx-get="/admin" hx-trigger="every 4s" hx-select="#live-status" hx-swap="outerHTML">
 <div class="admin-sections">
 
-<section class="panel">
+<section class="panel live-status-panel status-{{ overall_status }}">
   <div class="live-status-columns">
     <div class="live-status-main">
+      {% if not rescan_enabled %}
+      <p class="status-line">
+        <span class="status-dot status-dot-idle"></span>
+        Auto-sync paused
+      </p>
+      {% elif rescan_overdue %}
+      <p class="status-line">
+        <span class="status-dot status-dot-warn"></span>
+        <strong>Auto-sync looks stopped</strong> — last scan {{ last_scan_at | format_relative_time }}
+      </p>
+      {% else %}
+      <p class="status-line">
+        <span class="status-dot status-dot-ok"></span>
+        Auto-sync normal — next scan {{ next_scan_at | format_relative_time }}
+      </p>
+      {% endif %}
+
       {% if running_jobs %}
       <p class="status-line">
         <span class="status-dot status-dot-ok"></span>
@@ -40,31 +57,33 @@
       </p>
       {% endif %}
 
-      <p class="note-link"><a href="/admin/status">Processing status →</a> — full job queue, watched roots, and a searchable history of recent activity.</p>
+      <p class="note-link"><a href="/admin/status">Processing status →</a> — full job queue, watched roots, auto-sync settings, and a searchable history of recent activity.</p>
     </div>
 
-    <table class="admin-table live-status-totals">
-      <thead><tr><th colspan="2">Ingestion totals</th></tr></thead>
-      <tbody>
-        <tr><td>Total files</td><td>{{ totals.total_files }}</td></tr>
-        <tr>
-          <td><span class="status-dot status-dot-danger"></span> Unhashed</td>
-          <td>{{ totals.unhashed }}</td>
-        </tr>
-        <tr>
-          <td><span class="status-dot {{ 'status-dot-ok' if totals.render_pending > 0 else 'status-dot-idle' }}"></span> Render pending</td>
-          <td>{{ totals.render_pending }}</td>
-        </tr>
-        <tr>
-          <td><span class="status-dot status-dot-ok"></span> Render done</td>
-          <td>{{ totals.render_done }}</td>
-        </tr>
-        <tr>
-          <td><span class="status-dot {{ 'status-dot-warn' if totals.render_failed > 0 else 'status-dot-ok' }}"></span> Render failed</td>
-          <td>{{ totals.render_failed }}</td>
-        </tr>
-      </tbody>
-    </table>
+    <div class="live-status-totals-container">
+      <table class="admin-table live-status-totals">
+        <thead><tr><th colspan="2">Ingestion totals</th></tr></thead>
+        <tbody>
+          <tr><td>Total files</td><td>{{ totals.total_files }}</td></tr>
+          <tr>
+            <td><span class="status-dot status-dot-danger"></span> Unhashed</td>
+            <td>{{ totals.unhashed }}</td>
+          </tr>
+          <tr>
+            <td><span class="status-dot {{ 'status-dot-ok' if totals.render_pending > 0 else 'status-dot-idle' }}"></span> Render pending</td>
+            <td>{{ totals.render_pending }}</td>
+          </tr>
+          <tr>
+            <td><span class="status-dot status-dot-ok"></span> Render done</td>
+            <td>{{ totals.render_done }}</td>
+          </tr>
+          <tr>
+            <td><span class="status-dot {{ 'status-dot-warn' if totals.render_failed > 0 else 'status-dot-ok' }}"></span> Render failed</td>
+            <td>{{ totals.render_failed }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </section>
 

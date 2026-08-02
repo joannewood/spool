@@ -941,6 +941,56 @@ def test_admin_page_self_polls_the_live_status_section(client):
     assert 'hx-select="#live-status"' in resp.text
 
 
+def test_admin_page_shows_auto_sync_normal(client, test_root_id, db_conn):
+    from spool_api import queries
+
+    original = queries.get_app_settings()
+    try:
+        with db_conn.cursor() as cur:
+            cur.execute("UPDATE watched_roots SET last_scanned_at = now() WHERE id = %s", (test_root_id,))
+        queries.update_app_settings(True, original["rescan_interval_seconds"])
+        resp = client.get("/admin")
+        assert resp.status_code == 200
+        assert "Auto-sync normal" in resp.text
+        assert "next scan" in resp.text
+        assert "status-ok" in resp.text
+    finally:
+        queries.update_app_settings(original["rescan_enabled"], original["rescan_interval_seconds"])
+
+
+def test_admin_page_shows_auto_sync_paused(client):
+    from spool_api import queries
+
+    original = queries.get_app_settings()
+    try:
+        queries.update_app_settings(False, original["rescan_interval_seconds"])
+        resp = client.get("/admin")
+        assert resp.status_code == 200
+        assert "Auto-sync paused" in resp.text
+        assert "status-warn" in resp.text
+    finally:
+        queries.update_app_settings(original["rescan_enabled"], original["rescan_interval_seconds"])
+
+
+def test_admin_page_shows_auto_sync_overdue(client, test_root_id, db_conn):
+    from spool_api import queries
+
+    original = queries.get_app_settings()
+    try:
+        queries.update_app_settings(True, 60)
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "UPDATE watched_roots SET last_scanned_at = now() - interval '1 hour' WHERE id = %s",
+                (test_root_id,),
+            )
+        resp = client.get("/admin")
+        assert resp.status_code == 200
+        assert "Auto-sync looks stopped" in resp.text
+        assert "status-danger" in resp.text
+    finally:
+        queries.update_app_settings(original["rescan_enabled"], original["rescan_interval_seconds"])
+
+
 def test_admin_page_shows_ingestion_totals_with_warn_dot_on_failures(client, make_file, db_conn):
     file_id = make_file(filename="admin-page-render-failed.stl")
     with db_conn.cursor() as cur:

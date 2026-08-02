@@ -671,6 +671,21 @@ def _get_rescan_timing():
     }
 
 
+def _overall_admin_status(rescan_timing, totals):
+    """One red/orange/green read of "is anything wrong right now" for the
+    colored border around the top of /admin — combines the two signals
+    already shown there (auto-sync state, render failures) rather than
+    introducing a third, independent judgment. Worst signal wins: a
+    stopped scan loop is red (looks genuinely broken), a paused scan loop
+    or any render failures is orange (worth knowing, not an emergency),
+    otherwise green."""
+    if rescan_timing["rescan_overdue"]:
+        return "danger"
+    if not rescan_timing["rescan_enabled"] or totals["render_failed"] > 0:
+        return "warn"
+    return "ok"
+
+
 def _pivot_job_queue(rows):
     """Turn the flat (job_type, status, n) rows from get_job_queue_summary
     (queued/running only — see its docstring) into one row per job_type
@@ -688,6 +703,8 @@ def _pivot_job_queue(rows):
 
 @app.get("/admin", response_class=HTMLResponse)
 def admin(request: Request):
+    rescan_timing = _get_rescan_timing()
+    totals = queries.get_ingestion_totals()
     return templates.TemplateResponse(
         request,
         "admin.html",
@@ -699,7 +716,9 @@ def admin(request: Request):
             "suggested_project_count": queries.count_suggested_project_assignments(),
             "suggested_relationship_count": queries.count_suggested_relationships(),
             "running_jobs": queries.get_running_jobs(),
-            "totals": queries.get_ingestion_totals(),
+            "totals": totals,
+            "overall_status": _overall_admin_status(rescan_timing, totals),
+            **rescan_timing,
         },
     )
 
