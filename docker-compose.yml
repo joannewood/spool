@@ -45,6 +45,15 @@ services:
       retries: 5
 
   api:
+    # image + build together: `docker compose up -d --build` (the dev
+    # workflow, see CONTRIBUTING.md) always builds locally regardless of
+    # what's on the registry; a plain `docker compose up -d` with no local
+    # image cached yet (the tester/installer path, see setup.sh/setup.ps1)
+    # pulls this pre-built image instead of building from source, which is
+    # the whole point of the ghcr.io publishing step in the release ritual
+    # (see CONTRIBUTING.md's "Publishing pre-built images" section) --
+    # skips a from-scratch `pip install`/`apt-get` on someone else's machine.
+    image: ghcr.io/joannewood/spool-api:latest
     build:
       context: ./services
       dockerfile: api/Dockerfile
@@ -72,6 +81,7 @@ services:
         condition: service_healthy
 
   watcher:
+    image: ghcr.io/joannewood/spool-watcher:latest
     build:
       context: ./services
       dockerfile: watcher/Dockerfile
@@ -86,7 +96,7 @@ services:
         condition: service_healthy
 
   worker:
-    image: spool-worker
+    image: ghcr.io/joannewood/spool-worker:latest
     build:
       context: ./services
       dockerfile: worker/Dockerfile
@@ -120,7 +130,7 @@ services:
   # ingest/mesh-render work in `worker`. Same image, different job filter.
   # RUN_BACKFILL=false since `worker` already does the one-shot backfill walk.
   worker-step:
-    image: spool-worker
+    image: ghcr.io/joannewood/spool-worker:latest
     build:
       context: ./services
       dockerfile: worker/Dockerfile

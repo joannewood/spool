@@ -497,12 +497,12 @@ need to remember or share. Save the file (`Cmd + S`) and close TextEdit.
 Back in Terminal, paste this and press Return:
 
 ```bash
-docker compose up -d --build
+docker compose up -d
 ```
 
-This downloads and builds everything SPOOL needs — the first time, it
-downloads a few GB and can take several minutes (you'll see a lot of text
-scroll by; that's normal).
+This downloads everything SPOOL needs — the first time, it's a few GB and
+can take several minutes (you'll see a lot of text scroll by; that's
+normal).
 When it finishes and gives you a new prompt, check that everything started
 correctly:
 
@@ -673,13 +673,12 @@ need to remember or share. Save the file (`Ctrl + S`) and close Notepad.
 Back in PowerShell, paste this and press Return:
 
 ```powershell
-docker compose up -d --build
+docker compose up -d
 ```
 
-This downloads and builds everything SPOOL needs — the first time, it
-downloads a few GB and can take several minutes (you'll see a lot of
-text scroll by; that's normal). When it finishes, check that everything
-started correctly:
+This downloads everything SPOOL needs — the first time, it's a few GB and
+can take several minutes (you'll see a lot of text scroll by; that's
+normal). When it finishes, check that everything started correctly:
 
 ```powershell
 docker compose ps
@@ -778,8 +777,8 @@ so it has to survive the update in place.
 3. `.env` was never part of the ZIP, so this leaves it completely
    untouched — your paths and password come along automatically.
 4. Delete the now-empty temporary extracted folder, then re-run
-   `./setup.sh` / `.\setup.ps1` (or just `docker compose up -d --build`)
-   from your real SPOOL folder.
+   `./setup.sh` / `.\setup.ps1` (or just `docker compose up -d`, which
+   pulls the latest pre-built images) from your real SPOOL folder.
 
 (If you set this up with `git clone` instead of a ZIP: `git pull` in
 that same folder does the same thing, even more simply.)

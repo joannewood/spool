@@ -196,8 +196,15 @@ UPDATE watched_roots SET active = FALSE WHERE container_path = '/roots/downloads
 # Shared by the fast "Restart SPOOL" path above and the full setup flow's
 # own Step 3 below, so re-running the whole guided setup doesn't need a
 # second, duplicate copy of this.
+#
+# No --build: docker-compose.yml's api/watcher/worker/worker-step all carry
+# a ghcr.io image: tag now, so a plain `up` pulls the pre-built image
+# instead of compiling everything from source on the tester's own machine
+# (the real fix for "downloads a lot and takes a long time" on a fresh
+# install). Developers working on SPOOL itself still use `docker compose up
+# -d --build` directly (see CONTRIBUTING.md) to pick up local changes.
 start_and_wait() {
-  docker compose up -d --build
+  docker compose up -d
 
   printf "Waiting for the web app to respond"
   READY=0

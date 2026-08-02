@@ -211,8 +211,13 @@ function Sync-WatchedRoots {
     $sql | docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U spool -d spool | Out-Null
 }
 
+# No --build: docker-compose.yml's api/watcher/worker/worker-step all
+# carry a ghcr.io image: tag now, so a plain `up` pulls the pre-built
+# image instead of compiling everything from source on the tester's own
+# machine. Developers working on SPOOL itself still use
+# `docker compose up -d --build` directly (see CONTRIBUTING.md).
 function Start-AndWait {
-    docker compose up -d --build
+    docker compose up -d
 
     Write-Host -NoNewline "Waiting for the web app to respond"
     $ready = $false

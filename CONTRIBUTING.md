@@ -151,6 +151,37 @@ importable without them (`job_queue.py`, `gcode_thumbnail.py`,
 are kept stdlib/psycopg-only for exactly this reason — think about that
 boundary before adding a new import to one of them.
 
+## Publishing pre-built images
+
+`docker-compose.yml`'s `api`/`watcher`/`worker`/`worker-step` services each
+carry an `image: ghcr.io/joannewood/spool-*:latest` tag alongside their
+`build:` block — a plain `docker compose up -d` (what `setup.sh`/
+`setup.ps1` run on a tester's machine) pulls the pre-built image instead
+of compiling everything from source, which is most of what made a fresh
+install slow (cadquery-ocp's full OpenCASCADE bundle, trimesh/pyrender's
+EGL/Mesa stack). `docker compose up -d --build` (the local dev loop) is
+unaffected either way — `--build` always builds locally and re-tags
+regardless of what's on the registry.
+
+Run this as part of cutting a release, before or after the installer
+build below (order doesn't matter — they're independent artifacts):
+
+```bash
+gh workflow run build-and-push-images.yml -f version=vX.Y.Z
+gh run watch <run-id> --exit-status
+```
+
+Multi-arch (`linux/amd64,linux/arm64`) via QEMU + Buildx — the worker
+image in particular is slow to build under arm64 emulation (~1.4GB of
+geometry-library deps), so expect this to take a while.
+
+**One-time per new package**: GHCR packages default to **private** even
+on a public repo — after the very first push of each of the three images,
+go to the package's page (github.com/joannewood?tab=packages) → Package
+settings → Change visibility → Public, or the pull in `setup.sh`/
+`setup.ps1` will fail with an auth error on a tester's machine that has
+no GHCR credentials at all.
+
 ## Building a release installer
 
 Both build scripts export exactly the **git-tracked** repo (`git archive
