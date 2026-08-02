@@ -13,14 +13,23 @@
   searchable history of recent activity.
 </p>
 
-{# Job queue + watched roots self-refresh on their own timer, independent of
-   the recent-activity search below — splitting them out means the search
-   box's own debounced request only ever swaps the (much smaller) recent-
-   activity panel, not this whole block. #}
-<div id="status-top" hx-get="/admin/status" hx-trigger="every 4s" hx-select="#status-top" hx-swap="outerHTML">
-
-<div class="admin-sections">
-
+{# Deliberately outside any auto-swapped container, same reasoning as the
+   Recent-activity search form further down: this panel has real form
+   inputs (the interval field, the enabled checkbox) that must never be
+   silently overwritten mid-edit by a background poll. Confirmed live as
+   a real bug, not just a theoretical risk — with the form nested inside
+   #status-top's own "every 4s" full-region swap, unchecking the box and
+   waiting past the next poll re-checked it before Save was ever clicked,
+   since the poll re-fetched the still-enabled server state. Nesting a
+   smaller htmx-polled region *inside* #status-top wouldn't have fixed
+   this either — the outer div's own periodic outerHTML swap replaces
+   everything inside it regardless of any inner element's own boundary,
+   so the form has to live structurally outside #status-top entirely,
+   not just outside some inner polling scope. The tradeoff: this panel's
+   stats (last scan time, etc.) only refresh on a real page load now,
+   not every 4s like Job queue/Watched roots below — an acceptable
+   accuracy-vs-correctness trade given the alternative is a form that
+   fights the user. #}
 <section class="panel">
   <h2 class="panel-title-with-icon"><img src="/favicon.svg" alt="" width="20" height="20">Auto-sync</h2>
   <p class="note">Scans every {{ rescan_interval_seconds | format_duration }} for moved, edited, or deleted files.</p>
@@ -57,6 +66,16 @@
     <button type="submit">Save</button>
   </form>
 </section>
+
+{# Job queue + watched roots self-refresh on their own timer, independent of
+   the recent-activity search below — splitting them out means the search
+   box's own debounced request only ever swaps the (much smaller) recent-
+   activity panel, not this whole block. Neither panel has any form input
+   of its own, so unlike Auto-sync above, there's nothing here a poll
+   could clobber mid-edit. #}
+<div id="status-top" hx-get="/admin/status" hx-trigger="every 4s" hx-select="#status-top" hx-swap="outerHTML">
+
+<div class="admin-sections">
 
 <section class="panel">
   <h2>Job queue</h2>
