@@ -102,6 +102,8 @@ your machine can reach it — bookmark it once you're there).
    prompt you'll see.
 4. Follow the prompts — native Yes/No dialogs and Finder folder pickers,
    no typing required. It installs to `~/Applications/SPOOL`.
+5. Once it's done, a **SPOOL** shortcut appears on your Desktop —
+   double-click it any time to open SPOOL without retyping the address.
 
 Skip ahead to [**Using SPOOL**](#using-spool).
 
@@ -121,6 +123,8 @@ Skip ahead to [**Using SPOOL**](#using-spool).
    installs to `%LOCALAPPDATA%\SPOOL`. When it asks about your CAD/slicer
    apps, a file browser opens for each one — navigate to and select the
    real `.exe` (Cancel skips that app, no Python needed).
+5. Once it's done, a **SPOOL** shortcut appears on your Desktop —
+   double-click it any time to open SPOOL without retyping the address.
 
 Skip ahead to [**Using SPOOL**](#using-spool).
 
