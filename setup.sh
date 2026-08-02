@@ -43,9 +43,26 @@ note() { echo "${DIM}    $1${RESET}"; }
 # future edit to a message can't reintroduce that bug.
 _as_escape() { printf '%s' "${1//\"/\\\"}"; }
 
+# Brings the installer's own Text Window frontmost right before every
+# dialog below — without this, a dialog can pop up while some other
+# window still has focus (Finder, a browser, whatever), which reads as a
+# random popup stealing attention rather than one coherent flow, and
+# gives no chance to actually read the status text just printed before
+# the next prompt yanks focus elsewhere. Confirmed live as a real
+# complaint: dialogs appearing disconnected from the window showing the
+# text they refer to. Bundle id (not display name) since it's stable
+# regardless of how the app's name is spelled/cased in Finder. Silently
+# a no-op when run directly via Terminal (there's no such app running)
+# or Platypus's own AXIsProcessTrusted permission hasn't been granted
+# yet — never blocks the actual prompt that follows either way.
+activate_installer() {
+  osascript -e 'tell application id "com.spool.installer" to activate' 2>/dev/null || true
+}
+
 confirm_yes_default() {  # [Y/n]
   local prompt answer
   prompt=$(_as_escape "$1")
+  activate_installer
   answer=$(osascript -e "button returned of (display dialog \"$prompt\" buttons {\"No\", \"Yes\"} default button \"Yes\")" 2>/dev/null)
   [ "$answer" = "Yes" ]
 }
@@ -53,6 +70,7 @@ confirm_yes_default() {  # [Y/n]
 confirm_no_default() {  # [y/N]
   local prompt answer
   prompt=$(_as_escape "$1")
+  activate_installer
   answer=$(osascript -e "button returned of (display dialog \"$prompt\" buttons {\"No\", \"Yes\"} default button \"No\")" 2>/dev/null)
   [ "$answer" = "Yes" ]
 }
@@ -63,6 +81,7 @@ confirm_no_default() {  # [y/N]
 confirm_destructive() {
   local prompt answer
   prompt=$(_as_escape "$1")
+  activate_installer
   answer=$(osascript -e "button returned of (display dialog \"$prompt\" buttons {\"Cancel\", \"Delete Everything\"} default button \"Cancel\" with icon caution)" 2>/dev/null)
   [ "$answer" = "Delete Everything" ]
 }
@@ -74,6 +93,7 @@ confirm_destructive() {
 # again. Escape/closing the dialog falls through to the same "Exit"
 # handling as explicitly clicking it, same reasoning as the other dialogs.
 prompt_quick_action() {
+  activate_installer
   osascript -e 'button returned of (display dialog "SPOOL is already set up in this folder. What would you like to do?" buttons {"Exit", "Re-run Full Setup", "Restart SPOOL"} default button "Restart SPOOL")' 2>/dev/null
 }
 
@@ -253,6 +273,7 @@ fi
 pick_folder() {
   # $1 = prompt text, $2 = fallback path if the picker is cancelled/unavailable
   local prompt="$1" fallback="$2" result
+  activate_installer
   if result=$(osascript -e "POSIX path of (choose folder with prompt \"$prompt\")" 2>/dev/null); then
     echo "${result%/}"
   else
