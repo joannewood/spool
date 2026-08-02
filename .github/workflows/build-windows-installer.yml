@@ -51,6 +51,40 @@ jobs:
           Write-Host "Apartment state: $output"
           if ($output -ne "STA") { throw "expected STA, got '$output'" }
 
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build the SPOOL desktop app
+        shell: pwsh
+        # windows-latest ships WebView2 and the MSVC build tools Tauri
+        # needs already -- no extra setup beyond Rust/Node. Skips Tauri's
+        # own bundler (no --bundles flag) since a Tauri Windows build is
+        # already a single self-contained .exe (WebView2 is a system
+        # component on modern Windows, not something to embed) -- wrapping
+        # it in ANOTHER installer would be pointless when Inno Setup is
+        # already the one true installer here. Unsigned, matching this
+        # project's existing documented tradeoff for the main Windows
+        # installer itself (see this file's own header comment) --
+        # SmartScreen's reputation check is keyed off a file's own
+        # "downloaded from the internet" mark-of-the-web, which a file
+        # extracted by an already-approved installer (not downloaded
+        # directly by the browser) shouldn't carry, but this hasn't been
+        # verified on real Windows hardware.
+        run: |
+          cd desktop\src-tauri
+          cargo build --release
+          cd ..\..
+          New-Item -ItemType Directory -Force -Path desktop\dist-app | Out-Null
+          Copy-Item desktop\src-tauri\target\release\app.exe desktop\dist-app\SPOOL.exe
+          # Rust's build output (several GB) has no reason to ride along
+          # inside the installer payload -- only the finished .exe does.
+          Remove-Item -Recurse -Force desktop\src-tauri\target
+
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
 

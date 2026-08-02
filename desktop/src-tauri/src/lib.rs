@@ -46,23 +46,35 @@ struct StartupError {
 // (the same gotcha setup.sh already documents and works around) -- Docker
 // Desktop's own `docker` binary lives in /usr/local/bin or
 // /opt/homebrew/bin, neither of which a double-clicked .app sees by
-// default.
+// default. Windows doesn't have this problem (setup.ps1 never needed a
+// PATH fix for its own `Get-Command docker` check), so only macOS gets
+// the extra PATH entries -- appending Mac paths unconditionally would be
+// harmless on Windows (they just wouldn't exist) but is clearer to scope
+// to the platform that actually needs it.
 fn docker_command() -> Command {
     let mut cmd = Command::new("docker");
-    let existing_path = env::var("PATH").unwrap_or_default();
-    cmd.env(
-        "PATH",
-        format!("{existing_path}:/usr/local/bin:/opt/homebrew/bin"),
-    );
+    if cfg!(target_os = "macos") {
+        let existing_path = env::var("PATH").unwrap_or_default();
+        cmd.env(
+            "PATH",
+            format!("{existing_path}:/usr/local/bin:/opt/homebrew/bin"),
+        );
+    }
     cmd
 }
 
-// Where the installer (README.md's Mac setup flow) puts SPOOL. Overridable
-// via SPOOL_APP_DIR for development/testing against a non-default checkout
+// Where the installer puts SPOOL -- ~/Applications/SPOOL on Mac,
+// %LOCALAPPDATA%\SPOOL on Windows (see README.md's respective setup
+// sections; DefaultDirName in windows-installer.iss). Overridable via
+// SPOOL_APP_DIR for development/testing against a non-default checkout
 // without needing a real install there.
 fn spool_dir() -> PathBuf {
     if let Ok(dir) = env::var("SPOOL_APP_DIR") {
         return PathBuf::from(dir);
+    }
+    if cfg!(target_os = "windows") {
+        let local_app_data = env::var("LOCALAPPDATA").expect("LOCALAPPDATA not set");
+        return PathBuf::from(local_app_data).join("SPOOL");
     }
     let home = env::var("HOME").expect("HOME not set");
     PathBuf::from(home).join("Applications").join("SPOOL")

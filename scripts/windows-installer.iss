@@ -51,7 +51,7 @@ WizardStyle=modern
 ; archive HEAD also exports exactly the tracked tree. Excludes covers
 ; things that would either bloat the installer or make no sense on a
 ; fresh Windows machine (Mac-only build tooling, git internals).
-Source: "..\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion; Excludes: ".git,.github,.platypus-tools,dist,__pycache__,*.pyc"
+Source: "..\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion; Excludes: ".git,.github,.platypus-tools,dist,__pycache__,*.pyc,desktop\src-tauri\target"
 
 [Run]
 ; Hands off to setup.ps1 exactly the way the Mac installer's wrapper
