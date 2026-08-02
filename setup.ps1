@@ -305,6 +305,10 @@ if (-not (Test-DockerRunning)) {
         Write-Host "Docker Desktop still isn't responding after two minutes."
         Note "Open Docker Desktop from the Start menu yourself, wait for it to say"
         Note "it's running, then run this script again."
+        Note ""
+        Note "If Docker Desktop shows an error about virtualization or WSL 2, your"
+        Note "PC's hardware virtualization is likely turned off in the BIOS -- see"
+        Note "the Windows setup section of README.md for how to enable it."
         exit 1
     }
 } else {

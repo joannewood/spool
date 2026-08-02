@@ -111,6 +111,17 @@ Skip ahead to [**Using SPOOL**](#using-spool).
 
 1. Install [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/),
    open it from the Start menu, and wait until it says it's running.
+   **If Docker Desktop won't start** (an error mentioning virtualization,
+   WSL 2, or "Hardware assisted virtualization and data execution
+   protection must be enabled in the BIOS") — this means your PC's
+   virtualization setting is turned off at the hardware level, which
+   Docker needs and Windows can't turn on for you. Restart your PC, enter
+   its BIOS/UEFI setup (usually a key like `F2`, `F10`, `Del`, or `Esc`
+   pressed right at power-on — check your PC's manual/manufacturer if
+   none of those work), and enable the setting usually called
+   **Intel VT-x**, **AMD-V**, or **SVM Mode** (exact name and location
+   varies by manufacturer). Save and reboot, then Docker Desktop should
+   start normally.
 2. Go to the [**Releases** page](https://github.com/joannewood/spool/releases/latest)
    and download `SPOOL-Installer.exe`, then double-click it.
 3. Windows SmartScreen will show a blue "Windows protected your PC"
