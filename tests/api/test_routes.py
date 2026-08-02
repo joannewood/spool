@@ -967,7 +967,7 @@ def test_admin_page_idle_shows_gray_dot_when_nothing_running(client):
     resp = client.get("/admin")
     assert resp.status_code == 200
     assert "File processing idle" in resp.text
-    assert "nothing currently processing" in resp.text
+    assert "nothing queued or running" in resp.text
 
 
 def test_admin_page_self_polls_the_live_status_section(client):
