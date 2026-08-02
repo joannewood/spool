@@ -175,10 +175,14 @@ Multi-arch (`linux/amd64,linux/arm64`) via QEMU + Buildx — the worker
 image in particular is slow to build under arm64 emulation (~1.4GB of
 geometry-library deps), so expect this to take a while.
 
-**One-time per new package**: GHCR packages default to **private** even
-on a public repo — after the very first push of each of the three images,
-go to the package's page (github.com/joannewood?tab=packages) → Package
-settings → Change visibility → Public, or the pull in `setup.sh`/
+**Worth double-checking after the first push of a new package**: GHCR
+packages can default to **private** even when the pushing repo is public
+— confirmed *not* to happen for this project (all three came back public
+automatically, verified via an anonymous `docker pull` with no
+`docker login` at all), but this is a GitHub platform default that could
+change or vary, so check github.com/joannewood?tab=packages → the
+package → Package settings → visibility after any brand-new package's
+first push. If it ever does come back private, the pull in `setup.sh`/
 `setup.ps1` will fail with an auth error on a tester's machine that has
 no GHCR credentials at all.
 
