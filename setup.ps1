@@ -178,14 +178,33 @@ function Show-QuickActionMenu {
     return $form.ShowDialog()
 }
 
-# Best-effort desktop shortcut -- a .url file is the direct Windows
-# equivalent of macOS's .webloc (double-click opens the URL in your
-# default browser), needing no browser-specific scripting or extra
-# permissions. Never fatal if the Desktop folder is missing/unwritable
-# for some reason -- this is a convenience, not a requirement.
+# Best-effort desktop shortcut. If build-windows-installer.yml's CI-built
+# desktop wrapper (see .github/workflows/build-windows-installer.yml)
+# rode along in this install, make a real .lnk shortcut to it instead --
+# double-clicking opens SPOOL in a real window instead of a browser tab.
+# No need to relocate the .exe the way the Mac side moves its .app up to
+# ~/Applications -- Windows has no Spotlight-style expectation that a
+# shortcut's target lives in a particular top-level folder, so it's fine
+# to point straight at desktop\dist-app\SPOOL.exe inside the install
+# folder. Falls back to the old .url internet-shortcut (opens
+# localhost:8000 in your default browser) for a manual git-clone install
+# that never went through the release build workflow, so there's no
+# bundled wrapper .exe. Never fatal if the Desktop folder is missing/
+# unwritable for some reason -- this is a convenience, not a requirement.
 function New-DesktopShortcut {
     try {
         $desktop = [Environment]::GetFolderPath("Desktop")
+        $wrapperExe = Join-Path $Dir "desktop\dist-app\SPOOL.exe"
+        if (Test-Path $wrapperExe) {
+            Remove-Item (Join-Path $desktop "SPOOL.url") -ErrorAction SilentlyContinue
+            $shortcutPath = Join-Path $desktop "SPOOL.lnk"
+            $wshShell = New-Object -ComObject WScript.Shell
+            $shortcut = $wshShell.CreateShortcut($shortcutPath)
+            $shortcut.TargetPath = $wrapperExe
+            $shortcut.WorkingDirectory = Split-Path $wrapperExe -Parent
+            $shortcut.Save()
+            return
+        }
         $shortcutPath = Join-Path $desktop "SPOOL.url"
         $content = "[InternetShortcut]`r`nURL=http://localhost:8000`r`n"
         [System.IO.File]::WriteAllText($shortcutPath, $content, (New-Object System.Text.UTF8Encoding($false)))

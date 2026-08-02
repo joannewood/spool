@@ -123,14 +123,29 @@ prompt_quick_action() {
   osascript -e 'button returned of (display dialog "SPOOL is already set up in this folder. What would you like to do?" buttons {"Exit", "Re-run Full Setup", "Restart SPOOL"} default button "Restart SPOOL")' 2>/dev/null
 }
 
-# Best-effort desktop shortcut — a .webloc file is a native macOS internet
-# shortcut (double-click opens the URL in your default browser), the
-# simplest reliable equivalent of "add to Dock" that needs no browser-
-# specific scripting or extra permissions. Never fatal if the Desktop
-# folder is missing/unwritable for some reason — this is a convenience,
-# not a requirement, same "best-effort, don't fail the whole script over
-# it" treatment as configure_apps.py's icon extraction.
+# Best-effort desktop shortcut. If build-mac-installer.sh's bundled
+# native app (see scripts/build-mac-installer.sh — signed, notarized,
+# universal binary) rode along in this install, install it as a real
+# top-level app in ~/Applications (not buried inside the SPOOL folder,
+# so Spotlight/Launchpad see it as a normal app) and symlink it to the
+# Desktop — double-clicking opens SPOOL in a real window instead of a
+# browser tab. Falls back to the old .webloc internet-shortcut (opens
+# localhost:8000 in your default browser) for a manual git-clone install
+# that never went through the release build script, so there's no
+# bundled app to install. Never fatal if the Desktop folder is missing/
+# unwritable for some reason — this is a convenience, not a requirement,
+# same "best-effort, don't fail the whole script over it" treatment as
+# configure_apps.py's icon extraction.
 create_desktop_shortcut() {
+  local wrapper_app="$DIR/desktop/dist-app/SPOOL.app"
+  local installed_app="$HOME/Applications/SPOOL.app"
+  if [ -d "$wrapper_app" ]; then
+    rm -rf "$installed_app" 2>/dev/null || true
+    cp -R "$wrapper_app" "$installed_app" 2>/dev/null || true
+    rm -f "$HOME/Desktop/SPOOL.webloc" 2>/dev/null || true
+    ln -sf "$installed_app" "$HOME/Desktop/SPOOL.app" 2>/dev/null || true
+    return
+  fi
   cat > "$HOME/Desktop/SPOOL.webloc" 2>/dev/null <<'WEBLOC' || true
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
