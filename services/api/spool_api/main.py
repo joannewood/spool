@@ -151,17 +151,17 @@ def health():
 # own toggle) reads very differently from overdue (should be scanning
 # and isn't) even though both are "not the healthy green" — collapsing
 # them into one warning color would make an intentional pause look like
-# a problem. The same three constants back the legend on /admin/status
-# (see _get_rescan_timing's own callers), so the tab icon and the legend
-# explaining it can never quietly drift out of sync with each other.
-# "ok" is the same green as --ok (dark-theme value — a fixed, non-theme-
-# aware SVG has no access to the page's own light/dark variables, so this
-# just hardcodes the more-vibrant-at-small-sizes dark variant, same as
-# "overdue" already reuses --warn's dark value below) so the tab icon and
-# legend agree with the colored spool-glyph headlines added to /admin and
-# /admin/status elsewhere on the page — those all read "green = all is
-# well," and this used to be blue, which read as a fourth, unrelated color
-# rather than agreeing with them.
+# a problem. Matches _overall_admin_status/the headline glyph's own icon
+# color exactly (var(--ok)/var(--ink-muted)/var(--danger)) for each of
+# these three states, not just its own three internally-consistent
+# colors — this used to disagree with both (an old blue "ok" and an amber
+# "overdue" here, while the border/icon elsewhere used green and red for
+# the same two states), which meant the tab icon, the status headline,
+# and the card border could each tell you something different about the
+# same moment. All fixed hex (not var()) since a standalone SVG served as
+# an image has no access to the page's own light/dark CSS variables —
+# these hardcode the more-vibrant-at-small-sizes dark-theme variant of
+# each token.
 # no-cache (not a long-lived Cache-Control the way /thumbnails gets) since
 # this is meant to reflect near-live status; base.html's small polling
 # script is what actually gets an already-open tab to re-fetch it
@@ -169,7 +169,7 @@ def health():
 FAVICON_COLORS = {
     "ok": "#4cd08a",
     "paused": "#8b93a1",
-    "overdue": "#e0a458",
+    "overdue": "#e5645a",
 }
 
 
@@ -680,21 +680,26 @@ def _get_rescan_timing():
 
 
 def _overall_admin_status(rescan_timing):
-    """One red/orange/green read of "is anything wrong right now" for the
-    colored border around the status card at the top of /admin — based
-    purely on the auto-sync (rescan) state. Deliberately does NOT factor
-    in render failures: unlike a stopped scan loop, most render failures
-    in this library are permanent, un-actionable facts about a specific
-    file (an unsupported 3MF structure, a mesh too large/complex to
-    render safely) rather than a transient problem — folding them into
-    this border would leave it permanently orange with nothing to
-    actually do about it. A stopped scan loop is red (looks genuinely
-    broken, worth restarting SPOOL over), a paused scan loop is orange
-    (an intentional but worth-noticing deviation), otherwise green."""
+    """A read of "is anything wrong right now" for the colored border
+    around the status card at the top of /admin — based purely on the
+    auto-sync (rescan) state. Deliberately does NOT factor in render
+    failures: unlike a stopped scan loop, most render failures in this
+    library are permanent, un-actionable facts about a specific file (an
+    unsupported 3MF structure, a mesh too large/complex to render safely)
+    rather than a transient problem — folding them into this border would
+    leave it permanently non-green with nothing to actually do about it.
+    Three states, matching the headline glyph's own icon color exactly
+    (var(--danger)/var(--ink-muted)/var(--ok) — see admin.html/
+    admin_status.html) rather than the "warn"/orange this used to return
+    for paused: a stopped scan loop is red (looks genuinely broken, worth
+    restarting SPOOL over), a paused scan loop is neutral gray (an
+    intentional choice, not a problem — orange previously made it look
+    like one, while sitting right next to that same state's gray icon),
+    otherwise green."""
     if rescan_timing["rescan_overdue"]:
         return "danger"
     if not rescan_timing["rescan_enabled"]:
-        return "warn"
+        return "paused"
     return "ok"
 
 

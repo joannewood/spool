@@ -1003,7 +1003,7 @@ def test_admin_page_shows_auto_sync_paused(client):
         resp = client.get("/admin")
         assert resp.status_code == 200
         assert "Auto-sync paused" in resp.text
-        assert "status-warn" in resp.text
+        assert "status-paused" in resp.text
     finally:
         queries.update_app_settings(original["rescan_enabled"], original["rescan_interval_seconds"])
 

@@ -76,8 +76,8 @@ Setup asks about three folders — here's what they mean, once, up front:
 
 Only the drop folder is required — leaving Library and/or Downloads out
 just means SPOOL won't have that feature active, nothing breaks. (Adding
-one back later isn't quite as simple as flipping a setting — see "Adding
-a folder you initially skipped" under Known limitations.)
+one back later isn't quite as simple as flipping a setting — see
+"Changing which folders SPOOL watches" under Known limitations.)
 
 **Download the installer for your OS below, run it, and follow the
 prompts** — it handles everything: picking your folders, starting SPOOL,
@@ -255,10 +255,13 @@ the nav.
   original file untouched) rather than experimenting with Confirm on
   something you care about.
 - **Deleting a duplicate is permanent** — it removes the real file from
-  disk, not just the SPOOL record of it. The one exception: a duplicate
-  that lives in your read-only Library folder can't be deleted this way
-  at all — you'll get a clear error instead — since Library is the one
-  root SPOOL guarantees it will never write to or delete from.
+  disk, not just the SPOOL record of it. The one exception: a copy that
+  lives in your read-only Library folder can't be deleted this way at
+  all — its checkbox is locked (with an explanation on hover) rather than
+  letting you try and fail, since Library is the one root SPOOL
+  guarantees it will never write to or delete from. If every copy in a
+  duplicate group lives in Library, none of them can be deleted from
+  SPOOL — you'd need to remove one yourself in Finder/File Explorer.
 - **"Select all" only ever applies to what's currently on the page** on
   the bulk-review admin pages — it won't silently reach into suggestions
   you haven't scrolled to yet, but do check what's actually checked

@@ -9,8 +9,8 @@
 <p class="note">
   Live view of the ingestion pipeline. Currently-running jobs and library-wide
   totals now live at the top of the <a href="/admin">Admin</a> page — this
-  page is the detail view: the full job queue, watched roots, and a
-  searchable history of recent activity.
+  page is the detail view: the full file-processing queue, watched roots, and
+  a searchable history of recent activity.
 </p>
 
 {# Deliberately outside any auto-swapped container, same reasoning as the
@@ -27,7 +27,7 @@
    so the form has to live structurally outside #status-top entirely,
    not just outside some inner polling scope. The tradeoff: this panel's
    stats (last scan time, etc.) only refresh on a real page load now,
-   not every 4s like Job queue/Watched roots below — an acceptable
+   not every 4s like File processing/Watched roots below — an acceptable
    accuracy-vs-correctness trade given the alternative is a form that
    fights the user. #}
 <section class="panel live-status-panel status-{{ overall_status }}">

@@ -4,7 +4,7 @@
 <form class="searchbar" id="search-form" method="GET" action="/"
       hx-get="/" hx-target="#results" hx-select="#results" hx-swap="outerHTML" hx-push-url="true"
       hx-trigger="input changed delay:250ms from:input[name='q'], change from:input[type='checkbox'], change from:input[type='radio'], change from:select">
-  <input type="search" name="q" placeholder="Search filenames, tags, print metadata…" value="{{ q }}" autocomplete="off" autofocus>
+  <input type="search" name="q" placeholder="Search filenames, tags, projects, print metadata…" value="{{ q }}" autocomplete="off" autofocus>
   <select name="sort">
     {% for value, label in sort_options %}
     <option value="{{ value }}" {% if value == sort %}selected{% endif %}>{{ label }}</option>

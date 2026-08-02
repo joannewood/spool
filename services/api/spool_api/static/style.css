@@ -897,15 +897,19 @@ table.live-status-totals { width: 100%; }
 }
 
 /* Colored border around the Status card giving an at-a-glance read of
-   SPOOL's overall health from across the room — red/orange/green, based
-   purely on the auto-sync state (see main.py::_overall_admin_status).
-   Deliberately doesn't fold in render failures shown in the adjacent
-   Ingestion totals card — most of those are permanent per-file facts,
-   not something a restart would fix, so they'd leave this border stuck
-   orange with nothing actionable to do about it. */
+   SPOOL's overall health from across the room, based purely on the
+   auto-sync state (see main.py::_overall_admin_status) — green/gray/red,
+   matching the headline glyph's own icon color exactly for each state
+   (a plain orange "warn" border used to represent "paused" here, while
+   that exact same state's icon rendered gray right next to it — the two
+   are now the same var(--ink-muted) gray). Deliberately doesn't fold in
+   render failures shown in the adjacent Ingestion totals card — most of
+   those are permanent per-file facts, not something a restart would fix,
+   so they'd leave this border stuck non-green with nothing actionable to
+   do about it. */
 .live-status-panel { border-width: 2px; }
 .live-status-panel.status-ok { border-color: var(--ok); }
-.live-status-panel.status-warn { border-color: var(--warn); }
+.live-status-panel.status-paused { border-color: var(--ink-muted); }
 .live-status-panel.status-danger { border-color: var(--danger); }
 
 /* Larger text + icon for the two headline status lines (auto-sync,
