@@ -339,6 +339,17 @@ def test_search_ranks_name_match_above_metadata_only_match(make_file, db_conn):
     assert ids.index(name_match_id) < ids.index(metadata_only_id)
 
 
+def test_search_matches_tag_name(make_file):
+    tagged_id = make_file(filename="unrelated-filename.stl")
+    untagged_id = make_file(filename="also-unrelated.stl")
+    queries.add_tag_to_file(tagged_id, "findme-tag")
+
+    rows, _, _ = queries.search_files(q="findme-tag", extensions=None, tags=None, page=1)
+    ids = [r["id"] for r in rows]
+    assert tagged_id in ids
+    assert untagged_id not in ids
+
+
 def test_search_without_query_does_not_apply_relevance_ranking(make_file):
     # No q means no relevance CASE at all — just confirm the plain sort
     # clause still runs without error and returns both rows.
@@ -1718,13 +1729,20 @@ def restore_app_settings():
     original = queries.get_app_settings()
     yield
     queries.update_app_settings(original["rescan_enabled"], original["rescan_interval_seconds"])
+    queries.update_auto_accept_archives(original["auto_accept_archives"])
 
 
 def test_get_app_settings_shape():
     settings = queries.get_app_settings()
-    assert set(settings) == {"rescan_enabled", "rescan_interval_seconds", "updated_at"}
+    assert set(settings) == {
+        "rescan_enabled",
+        "rescan_interval_seconds",
+        "auto_accept_archives",
+        "updated_at",
+    }
     assert isinstance(settings["rescan_enabled"], bool)
     assert isinstance(settings["rescan_interval_seconds"], int)
+    assert isinstance(settings["auto_accept_archives"], bool)
 
 
 def test_update_app_settings_roundtrips(restore_app_settings):
@@ -1744,3 +1762,10 @@ def test_is_rescan_enabled_matches_get_app_settings(restore_app_settings):
     assert queries.is_rescan_enabled() is False
     queries.update_app_settings(True, 300)
     assert queries.is_rescan_enabled() is True
+
+
+def test_update_auto_accept_archives_roundtrips(restore_app_settings):
+    queries.update_auto_accept_archives(True)
+    assert queries.get_app_settings()["auto_accept_archives"] is True
+    queries.update_auto_accept_archives(False)
+    assert queries.get_app_settings()["auto_accept_archives"] is False

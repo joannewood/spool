@@ -11,6 +11,21 @@
   "Select all"/"Accept selected" only apply to what's on the current page.
 </p>
 
+<form class="stack-form" method="POST" action="/admin/settings/archives">
+  <label class="checkbox-label">
+    <input type="checkbox" name="auto_accept_archives" {% if auto_accept_archives %}checked{% endif %}>
+    Automatically extract every new relevant archive — skip this review step entirely
+  </label>
+  <button type="submit">Save</button>
+</form>
+{% if auto_accept_archives %}
+<p class="badge warn">
+  ⚠ Auto-extract is on — new archives are extracted immediately, with no
+  review. Anything already listed below was found before this was turned
+  on and still needs a decision.
+</p>
+{% endif %}
+
 {% if total %}
 <form method="POST" action="/admin/zips/accept-all" class="inline-form">
   <button type="submit">Confirm and extract all {{ total }} pending archive{{ "s" if total != 1 else "" }}</button>

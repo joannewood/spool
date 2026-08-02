@@ -7,6 +7,7 @@ import rarfile
 from .config import MODEL_EXTENSIONS
 from .hashing import sha256_file
 from .paths import to_host_path
+from .settings import get_app_settings
 
 
 def _archive_namelist(container_path):
@@ -57,6 +58,18 @@ def stage_zip_if_relevant(conn, root, container_path):
     archive is worth tracking at all, so an irrelevant one never pays this
     cost.
 
+    If app_settings.auto_accept_archives is on, a newly-discovered archive
+    is inserted already 'confirmed' with its extract_zip job enqueued
+    immediately — the same end state a human clicking Confirm on
+    /admin/pending-archives produces, just skipping the review step for
+    people who'd rather SPOOL just extract anything relevant on sight.
+    Deliberately checked fresh on every call (not cached) so flipping the
+    setting takes effect for the very next archive found, and deliberately
+    only affects *new* rows — ON CONFLICT DO NOTHING means an archive
+    already sitting at 'suggested' or 'rejected' from before the setting
+    was turned on is never silently reclassified out from under a review
+    that might already be in progress.
+
     Returns the new zip_files id, or None if not relevant or already known.
     """
     if not zip_contains_model_files(container_path):
@@ -66,15 +79,23 @@ def stage_zip_if_relevant(conn, root, container_path):
     filename = os.path.basename(container_path)
     size_bytes = os.path.getsize(container_path)
     content_hash = sha256_file(container_path)
+    auto_accept = get_app_settings(conn)["auto_accept_archives"]
+    status = "confirmed" if auto_accept else "suggested"
     with conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO zip_files (watched_root_id, path, filename, size_bytes, content_hash, status)
-            VALUES (%s, %s, %s, %s, %s, 'suggested')
+            VALUES (%s, %s, %s, %s, %s, %s)
             ON CONFLICT (path, content_hash) DO NOTHING
             RETURNING id
             """,
-            (root.id, host_path, filename, size_bytes, content_hash),
+            (root.id, host_path, filename, size_bytes, content_hash, status),
         )
         row = cur.fetchone()
-    return row[0] if row else None
+        zip_id = row[0] if row else None
+        if zip_id and auto_accept:
+            cur.execute(
+                "INSERT INTO jobs (zip_file_id, job_type, status) VALUES (%s, 'extract_zip', 'queued')",
+                (zip_id,),
+            )
+    return zip_id

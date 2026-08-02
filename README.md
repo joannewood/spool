@@ -175,7 +175,7 @@ being worked on).
 
 The home page (`http://localhost:8000`) is a grid of thumbnails, newest
 first. Type in the search box at the top to filter live as you type — it
-searches filenames, project names, and print metadata (material,
+searches filenames, tags, project names, and print metadata (material,
 printer, slicer, your own notes) all at once, and treats hyphens/
 underscores/spaces as interchangeable, so "cake stand" finds
 `cake_stand.stl` too. Click
@@ -222,7 +222,11 @@ but every configured app is always clickable for any file.
 
 - **Pending archives** — a `.zip`/`.7z`/`.rar` SPOOL noticed contains a
   recognized model file, waiting for you to confirm (extract it) or
-  reject (ignore it forever). **Nothing is extracted automatically.**
+  reject (ignore it forever). **Nothing is extracted automatically** —
+  unless you turn on the **"Automatically extract every new relevant
+  archive"** option at the top of this page, which skips the review
+  step entirely for anything found from that point on (archives already
+  waiting when you turn it on still need a decision).
 - **Duplicate files** — groups of files with byte-identical content,
   with a bulk-select-and-delete flow.
 - **Suggested projects** / **suggested relationships** — the bulk-review

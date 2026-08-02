@@ -1,0 +1,1 @@
+ALTER TABLE app_settings ADD COLUMN auto_accept_archives BOOLEAN NOT NULL DEFAULT FALSE;

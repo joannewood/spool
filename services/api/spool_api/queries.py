@@ -435,10 +435,13 @@ def search_files(
                 ) OR id IN (
                     SELECT pf.file_id FROM project_files pf JOIN projects p ON p.id = pf.project_id
                     WHERE pf.status = 'confirmed' AND {_normalized('p.name')} ILIKE %s
+                ) OR id IN (
+                    SELECT ft.file_id FROM file_tags ft JOIN tags t ON t.id = ft.tag_id
+                    WHERE {_normalized('t.name')} ILIKE %s
                 )
             )"""
         ]
-        q_params = [f"%{q_normalized}%"] * 8
+        q_params = [f"%{q_normalized}%"] * 9
 
         # Structured metadata matching (e.g. "0.2mm nozzle") works off
         # keyword presence in the raw query, not a substring match against
@@ -1618,7 +1621,10 @@ def get_app_settings():
     values — main.py converts at the boundary."""
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute("SELECT rescan_enabled, rescan_interval_seconds, updated_at FROM app_settings WHERE id = 1")
+            cur.execute(
+                "SELECT rescan_enabled, rescan_interval_seconds, auto_accept_archives, updated_at "
+                "FROM app_settings WHERE id = 1"
+            )
             return cur.fetchone()
 
 
@@ -1642,6 +1648,18 @@ def update_app_settings(rescan_enabled, rescan_interval_seconds):
                 "UPDATE app_settings SET rescan_enabled = %s, rescan_interval_seconds = %s, updated_at = now() "
                 "WHERE id = 1",
                 (rescan_enabled, rescan_interval_seconds),
+            )
+
+
+def update_auto_accept_archives(enabled):
+    """Independent of update_app_settings/rescan since it's changed from
+    its own separate form (the Pending archives page) rather than the
+    Auto-sync one — no reason to require both settings' values on every
+    call just because they happen to live in the same settings row."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE app_settings SET auto_accept_archives = %s, updated_at = now() WHERE id = 1", (enabled,)
             )
 
 

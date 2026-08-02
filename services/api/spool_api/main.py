@@ -769,10 +769,17 @@ def admin_pending_archives(request: Request, page: int = 1, page_size: str = Non
             "total_pages": _bulk_review_total_pages(total, page_size),
             "page_size": page_size,
             "page_sizes": queries.BULK_REVIEW_PAGE_SIZES,
+            "auto_accept_archives": queries.get_app_settings()["auto_accept_archives"],
         },
     )
     response.set_cookie(BULK_REVIEW_PAGE_SIZE_COOKIE, str(page_size), max_age=31536000)
     return response
+
+
+@app.post("/admin/settings/archives")
+def update_archive_settings(auto_accept_archives: str = Form("")):
+    queries.update_auto_accept_archives(auto_accept_archives == "on")
+    return RedirectResponse("/admin/pending-archives", status_code=303)
 
 
 @app.post("/admin/roots/{root_id}")

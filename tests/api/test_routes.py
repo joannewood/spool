@@ -1460,3 +1460,34 @@ def test_favicon_reflects_paused_and_enabled_state(client):
         assert FAVICON_COLORS["ok"] in resp.text
     finally:
         queries.update_app_settings(original["rescan_enabled"], original["rescan_interval_seconds"])
+
+
+def test_update_archive_settings_route_saves_and_redirects(client):
+    from spool_api import queries
+
+    original = queries.get_app_settings()["auto_accept_archives"]
+    try:
+        resp = client.post(
+            "/admin/settings/archives", data={"auto_accept_archives": "on"}, follow_redirects=False
+        )
+        assert resp.status_code == 303
+        assert resp.headers["location"] == "/admin/pending-archives"
+        assert queries.get_app_settings()["auto_accept_archives"] is True
+
+        resp = client.get("/admin/pending-archives")
+        assert 'name="auto_accept_archives" checked' in resp.text
+    finally:
+        queries.update_auto_accept_archives(original)
+
+
+def test_update_archive_settings_route_unchecked_checkbox_disables(client):
+    from spool_api import queries
+
+    original = queries.get_app_settings()["auto_accept_archives"]
+    try:
+        queries.update_auto_accept_archives(True)
+        resp = client.post("/admin/settings/archives", data={}, follow_redirects=False)
+        assert resp.status_code == 303
+        assert queries.get_app_settings()["auto_accept_archives"] is False
+    finally:
+        queries.update_auto_accept_archives(original)

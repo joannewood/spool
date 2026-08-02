@@ -148,6 +148,27 @@ def test_stage_zip_if_relevant_does_not_resurrect_a_rejected_zip_with_same_conte
         assert cur.fetchone()[0] == "rejected"
 
 
+def test_stage_zip_if_relevant_respects_auto_accept_archives_setting(conn, make_root):
+    """When app_settings.auto_accept_archives is on, a newly-discovered
+    relevant archive should land already 'confirmed' with its extract_zip
+    job queued -- the same end state a human clicking Confirm on
+    /admin/pending-archives produces, just automatic."""
+    with conn.cursor() as cur:
+        cur.execute("UPDATE app_settings SET auto_accept_archives = true WHERE id = 1")
+
+    root = make_root()
+    zip_path = _make_zip(os.path.join(root.container_path, "autoaccept.zip"), {"widget.stl": "geometry"})
+
+    zip_id = stage_zip_if_relevant(conn, root, zip_path)
+
+    assert zip_id is not None
+    with conn.cursor() as cur:
+        cur.execute("SELECT status FROM zip_files WHERE id = %s", (zip_id,))
+        assert cur.fetchone()[0] == "confirmed"
+        cur.execute("SELECT count(*) FROM jobs WHERE zip_file_id = %s AND job_type = 'extract_zip'", (zip_id,))
+        assert cur.fetchone()[0] == 1
+
+
 def test_stage_zip_if_relevant_resurrects_when_content_changes_at_same_path(conn, make_root):
     """A rejected zip should only stay rejected for that exact content —
     not forever for that path. A common filename like "Archive.zip" gets
