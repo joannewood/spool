@@ -103,7 +103,10 @@ your machine can reach it — bookmark it once you're there).
 4. Follow the prompts — native Yes/No dialogs and Finder folder pickers,
    no typing required. It installs to `~/Applications/SPOOL`.
 5. Once it's done, a **SPOOL** shortcut appears on your Desktop —
-   double-click it any time to open SPOOL without retyping the address.
+   double-click it any time to open SPOOL in its own window (not a
+   browser tab), complete with a menu-bar icon (Open SPOOL, Restart
+   SPOOL, Start at Login, Quit) for quickly getting back to it or
+   restarting it if something looks stuck.
 
 Skip ahead to [**Using SPOOL**](#using-spool).
 
@@ -135,7 +138,10 @@ Skip ahead to [**Using SPOOL**](#using-spool).
    apps, a file browser opens for each one — navigate to and select the
    real `.exe` (Cancel skips that app, no Python needed).
 5. Once it's done, a **SPOOL** shortcut appears on your Desktop —
-   double-click it any time to open SPOOL without retyping the address.
+   double-click it any time to open SPOOL in its own window (not a
+   browser tab), complete with a system tray icon (Open SPOOL, Restart
+   SPOOL, Start at Login, Quit) for quickly getting back to it or
+   restarting it if something looks stuck.
 
 Skip ahead to [**Using SPOOL**](#using-spool).
 
@@ -150,10 +156,18 @@ you'd rather understand/control every step yourself.
 
 ## If SPOOL looks stopped, or something seems wrong
 
-The fix for almost anything — Docker Desktop wasn't running, something
-crashed, files stopped being picked up — is the same installer you used
-for setup, not the Desktop shortcut (that shortcut just opens the SPOOL
-web page, which can't do anything if SPOOL itself isn't running):
+**Try the Desktop shortcut first.** Since it now opens the real SPOOL
+app (not just a browser tab), double-clicking it — or picking **Restart
+SPOOL** from its menu-bar/system-tray icon if it's already open — brings
+Docker Desktop up if it wasn't running, then brings SPOOL's own
+containers back up, no typing or extra steps needed. This fixes most
+things: Docker Desktop wasn't running, something crashed, files stopped
+being picked up.
+
+**If that doesn't help**, or you're on an install from before this
+existed (the shortcut just opens `http://localhost:8000` in your browser
+in that case, which can't do anything if SPOOL itself isn't running),
+fall back to the installer:
 
 1. Find the **SPOOL Installer** file you downloaded (re-download it from
    the [Releases page](https://github.com/joannewood/spool/releases/latest)
@@ -163,7 +177,9 @@ web page, which can't do anything if SPOOL itself isn't running):
    **Exit**.
 3. Choose **Restart SPOOL**. This brings everything back up and opens
    SPOOL in your browser once it's ready — no need to touch your folder
-   settings or CAD/slicer configuration again.
+   settings or CAD/slicer configuration again. It also replaces an old
+   browser-only Desktop shortcut with the new app-based one, so this
+   only needs doing once.
 
 Still not working? Open <http://localhost:8000/admin/status> in your
 browser — the small icon in the browser tab, and the "Auto-sync" panel
@@ -357,6 +373,14 @@ release installer all live in [CONTRIBUTING.md](CONTRIBUTING.md) instead
 - **App icons on Windows are a plain placeholder for now**, not the
   real app's icon — purely cosmetic, "Open in..." still opens the right
   app either way.
+- **The SPOOL desktop app's Windows build is unsigned**, same documented
+  tradeoff as the installer itself. It's launched by an already-approved
+  installer rather than downloaded directly, so it shouldn't trigger its
+  own separate SmartScreen warning — but this hasn't been confirmed on
+  real Windows hardware, so please [report it](#found-a-bug-or-something-confusing)
+  if it does. The menu-bar/system-tray icon is also a fixed, static icon
+  for now — it doesn't yet change color to reflect sync status the way
+  `/admin/status`'s own icon does.
 - **Changing which folders SPOOL watches (adding one you skipped, or
   pointing it somewhere new)**: just re-run the installer and choose to
   update your setup — no terminal or technical steps needed. The one

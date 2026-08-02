@@ -52,6 +52,30 @@ host-helper/     The one piece that isn't Docker — native Mac (launchd
                  compatible (same JSON request/response shapes) across
                  both OSes, so services/api/spool_api/host_helper_client.py
                  needs no OS-specific branching.
+desktop/         A Tauri (Rust) native shell wrapping the existing web
+                 app — not a reimplementation of anything. Finds an
+                 already-installed SPOOL, brings Docker up (launching
+                 Docker Desktop itself if needed, mirroring setup.sh/
+                 setup.ps1's own logic) and its containers up, waits for
+                 /health, then shows the result in a real window with a
+                 Dock/taskbar icon plus a menu-bar/system-tray icon
+                 (Open/Restart/Start at Login/Quit). Deliberately never
+                 stops the Docker stack itself (on window-close or app
+                 quit) — SPOOL is designed to run continuously in the
+                 background, so quitting this app should behave like
+                 closing a browser tab, not shutting SPOOL down.
+                 desktop/frontend/index.html is a small bundled loading
+                 page (spinner → redirects to the real localhost:8000
+                 once healthy, or shows an error) — not a reimplementation
+                 of the SPOOL UI, which is still served entirely by
+                 services/api. Built, signed, and notarized as part of
+                 scripts/build-mac-installer.sh (Mac, universal binary)
+                 and .github/workflows/build-windows-installer.yml
+                 (Windows, unsigned — same documented tradeoff as the
+                 main Windows installer), then bundled into each
+                 installer's own payload at desktop/dist-app/ so
+                 setup.sh/setup.ps1 can install it and point the Desktop
+                 shortcut at it instead of a bare localhost URL.
 scripts/         Build tooling, not part of the running app:
                  build-mac-installer.sh / setup-platypus-tools.sh (Mac
                  installer, signed & notarized) and windows-installer.iss
@@ -193,12 +217,16 @@ HEAD` on Mac; `actions/checkout` on the Windows CI runner) — commit
 first, or your build won't include uncommitted changes.
 
 **Mac** (run locally; needs a Developer ID Application certificate and a
-`notarytool` keychain profile set up once — see the script's own header
-comment):
+`notarytool` keychain profile set up once, plus rustup — not Homebrew's
+`rust` formula, which can't add cross-compile targets — with both
+`aarch64-apple-darwin` and `x86_64-apple-darwin` targets installed
+(`rustup target add x86_64-apple-darwin`) and Node/npm, for building
+`desktop/`'s universal binary; see the script's own header comment):
 
 ```bash
 scripts/setup-platypus-tools.sh      # one-time, fetches Platypus's CLI, no sudo
-scripts/build-mac-installer.sh       # exports, builds, signs, notarizes, staples, .dmg
+scripts/build-mac-installer.sh       # exports, builds+signs+notarizes desktop/ AND the
+                                      # installer app, staples, .dmg
 ```
 
 **Windows** (there's no Windows dev machine — this only runs in CI):
