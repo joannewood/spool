@@ -108,6 +108,37 @@ fn health_check_ok() -> bool {
         .unwrap_or(false)
 }
 
+fn docker_daemon_ready() -> bool {
+    docker_command()
+        .arg("info")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+// Mirrors setup.sh/setup.ps1's own Docker Desktop launch step exactly
+// (`open -a Docker` / the hardcoded Program Files path) -- without this,
+// the one thing README.md tells testers to do when something's wrong
+// ("just reopen the SPOOL app") wouldn't actually fix the single most
+// common cause (Docker Desktop installed but not currently running), and
+// would instead surface a raw "cannot connect to the Docker daemon"
+// error that a non-technical tester has no way to act on.
+fn launch_docker_desktop() {
+    if cfg!(target_os = "macos") {
+        let _ = Command::new("open").args(["-a", "Docker"]).output();
+    } else if cfg!(target_os = "windows") {
+        let program_files =
+            env::var("ProgramFiles").unwrap_or_else(|_| "C:\\Program Files".to_string());
+        let docker_exe = PathBuf::from(program_files)
+            .join("Docker")
+            .join("Docker")
+            .join("Docker Desktop.exe");
+        if docker_exe.exists() {
+            let _ = Command::new(docker_exe).spawn();
+        }
+    }
+}
+
 fn start_spool(app: AppHandle) {
     let dir = spool_dir();
 
@@ -130,6 +161,27 @@ fn start_spool(app: AppHandle) {
             "Install Docker Desktop, open it, and wait for it to say it's running, then reopen this app.",
         );
         return;
+    }
+
+    if !docker_daemon_ready() {
+        emit_status(&app, "Starting Docker Desktop…");
+        launch_docker_desktop();
+        let mut ready = false;
+        for _ in 0..HEALTH_CHECK_ATTEMPTS {
+            if docker_daemon_ready() {
+                ready = true;
+                break;
+            }
+            std::thread::sleep(HEALTH_CHECK_INTERVAL);
+        }
+        if !ready {
+            emit_error(
+                &app,
+                "Docker Desktop still isn't responding.",
+                "Open Docker Desktop yourself (Applications on Mac, Start menu on Windows), wait for it to say it's running, then reopen this app.",
+            );
+            return;
+        }
     }
 
     emit_status(&app, "Starting the SPOOL containers…");
