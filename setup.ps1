@@ -501,7 +501,7 @@ if ($Reconfigure) {
 
 # ---- Step 3: bring up the stack -------------------------------------------
 
-WizardStep "Starting SPOOL (this can take several minutes the first time)"
+WizardStep "Starting SPOOL (first time only: downloads a few GB and can take several minutes)"
 
 Start-AndWait
 

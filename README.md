@@ -500,8 +500,9 @@ Back in Terminal, paste this and press Return:
 docker compose up -d --build
 ```
 
-This downloads and builds everything SPOOL needs — the first time, it can
-take several minutes (you'll see a lot of text scroll by; that's normal).
+This downloads and builds everything SPOOL needs — the first time, it
+downloads a few GB and can take several minutes (you'll see a lot of text
+scroll by; that's normal).
 When it finishes and gives you a new prompt, check that everything started
 correctly:
 
@@ -676,8 +677,9 @@ docker compose up -d --build
 ```
 
 This downloads and builds everything SPOOL needs — the first time, it
-can take several minutes (you'll see a lot of text scroll by; that's
-normal). When it finishes, check that everything started correctly:
+downloads a few GB and can take several minutes (you'll see a lot of
+text scroll by; that's normal). When it finishes, check that everything
+started correctly:
 
 ```powershell
 docker compose ps

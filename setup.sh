@@ -428,7 +428,7 @@ fi
 
 # ---- Step 3: bring up the stack -----------------------------------------
 
-wizard_step "Starting SPOOL (this can take several minutes the first time)"
+wizard_step "Starting SPOOL (first time only: downloads a few GB and can take several minutes)"
 
 start_and_wait
 
