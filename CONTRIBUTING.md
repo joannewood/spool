@@ -257,6 +257,28 @@ for anyone working on the code.
   pressure, so this isn't a one-time fix, it can recur on a shifting set
   of files indefinitely. See GitHub issue #7 for the considered-but-not-
   built auto-download idea and why it was scoped the way it was.
+- **Render failures are deliberate rejections, not crashes** — two
+  guards in `worker/app/mesh_safety.py` reject a `.3mf` before it ever
+  reaches `trimesh.load`: `check_3mf_mesh_size` (uncompressed `.model`
+  XML over `MAX_UNCOMPRESSED_3MF_MESH_BYTES`, currently 12MB — a small
+  zipped file can still expand to a huge in-memory mesh) and
+  `check_3mf_component_count` (over `MAX_3MF_BUILD_REFERENCES`, 60 raw
+  `<item`/`<component` tags — a flat tag count, not a real instance
+  count, so it can't catch deep/recursive multiplication hidden behind a
+  low flat count, and could in principle over-reject a legitimately
+  complex flat multi-part plate). Both exist after two real worker
+  OOM-crash-loop incidents during a bulk import — see the "Worker OOM
+  crash-loop" and "second, independent 3MF crash hazard" entries in
+  `CLAUDE.md`'s ad hoc backlog for the full incident writeups, thresholds
+  chosen from limited real data points, and known gaps (no automated
+  test exists for the size guard, since `render.py` isn't on the
+  lightweight test path). Separately, `filters.py::render_error_label`
+  also recognizes the exact `KeyError('world')` string produced by a
+  real bug in the installed trimesh 4.12.2 (`threemf.py`'s `load_3MF`
+  assumes a build-graph root node named `"world"` always exists) and
+  labels it "Unsupported 3MF structure (trimesh limitation)" instead of
+  a generic failure — not fixable from this side, only worked around at
+  the label layer.
 
 ## Filing issues / opening PRs
 

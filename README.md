@@ -317,32 +317,6 @@ For normal use you shouldn't need any of this — restarting or checking on
 SPOOL day-to-day is the **SPOOL Installer**'s quick menu and
 `/admin/status`, both covered in [**If SPOOL looks stopped, or something
 seems wrong**](#if-spool-looks-stopped-or-something-seems-wrong) above.
-What follows is for anyone comfortable with the terminal who wants more
-direct control or detail than those give you.
-
-Run these from your SPOOL folder (`~/Applications/SPOOL` on Mac,
-`%LOCALAPPDATA%\SPOOL` on Windows, if you used the installer above).
-
-### Useful commands
-
-```bash
-docker compose ps                   # check health
-docker compose logs worker -f       # watch backfill/render/ingest activity
-docker compose logs watcher -f      # watch live filesystem events
-docker compose exec postgres psql -U spool -d spool   # inspect the data directly
-docker compose down                 # stop (keeps your data — pgdata + thumbnails are named volumes)
-docker compose down -v              # stop AND wipe all data — only if you're OK starting over
-```
-
-Quitting/restarting Docker Desktop stops every container (not just pauses
-them) — your data survives in named volumes either way, so `docker compose
-up -d` brings it all back with nothing lost.
-
-```bash
-host-helper/uninstall.sh                            # stop + remove the host-helper agent
-launchctl print gui/$(id -u)/com.spool.hosthelper    # confirm it's running
-tail -f ~/Library/Logs/spool/host-helper.log         # watch open/delete requests
-```
 
 ### Working on SPOOL itself
 
@@ -388,26 +362,23 @@ developing it.
   Apple ID → iCloud → iCloud Drive → Options) so watched files always
   stay fully downloaded, or just keep watched folders outside iCloud
   entirely.
+- **A handful of files will never get a thumbnail, and that's expected.**
+  A file that fails to render still shows up everywhere else — you can
+  still search for it, tag it, add it to a project, and open it in
+  Fusion/Bambu Studio — it just shows a small note instead of a preview
+  image. This mostly happens for a few known reasons: the file is
+  unusually large or has an unusually complex internal structure (some
+  very detailed 3MF exports fall into this — SPOOL deliberately skips
+  trying to render these rather than risk running out of memory), or the
+  file uses a structure a format's preview support doesn't handle yet
+  (a small number of 3MF files hit exactly this). None of these mean the
+  file itself is broken or corrupted — only its preview image. Hovering
+  over the note on a file's page shows the specific reason.
 
 (The technical reasons behind each of these — error messages, code
 paths, what was actually tested — are in
 [CONTRIBUTING.md](CONTRIBUTING.md#known-technical-limitations) for
 anyone digging into the code.)
-
-## Status
-
-Nine build phases done — ingestion, mesh + STEP + SVG previews, browse/search,
-tags/projects/print metadata, relationships, drift reconciliation, the native
-open-in-app helper, and a growing backlog of quality-of-life features (search
-across print metadata, duplicate cleanup, a printed/rating tracker, and more).
-308 automated tests covering the ingestion pipeline and the API. Runnable
-on someone else's Mac or Windows machine via a signed/notarized installer
-(Mac) or an installer built in CI (Windows), or the underlying guided
-`./setup.sh` / `.\setup.ps1` scripts either one wraps — watched-root paths
-and CAD/slicer app choices are both configured interactively rather than
-hardcoded, with the fully manual, step-by-step path still available for
-anyone who wants it (see Advanced setup below). The Windows path is newer
-and less battle-tested than the macOS one (see Known limitations).
 
 ## License
 
