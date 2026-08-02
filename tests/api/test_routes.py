@@ -809,7 +809,7 @@ def test_admin_status_page_loads(client):
     resp = client.get("/admin/status")
     assert resp.status_code == 200
     assert "Processing status" in resp.text
-    assert "Job queue" in resp.text
+    assert "File processing" in resp.text
     assert "Recent activity" in resp.text
 
 
@@ -834,7 +834,7 @@ def test_admin_status_job_queue_shows_processing_when_job_running(client, make_f
 
     resp = client.get("/admin/status")
     assert resp.status_code == 200
-    job_queue_html = resp.text.split("Job queue")[1].split("Watched roots")[0]
+    job_queue_html = resp.text.split("File processing")[1].split("Watched roots")[0]
     assert "Processing 1 job" in job_queue_html
     assert "status-ok" in resp.text.split('<section class="panel live-status-panel')[2]
 
@@ -846,7 +846,7 @@ def test_admin_status_job_queue_shows_stuck_when_queued_with_nothing_running(cli
 
     resp = client.get("/admin/status")
     assert resp.status_code == 200
-    job_queue_html = resp.text.split("Job queue")[1].split("Watched roots")[0]
+    job_queue_html = resp.text.split("File processing")[1].split("Watched roots")[0]
     assert "queued, none running" in job_queue_html
     assert "Looks stuck" in job_queue_html
     assert "status-danger" in resp.text.split('<section class="panel live-status-panel')[2]
@@ -860,9 +860,9 @@ def test_admin_status_job_queue_is_a_type_by_status_matrix(client, make_file, db
     resp = client.get("/admin/status")
     assert resp.status_code == 200
     # One row per job_type (not one row per job_type+status combination) —
-    # scoped to the Job queue table specifically, since Recent activity
+    # scoped to the File processing table specifically, since Recent activity
     # below it also renders an unrelated "ingest" cell for this same job.
-    job_queue_html = resp.text.split("Job queue")[1].split("Watched roots")[0]
+    job_queue_html = resp.text.split("File processing")[1].split("Watched roots")[0]
     assert job_queue_html.count("<td>ingest</td>") == 1
     assert "Queued" in job_queue_html and "Running" in job_queue_html
 
@@ -878,7 +878,7 @@ def test_admin_status_job_queue_omits_done_and_failed_lifetime_totals(client, ma
 
     resp = client.get("/admin/status")
     assert resp.status_code == 200
-    job_queue_html = resp.text.split("Job queue")[1].split("Watched roots")[0]
+    job_queue_html = resp.text.split("File processing")[1].split("Watched roots")[0]
     assert "Done" not in job_queue_html
     assert "Failed" not in job_queue_html
 
