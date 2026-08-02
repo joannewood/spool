@@ -1364,6 +1364,14 @@ input[name="new_names"] { width: 100%; min-width: 220px; }
   font-size: var(--fs-xs);
 }
 .table-wrap { overflow-x: auto; }
+/* A trailing "Apply/Delete/Accept selected" submit button directly after
+   a table (bulk-rename, duplicates, pending-archives, suggested-
+   projects, suggested-relationships all follow this exact shape) had no
+   spacing of its own and read as glued to the table's last row —
+   confirmed live (measured a literal 0px gap). Matches .admin-table's
+   own existing 16px top margin, so the button gets the same breathing
+   room a table would. */
+.table-wrap + button { margin-top: 16px; }
 
 /* duplicate files */
 .dup-select-all {
