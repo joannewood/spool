@@ -201,6 +201,63 @@ gh release create vX.Y.Z dist/SPOOL-Installer.dmg SPOOL-Installer.exe --title ".
   `_bulk_review_paging.html`) — check for an existing partial before
   writing a new block of near-identical HTML.
 
+## Known technical limitations
+
+The README's "Known limitations" section is written for testers/users;
+this is the same list with the actual technical detail behind each one,
+for anyone working on the code.
+
+- **Windows hasn't been run on real hardware.** The app-detection logic
+  in `configure_apps.py` was validated against synthetic test cases
+  modeling real installer layouts (including Autodesk's own
+  deeply-nested one), and `SPOOL-Installer.exe` has been verified to
+  build correctly in CI — but neither that installer nor `setup.ps1` nor
+  the Windows host-helper has actually been run interactively on a real
+  Windows machine, since none exists in this project's dev environment.
+- **`SPOOL-Installer.exe` isn't code-signed.** A Windows code-signing
+  certificate is a real ongoing cost (unlike Apple's notarization, which
+  the Mac `.dmg` uses and is covered by the existing $99/year Apple
+  Developer account) and isn't part of this project yet — hence the
+  SmartScreen warning.
+- **No automatic app icons on Windows yet.** macOS extracts each
+  configured app's real icon from its `.icns`; there's no equivalent
+  step wired up for Windows `.exe`/`.ico` resources yet, so a
+  Windows-configured app just shows a plain two-letter badge.
+- **Re-running the installer to change watched folders**: choosing
+  **Re-run Full Setup** then **No** when asked to keep the existing
+  folder configuration walks through the same three folder questions
+  again, and the install reconciles `watched_roots` to match on its own
+  — password is preserved (not regenerated), rows are added/updated/
+  deactivated as needed. The one case this doesn't cover is a genuinely
+  new *fourth* watched folder beyond drop folder/Library/Downloads —
+  Docker can't attach a brand-new bind mount to an already-running
+  container, so that needs a manual edit to `docker-compose.yml` (a new
+  volume mount) followed by `docker compose up -d --build`. Separately,
+  the `/admin` page's own per-root edit form only ever changes a root's
+  **label**, **ingest mode**, or **active/paused** state — it was never
+  able to change the underlying folder path itself.
+- **Library is mounted `:ro` in `docker-compose.yml`**, and the native
+  host-helper's delete endpoint independently refuses any path under
+  Library too (it runs outside Docker, so the read-only mount alone
+  wouldn't stop it). Confirming an archive found in Library fails with a
+  permissions error in Admin; deleting a duplicate that lives there
+  fails with a clear error instead of silently succeeding.
+- **iCloud Drive + "Optimize Mac Storage" + a watched folder is a real
+  hazard, confirmed live**: iCloud periodically evicts local copies of
+  untouched files to cloud-only placeholders, and Docker Desktop's
+  virtualized filesystem bridge doesn't trigger iCloud's on-demand
+  download for these the way native macOS file access does — the
+  watcher/worker containers just get `OSError: [Errno 35] Resource
+  deadlock avoided` trying to even `stat()` the file, indefinitely, not
+  as a transient error. Confirmed live: an affected file shows a real
+  size in `ls -la` but `stat -f "blocks=%b"` reports `0`. Reading the
+  file once from the host (Terminal, Finder, anything running directly
+  on the Mac, not in a container) reliably materializes it and unblocks
+  the container — but iCloud can evict it again later under storage
+  pressure, so this isn't a one-time fix, it can recur on a shifting set
+  of files indefinitely. See GitHub issue #7 for the considered-but-not-
+  built auto-download idea and why it was scoped the way it was.
+
 ## Filing issues / opening PRs
 
 Use GitHub Issues for bugs and feature ideas — see README.md's "Found a

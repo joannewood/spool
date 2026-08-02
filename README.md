@@ -313,6 +313,13 @@ below.
 
 ## Day-to-day operations
 
+For normal use you shouldn't need any of this — restarting or checking on
+SPOOL day-to-day is the **SPOOL Installer**'s quick menu and
+`/admin/status`, both covered in [**If SPOOL looks stopped, or something
+seems wrong**](#if-spool-looks-stopped-or-something-seems-wrong) above.
+What follows is for anyone comfortable with the terminal who wants more
+direct control or detail than those give you.
+
 Run these from your SPOOL folder (`~/Applications/SPOOL` on Mac,
 `%LOCALAPPDATA%\SPOOL` on Windows, if you used the installer above).
 
@@ -346,79 +353,46 @@ developing it.
 
 ## Known limitations
 
-- **The Windows path is newer and hasn't been exercised on real Windows
-  hardware** the way the macOS path has (this project was built on a
-  Mac) — the app-detection logic in `configure_apps.py` was validated
-  against synthetic test cases for real installer layouts (including
-  Autodesk's own deeply-nested one), and `SPOOL-Installer.exe` has been
-  verified to build correctly in CI, but neither has been run
-  interactively on real Windows hardware yet. If `setup.ps1`, the
-  installer, or the Windows host-helper hits something unexpected on
-  your machine, please report it rather than assuming it's supposed to
-  work that way.
-- **`SPOOL-Installer.exe` isn't code-signed.** A Windows code-signing
-  certificate is a real ongoing cost (unlike Apple's notarization, which
-  the Mac `.dmg` uses and is covered by a $99/year developer account) and
-  isn't part of this project yet — Windows SmartScreen will show a blue
-  "Windows protected your PC" warning the first time you run it. Click
-  **More info** → **Run anyway**; this is expected, not a sign of a
-  problem, and only shows once per machine.
-- **No automatic app icons on Windows yet.** macOS extracts each
-  configured app's real icon from its `.icns`; Windows apps don't have an
-  equivalent step wired up yet, so a Windows-configured app just shows a
-  plain two-letter badge next to a file instead of its real icon —
-  cosmetic only, "Open in..." still works normally.
-- **Adding a folder you initially skipped, or changing an existing one,
-  is now just re-running the installer** — no terminal, no manual
-  database commands. Open **SPOOL Installer** again (or re-run
-  `setup.sh`/`setup.ps1`), choose **Re-run Full Setup**, then **No**
-  when asked to keep your existing folder configuration as-is — you'll
-  be walked through the same three folder questions again (add a
-  Library/Downloads you skipped the first time, change a path that
-  moved, or clear one out entirely), and the install picks up the
-  change on its own: your database password is preserved (it doesn't
-  regenerate one that would stop working), and the underlying watched
-  folder is added, updated, or turned off to match, automatically.
-  - **Exception: a genuinely new *fourth* watched folder** beyond drop
-    folder/Library/Downloads isn't supported this way — Docker can't
-    attach a brand-new bind mount to an already-running container, so
-    that specific case still needs a manual edit to `docker-compose.yml`
-    (adding a new volume mount) before `docker compose up -d --build`,
-    and isn't something the installer's three-folder flow covers.
-  - The `/admin` page's own edit form only changes a root's **label**,
-    **ingest mode**, or **active/paused** state — it was never able to
-    change the underlying folder path itself; re-running the installer
-    (above) is the way to actually change where a root points.
-- **Nothing SPOOL does can write to or delete from your Library folder**
-  — it's mounted read-only in Docker (an "existing library" root is
-  never supposed to be written to), and separately, the native
-  host-helper that handles real file deletion (for the duplicate-cleanup
-  page) explicitly refuses any path under Library too, since that helper
-  runs outside Docker and wouldn't otherwise be stopped by the read-only
-  mount. Confirming an archive found in Library will fail with a
-  permissions error in Admin, and deleting a duplicate that lives there
-  fails with a clear error instead of silently succeeding — extract/
-  delete it yourself outside SPOOL, or drop a copy in your drop folder
-  instead.
-- **Don't point a watched root at a folder under iCloud Drive sync (e.g.
-  anywhere inside `~/Documents` or `~/Desktop` if "Desktop & Documents
-  Folders" is on) while "Optimize Mac Storage" is enabled.** iCloud will
-  periodically evict local copies of files you haven't touched recently
-  back to cloud-only placeholders to save disk space. Docker Desktop's
-  virtualized filesystem bridge doesn't trigger iCloud's on-demand
-  download for these the way native macOS file access does, so the
-  watcher/worker containers just get `OSError: [Errno 35] Resource
-  deadlock avoided` trying to even `stat()` the file — indefinitely, not
-  a transient error. Confirmed live: an affected file shows a real size
-  in `ls -la` but `stat -f "blocks=%b"` reports `0`. Reading the file
-  once from the host (Terminal, Finder, anything running directly on the
-  Mac, not in a container) reliably materializes it and unblocks the
-  container — but iCloud can evict it again later under storage
-  pressure, so this isn't a one-time fix, it can recur on a shifting set
-  of files indefinitely. The real fix is either turning off "Optimize Mac
-  Storage" (System Settings → your Apple ID → iCloud → iCloud Drive →
-  Options) so watched files always stay downloaded locally, or keeping
-  watched folders entirely outside any iCloud-synced directory.
+- **Windows support is newer than Mac support.** This project was built
+  on a Mac, and while the Windows installer/scripts have been tested as
+  thoroughly as possible without one, they haven't yet been run on a
+  real Windows machine. If something looks or behaves oddly on Windows,
+  please [report it](#found-a-bug-or-something-confusing) rather than
+  assuming it's supposed to work that way.
+- **Windows will show a security warning the first time you run the
+  installer** — a blue "Windows protected your PC" screen. This is
+  expected, not a sign anything's wrong: click **More info** → **Run
+  anyway**. It only appears the first time.
+- **App icons on Windows are a plain placeholder for now**, not the
+  real app's icon — purely cosmetic, "Open in..." still opens the right
+  app either way.
+- **Changing which folders SPOOL watches (adding one you skipped, or
+  pointing it somewhere new)**: just re-run the installer and choose to
+  update your setup — no terminal or technical steps needed. The one
+  thing that isn't supported this way is going *beyond* the three
+  folders the setup flow asks about (drop folder, Library, Downloads);
+  if you need a fourth watched folder, see
+  [CONTRIBUTING.md](CONTRIBUTING.md).
+- **Your Library folder is read-only, on purpose.** SPOOL will index and
+  preview everything in it, but will never move, delete, or extract
+  anything there — that's deliberate, so it's never at risk of touching
+  your existing organization. If you want to extract an archive or
+  delete a duplicate that lives in Library, do it yourself outside
+  SPOOL, or work from a copy in your drop folder instead.
+- **Avoid watching a folder that's also synced by iCloud Drive** (for
+  example `~/Documents` or `~/Desktop`, if "Desktop & Documents Folders"
+  is turned on) while "Optimize Mac Storage" is enabled. iCloud can
+  offload files you haven't opened in a while to save disk space, and
+  SPOOL can get stuck waiting on one of those until it's downloaded
+  again. Either turn off "Optimize Mac Storage" (System Settings → your
+  Apple ID → iCloud → iCloud Drive → Options) so watched files always
+  stay fully downloaded, or just keep watched folders outside iCloud
+  entirely.
+
+(The technical reasons behind each of these — error messages, code
+paths, what was actually tested — are in
+[CONTRIBUTING.md](CONTRIBUTING.md#known-technical-limitations) for
+anyone digging into the code.)
 
 ## Status
 
