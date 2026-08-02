@@ -1,0 +1,74 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>SPOOL</title>
+<style>
+  :root { --accent: #3b6ee0; --bg: #f5f6f8; --ink: #1a1d23; --ink-muted: #6b7280; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #16181d; --ink: #e6e8eb; --ink-muted: #9aa1ab; }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%;
+    background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .wrap { text-align: center; max-width: 420px; padding: 24px; }
+  .spinner {
+    width: 36px; height: 36px; margin: 0 auto 20px;
+    border: 3px solid color-mix(in oklab, var(--accent) 25%, transparent);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  .spinner.hidden { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  h1 { font-size: 16px; font-weight: 600; margin: 0 0 6px; }
+  p { font-size: 13px; color: var(--ink-muted); margin: 0; line-height: 1.5; }
+  .error p { color: #d64545; }
+  code {
+    display: block; margin-top: 12px; padding: 8px 10px;
+    background: color-mix(in oklab, var(--ink) 6%, transparent);
+    border-radius: 6px; font-size: 11px; text-align: left;
+    white-space: pre-wrap; word-break: break-word;
+  }
+</style>
+</head>
+<body>
+  <div class="wrap" id="wrap">
+    <div class="spinner" id="spinner"></div>
+    <h1 id="title">Starting SPOOL&hellip;</h1>
+    <p id="message">This can take a moment, especially right after your computer starts.</p>
+  </div>
+
+<script>
+  const { listen } = window.__TAURI__.event;
+
+  listen("spool-ready", (event) => {
+    window.location.href = event.payload;
+  });
+
+  listen("spool-status", (event) => {
+    document.getElementById("message").textContent = event.payload;
+  });
+
+  listen("spool-error", (event) => {
+    document.getElementById("spinner").classList.add("hidden");
+    document.getElementById("wrap").classList.add("error");
+    document.getElementById("title").textContent = "SPOOL couldn't start";
+    const msgEl = document.getElementById("message");
+    msgEl.textContent = "";
+    const p = document.createElement("p");
+    p.textContent = event.payload.summary;
+    msgEl.appendChild(p);
+    if (event.payload.detail) {
+      const codeEl = document.createElement("code");
+      codeEl.textContent = event.payload.detail;
+      msgEl.appendChild(codeEl);
+    }
+  });
+</script>
+</body>
+</html>
