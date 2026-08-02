@@ -325,6 +325,37 @@ def summarize_project_files(files):
     }
 
 
+def summarize_project_files_recursive(project_id, descendant_ids):
+    """Same shape as summarize_project_files, but counts every confirmed
+    file across this project AND all of `descendant_ids` (see
+    get_project_descendant_ids) — otherwise a pure umbrella project
+    (every one of whose real files lives in its sub-projects, none
+    directly in it) would misleadingly show "0 files" on its own page.
+    Takes descendant_ids as a parameter rather than calling
+    get_project_descendant_ids itself since project_detail already
+    computes that same set for its move/merge picker — no reason to
+    walk the whole projects table twice per request. DISTINCT on f.id
+    since a file could in principle be a confirmed member of more than
+    one of these nested projects at once and shouldn't be double-counted."""
+    project_ids = [project_id, *descendant_ids]
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT f.id, f.ext
+                FROM project_files pf
+                JOIN files f ON f.id = pf.file_id
+                WHERE pf.project_id = ANY(%s) AND pf.status = 'confirmed'
+                """,
+                (project_ids,),
+            )
+            rows = cur.fetchall()
+    return {
+        "file_count": len(rows),
+        "extensions": sorted({_merge_step_ext(r["ext"]) for r in rows}),
+    }
+
+
 def _collapse_fully_matching_projects(all_rows, fully_matching):
     """Walks the full, already-correctly-sorted matching set (relevance
     tiering + the user's chosen sort, exactly as ORDER BY produced it —

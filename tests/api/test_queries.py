@@ -1457,6 +1457,33 @@ def test_summarize_project_files_empty_list():
     assert summary == {"file_count": 0, "extensions": []}
 
 
+def test_summarize_project_files_recursive_includes_nested_descendants(make_file):
+    """A pure umbrella project (no direct files of its own, everything
+    lives in a grandchild) should still report the real total -- this is
+    exactly the real-world case that motivated the function: a project
+    like "Hex3D" with hundreds of sub-projects and zero direct members."""
+    parent_id = queries.create_project("Recursive Summary Parent", "", None)
+    child_id = queries.create_project("Recursive Summary Child", "", parent_id)
+    grandchild_id = queries.create_project("Recursive Summary Grandchild", "", child_id)
+    try:
+        stl_file = make_file(ext=".stl")
+        step_file = make_file(ext=".step")
+        queries.add_file_to_project(stl_file, child_id)
+        queries.add_file_to_project(step_file, grandchild_id)
+
+        descendant_ids = queries.get_project_descendant_ids(parent_id)
+        assert descendant_ids == {child_id, grandchild_id}
+
+        summary = queries.summarize_project_files_recursive(parent_id, descendant_ids)
+        assert summary["file_count"] == 2
+        assert summary["extensions"] == [".step", ".stl"]
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM projects WHERE id IN (%s, %s, %s)", (grandchild_id, child_id, parent_id)
+            )
+
+
 # ---- bulk project-name cleanup ---------------------------------------------
 
 def test_list_projects_needing_name_cleanup_includes_a_messy_name():
