@@ -144,9 +144,8 @@ crashed, files stopped being picked up — is the same installer you used
 for setup, not the Desktop shortcut (that shortcut just opens the SPOOL
 web page, which can't do anything if SPOOL itself isn't running):
 
-1. Find the **SPOOL Installer** file you downloaded (or wherever you
-   saved it — check Downloads, or re-download it from the
-   [Releases page](https://github.com/joannewood/spool/releases/latest)
+1. Find the **SPOOL Installer** file you downloaded (re-download it from
+   the [Releases page](https://github.com/joannewood/spool/releases/latest)
    if you can't find it) and open it again.
 2. Since SPOOL is already set up, it now shows a quick menu instead of
    the full setup wizard: **Restart SPOOL**, **Re-run Full Setup**, or
