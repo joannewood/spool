@@ -38,10 +38,9 @@ Fusion or Bambu Studio — no more digging through folders full of
   review, with bulk select/delete.
 - **Printed tracker** — mark a file as printed, rate it, and leave yourself
   notes on how it turned out.
-- **Open in your CAD/slicer app** — a small native helper (macOS and
-  Windows both supported) launches Fusion, Bambu Studio, or whatever you
-  use directly from the file's page — the one piece that isn't Docker,
-  since a Linux container can't launch a GUI app on your actual machine.
+- **Open in your CAD/slicer app** — launches Fusion, Bambu Studio, or
+  whatever you use directly from the file's page (macOS and Windows both
+  supported).
 
 ## Requirements
 
