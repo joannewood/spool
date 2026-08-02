@@ -33,11 +33,11 @@
 <section class="panel live-status-panel status-{{ overall_status }}">
   <h2>Auto-sync</h2>
   {% if not rescan_enabled %}
-  <p class="status-line status-line-lg">{{ icons.sync_glyph("var(--ink-muted)", 28) }} Auto-sync paused</p>
+  <p class="status-line status-line-lg">{{ icons.sync_glyph("var(--ink-muted)", 28) }} Paused</p>
   {% elif rescan_overdue %}
-  <p class="status-line status-line-lg">{{ icons.sync_glyph("var(--danger)", 28) }} <strong>Auto-sync looks stopped</strong></p>
+  <p class="status-line status-line-lg">{{ icons.sync_glyph("var(--danger)", 28) }} <strong>Looks stopped</strong></p>
   {% else %}
-  <p class="status-line status-line-lg">{{ icons.sync_glyph("var(--ok)", 28) }} Auto-sync normal</p>
+  <p class="status-line status-line-lg">{{ icons.sync_glyph("var(--ok)", 28) }} Normal</p>
   {% endif %}
   <p class="note">Scans every {{ rescan_interval_seconds | format_duration }} for moved, edited, or deleted files.</p>
   <dl class="tight">
@@ -102,7 +102,7 @@
   {% else %}
   <p class="status-line status-line-lg">
     {{ icons.sync_glyph("var(--ink-muted)", 28) }}
-    <span class="empty-inline">Idle — nothing queued or running</span>
+    Idle — nothing queued or running
   </p>
   {% endif %}
   <p class="note">
