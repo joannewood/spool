@@ -283,20 +283,17 @@ if ($Ready) {
 
 Step "Setting up 'Open in...' for your CAD/slicer apps"
 
-$PythonCmd = Get-Command python -ErrorAction SilentlyContinue
-if (-not $PythonCmd) { $PythonCmd = Get-Command python3 -ErrorAction SilentlyContinue }
-
-if (Read-YesNo "Auto-detect your installed CAD/slicer apps now?") {
-    if ($PythonCmd) {
-        & $PythonCmd.Source "host-helper\configure_apps.py"
-    } else {
-        Write-Host "python isn't installed or isn't on PATH -- skipping."
-        Note "Install it from https://www.python.org/downloads/ (check 'Add python.exe to PATH'"
-        Note "during install), then run: python host-helper\configure_apps.py"
-    }
+# A native file-picker per app (host-helper\configure_apps_windows.ps1)
+# instead of the Python-based auto-detect-and-confirm flow
+# (configure_apps.py) this used to call -- means Windows setup needs no
+# Python at all now. configure_apps.py still exists and still works if
+# you'd rather have it scan Program Files and offer a pick-from-list
+# instead of browsing directly to the .exe yourself.
+if (Read-YesNo "Set up your CAD/slicer apps now?") {
+    powershell -ExecutionPolicy Bypass -File "host-helper\configure_apps_windows.ps1"
 } else {
     Note "Skipped -- 'Open in...' buttons won't work until you run"
-    Note "python host-helper\configure_apps.py (or edit host_helper_windows.py by hand) later."
+    Note "host-helper\configure_apps_windows.ps1 (or edit host_helper_windows.py by hand) later."
 }
 
 powershell -ExecutionPolicy Bypass -File "host-helper\install_windows.ps1"

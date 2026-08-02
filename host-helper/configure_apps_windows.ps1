@@ -1,0 +1,146 @@
+# Configures SPOOL's "Open in..." apps on Windows via native file-picker
+# dialogs instead of Python-based auto-detection (host-helper/
+# configure_apps.py's Windows path) -- lets setup.ps1, and this project's
+# whole Windows install flow, avoid depending on Python at all just to
+# pick a CAD app and a slicer. Safe to re-run any time; run standalone
+# (powershell -ExecutionPolicy Bypass -File host-helper\configure_apps_windows.ps1)
+# or via setup.ps1.
+#
+# configure_apps.py still exists and still works on Windows (auto-scans
+# Program Files and asks you to confirm/pick from a list) -- this script
+# doesn't replace it, it's just what setup.ps1 calls by default now, so a
+# fresh Windows setup never needs Python installed at all. Prefer
+# configure_apps.py's scan-and-confirm flow instead? Run it directly with
+# Python installed; both write to the exact same files in the exact same
+# format, so it's fine to use either one, including switching between them
+# across separate runs.
+
+$ErrorActionPreference = "Stop"
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName Microsoft.VisualBasic
+
+$RepoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+$HostHelperTarget = Join-Path $RepoRoot "host-helper\host_helper_windows.py"
+$HostHelperClientPy = Join-Path $RepoRoot "services\api\spool_api\host_helper_client.py"
+
+# label, extensions handled -- same three groups as configure_apps.py's
+# GROUPS (kept in sync by hand; small and stable enough that a shared
+# file across a Python script and a PowerShell script wasn't worth the
+# indirection).
+$AppGroups = @(
+    @{ Label = "CAD app"; Extensions = @(".step", ".stp", ".f3d"); Hint = ".step / .stp / .f3d files" },
+    @{ Label = "OpenSCAD"; Extensions = @(".scad"); Hint = ".scad files" },
+    @{ Label = "Slicer app"; Extensions = @(".stl", ".3mf", ".svg", ".gcode", ".obj"); Hint = ".stl / .3mf / .svg / .gcode / .obj files" }
+)
+
+# A version number ("23.1.1.100") or hex build hash as an exe's immediate
+# parent folder name -- confirmed against Autodesk Fusion's real webdeploy
+# layout, where the actual .exe sits in exactly such a folder. Matches
+# configure_apps.py's _MEANINGLESS_FOLDER_RE exactly, same reasoning: using
+# that folder name as the label would show something meaningless in
+# SPOOL's UI, so fall back to the exe's own filename instead.
+function Get-DefaultAppLabel($exePath) {
+    $parent = Split-Path -Path (Split-Path -Path $exePath -Parent) -Leaf
+    if ($parent -and $parent -notmatch '^[0-9a-fA-F]{6,}$' -and $parent -notmatch '^[\d.]+$') {
+        return $parent
+    }
+    return [System.IO.Path]::GetFileNameWithoutExtension($exePath)
+}
+
+function Select-AppExecutable($groupLabel, $hint) {
+    $dialog = New-Object System.Windows.Forms.OpenFileDialog
+    $dialog.Title = "Select your $groupLabel (for $hint) -- Cancel to skip"
+    $dialog.Filter = "Programs (*.exe)|*.exe|All files (*.*)|*.*"
+    $dialog.CheckFileExists = $true
+    if (Test-Path $env:ProgramFiles) { $dialog.InitialDirectory = $env:ProgramFiles }
+    $result = $dialog.ShowDialog()
+    if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
+        return $dialog.FileName
+    }
+    return $null
+}
+
+function Confirm-AppLabel($default) {
+    $typed = [Microsoft.VisualBasic.Interaction]::InputBox("Name to show in SPOOL for this app:", "SPOOL Setup", $default)
+    if ([string]::IsNullOrWhiteSpace($typed)) { return $default }
+    return $typed
+}
+
+# Matches configure_apps.py's _quote()/format_dict() exactly, so either
+# script can write (and the other can safely re-write) the same block.
+function ConvertTo-PyQuoted($s) {
+    $escaped = $s -replace '\\', '\\'
+    $escaped = $escaped -replace '"', '\"'
+    return '"' + $escaped + '"'
+}
+
+function Format-PyDict($varName, $mapping) {
+    $lines = New-Object System.Collections.Generic.List[string]
+    $lines.Add("$varName = {")
+    foreach ($key in $mapping.Keys) {
+        $lines.Add("    $(ConvertTo-PyQuoted $key): $(ConvertTo-PyQuoted $mapping[$key]),")
+    }
+    $lines.Add("}")
+    return ($lines -join "`n")
+}
+
+# Same BEGIN/END marker convention as configure_apps.py's replace_block()
+# -- substring-splice rather than a regex -replace, specifically to avoid
+# .NET regex replacement-string special-casing of "$" in the new content
+# (an app label or path is very unlikely to contain one, but this avoids
+# needing to reason about it at all).
+function Set-PyBlock($path, $marker, $newBody) {
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    $text = [System.IO.File]::ReadAllText($path, $utf8NoBom)
+    $pattern = "(?s)# ${marker}:BEGIN.*?# ${marker}:END"
+    $match = [regex]::Match($text, $pattern)
+    if (-not $match.Success) {
+        throw "marker $marker not found in $path -- was it edited by hand into a different shape?"
+    }
+    $replacement = "# ${marker}:BEGIN (auto-generated by host-helper/configure_apps_windows.ps1 -- edit here directly, or just re-run that script)`n$newBody`n# ${marker}:END"
+    $newText = $text.Substring(0, $match.Index) + $replacement + $text.Substring($match.Index + $match.Length)
+    [System.IO.File]::WriteAllText($path, $newText, $utf8NoBom)
+}
+
+$AppMap = [ordered]@{}    # ext -> label
+$AppPaths = [ordered]@{}  # label -> exe path
+
+foreach ($group in $AppGroups) {
+    $exePath = Select-AppExecutable $group.Label $group.Hint
+    if (-not $exePath) {
+        Write-Host "$($group.Label): skipped"
+        continue
+    }
+    # APP_PATHS values use forward slashes, matching every other
+    # Windows-host path in this project (host_helper_windows.py's own
+    # docstring, DROPFOLDER_HOST_PATH, etc.) -- os.path.isfile/subprocess
+    # on Windows accept forward slashes just as readily as backslashes,
+    # so this is purely for consistency with the rest of the codebase.
+    $exePath = $exePath -replace '\\', '/'
+    $defaultLabel = Get-DefaultAppLabel $exePath
+    $label = Confirm-AppLabel $defaultLabel
+    $AppPaths[$label] = $exePath
+    foreach ($ext in $group.Extensions) { $AppMap[$ext] = $label }
+    Write-Host "$($group.Label): $label ($exePath)"
+}
+
+if ($AppMap.Count -eq 0) {
+    Write-Host ""
+    Write-Host "No apps configured -- 'Open in...' buttons won't do anything until you edit"
+    Write-Host "host-helper\host_helper_windows.py's APP_MAP by hand, or re-run this script."
+    exit 0
+}
+
+Set-PyBlock $HostHelperClientPy "APP_MAP" (Format-PyDict "APP_MAP" $AppMap)
+Set-PyBlock $HostHelperTarget "APP_MAP" (Format-PyDict "APP_MAP" $AppMap)
+Set-PyBlock $HostHelperTarget "APP_PATHS" (Format-PyDict "APP_PATHS" $AppPaths)
+
+Write-Host ""
+Write-Host "Configured:"
+foreach ($ext in $AppMap.Keys) {
+    Write-Host "  $ext -> $($AppMap[$ext])"
+}
+Write-Host ""
+Write-Host "Re-run host-helper\install_windows.ps1 and rebuild the api container"
+Write-Host "(docker compose up -d --build api) to pick this up."

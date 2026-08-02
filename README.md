@@ -53,11 +53,12 @@ Fusion or Bambu Studio — no more digging through folders full of
   Docker, so it needs to be open and running every time you use SPOOL; if
   you restart your computer and SPOOL doesn't seem to work, check that
   Docker Desktop is open first.
-- Python 3 — **optional**. Only used to auto-detect your CAD/slicer apps
-  during setup (Mac usually already has it; Windows needs a separate
-  install, and the installer below will tell you if it's missing).
-  SPOOL works fully without it — you'd just configure those apps by hand
-  afterward instead.
+- Python 3 — **optional**, **Mac only**. Mac usually already has it; it's
+  used to auto-detect your CAD/slicer apps during setup and to run the
+  automated test suite, and SPOOL works fully without it either way — you'd
+  just configure those apps by hand afterward instead. (Windows doesn't
+  need Python at all — setup asks you to browse to and select each app
+  directly.)
 
 ## Setting up on your own machine
 
@@ -109,20 +110,18 @@ Skip ahead to [**Using SPOOL**](#using-spool).
 
 1. Install [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/),
    open it from the Start menu, and wait until it says it's running.
-2. *(Optional)* Install [Python](https://www.python.org/downloads/) if you
-   don't already have it, checking **"Add python.exe to PATH"** during
-   setup — only needed for auto-detecting your CAD/slicer apps; skip it
-   freely and configure those by hand later if you'd rather not.
-3. Go to the [**Releases** page](https://github.com/joannewood/spool/releases/latest)
+2. Go to the [**Releases** page](https://github.com/joannewood/spool/releases/latest)
    and download `SPOOL-Installer.exe`, then double-click it.
-4. Windows SmartScreen will show a blue "Windows protected your PC"
+3. Windows SmartScreen will show a blue "Windows protected your PC"
    warning the first time — this is expected, not a sign anything's
    wrong (the installer isn't code-signed yet, a real ongoing cost not
    yet part of this project). Click **More info**, then **Run anyway**.
    You'll only see this once.
-5. Follow the installer wizard, then the guided setup that runs
+4. Follow the installer wizard, then the guided setup that runs
    afterward — folder pickers and Yes/No dialogs, no typing required. It
-   installs to `%LOCALAPPDATA%\SPOOL`.
+   installs to `%LOCALAPPDATA%\SPOOL`. When it asks about your CAD/slicer
+   apps, a file browser opens for each one — navigate to and select the
+   real `.exe` (Cancel skips that app, no Python needed).
 
 Skip ahead to [**Using SPOOL**](#using-spool).
 
@@ -611,14 +610,12 @@ unsigned `.exe`.
 
 1. **Install Docker Desktop** — see step 1 of the Windows installer
    section above.
-2. **Install Python (optional)** — see step 2 of the Windows installer
-   section above.
-3. **Get the SPOOL code**: click the green **Code** button on this
+2. **Get the SPOOL code**: click the green **Code** button on this
    project's GitHub page, then **Download ZIP**, and unzip it (or
    `git clone` if you're comfortable with git) — then open it: right-click
    the folder in File Explorer and choose **"Open in Terminal"** (or
    **PowerShell**).
-4. **Run the setup script**:
+3. **Run the setup script**:
 
    ```powershell
    .\setup.ps1
@@ -639,11 +636,11 @@ unsigned `.exe`.
    auto-managed, popping up a folder picker or a Yes/No dialog for either
    one (see "Setting up on your own machine" near the top of this page
    for what these mean). It also generates a database password for you,
-   starts everything, and tries to auto-detect your CAD/slicer apps the
-   same way the macOS script does (scanning `Program Files` and similar
-   folders for a recognizable install, asking you to confirm or type the
-   exact path if it's not sure). Right at the end it opens SPOOL for you
-   automatically in your default web browser. It's safe to run this
+   starts everything, and for your CAD/slicer apps, opens a file browser
+   for you to navigate to and select each real `.exe` directly (Cancel
+   skips that one — no Python needed, unlike the macOS script's
+   auto-detect-and-confirm approach). Right at the end it opens SPOOL for
+   you automatically in your default web browser. It's safe to run this
    whole script more than once. One genuine difference from macOS:
    there's no separate permission step needed for deleting duplicate
    files — Windows' own normal file permissions already cover that.
@@ -737,22 +734,25 @@ separate helper program handles just that piece; it's not Docker, it's a
 tiny program that starts automatically in the background whenever you
 log in.
 
-Easiest path (needs Python — **optional**, see Requirements above; if
-you don't have it and would rather not install it just for this, skip
-straight to the "by hand" alternative below) — let it look at what's
-installed and ask you to confirm:
+Easiest path (no Python needed) — a file browser opens for each app slot;
+navigate to and select the real `.exe`, Cancel to skip:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File host-helper\configure_apps_windows.ps1
+```
+
+This is exactly what `.\setup.ps1` already ran for you if you used the
+setup script instead of this manual guide — running it again re-asks and
+overwrites the previous choice, so it's fine to change your mind later.
+
+Have Python installed and would rather it scan `Program Files` and offer
+a pick-from-a-list instead of browsing to each `.exe` yourself? Both
+write to the exact same files in the exact same format, so use whichever
+you prefer:
 
 ```powershell
 python host-helper\configure_apps.py
 ```
-
-It scans common install folders (`Program Files`, etc.), guesses your
-CAD app and slicer, and asks you to pick from a numbered list if it
-finds more than one candidate (or if it finds none, lets you type the
-exact `.exe` path yourself). This is exactly what `.\setup.ps1` already
-ran for you if you used the setup script instead of this manual guide —
-running it again re-asks and overwrites the previous choice, so it's
-fine to change your mind later.
 
 If you'd rather do it by hand instead: open `host-helper\host_helper_windows.py`
 (find it in File Explorer, inside the SPOOL folder, and open it with

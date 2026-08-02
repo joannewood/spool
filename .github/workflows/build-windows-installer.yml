@@ -18,17 +18,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Syntax-check setup.ps1
+      - name: Syntax-check PowerShell scripts
         shell: pwsh
         run: |
-          $parseErrors = $null
-          $tokens = $null
-          [System.Management.Automation.Language.Parser]::ParseFile("setup.ps1", [ref]$tokens, [ref]$parseErrors) | Out-Null
-          if ($parseErrors.Count -gt 0) {
-            $parseErrors | ForEach-Object { Write-Host "::error::$_" }
-            throw "setup.ps1 has $($parseErrors.Count) parse error(s)"
+          $scripts = @("setup.ps1", "host-helper\configure_apps_windows.ps1", "host-helper\install_windows.ps1", "host-helper\uninstall_windows.ps1")
+          $failed = $false
+          foreach ($script in $scripts) {
+            $parseErrors = $null
+            $tokens = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($script, [ref]$tokens, [ref]$parseErrors) | Out-Null
+            if ($parseErrors.Count -gt 0) {
+              $parseErrors | ForEach-Object { Write-Host "::error::${script}: $_" }
+              $failed = $true
+            } else {
+              Write-Host "${script}: parses cleanly ($($tokens.Count) tokens)"
+            }
           }
-          Write-Host "setup.ps1 parses cleanly ($($tokens.Count) tokens)"
+          if ($failed) { throw "one or more PowerShell scripts failed to parse" }
 
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
