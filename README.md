@@ -175,9 +175,10 @@ being worked on).
 
 The home page (`http://localhost:8000`) is a grid of thumbnails, newest
 first. Type in the search box at the top to filter live as you type — it
-searches filenames, tags, and print metadata (material, printer, slicer,
-your own notes) all at once, and treats hyphens/underscores/spaces as
-interchangeable, so "cake stand" finds `cake_stand.stl` too. Click
+searches filenames, project names, and print metadata (material,
+printer, slicer, your own notes) all at once, and treats hyphens/
+underscores/spaces as interchangeable, so "cake stand" finds
+`cake_stand.stl` too. Click
 **Filters** for a side panel with extension, tag, star rating, "printed"
 status, and material/printer/slicer dropdowns; the **sort** dropdown next
 to search covers newest/oldest/name/size. Click any card to open that
