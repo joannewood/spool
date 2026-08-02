@@ -364,33 +364,27 @@ developing it.
   equivalent step wired up yet, so a Windows-configured app just shows a
   plain two-letter badge next to a file instead of its real icon —
   cosmetic only, "Open in..." still works normally.
-- **Adding a folder you initially skipped isn't a single click** — this
-  covers both "I left Library/Downloads blank at setup and want it now"
-  and "I want a genuinely new, fourth watched folder." The admin page
-  can only edit/pause roots that already have a database row; it can't
-  create one.
-  - If you left **Library or Downloads blank** at setup: their bind
-    mounts already exist in `docker-compose.yml` (pointed at a harmless
-    placeholder folder while blank), so you just need to (1) set the
-    real path in `.env`, (2) run `docker compose up -d --build` to
-    remount it there, then (3) add the row yourself, since the one-time
-    seed script won't retroactively do it:
-    ```bash
-    docker compose exec postgres psql -U spool -d spool -c \
-      "INSERT INTO watched_roots (host_path, container_path, label, kind, ingest_mode, active) VALUES ('/real/path/here', '/roots/library', 'Library', 'existing_library', 'index_in_place', TRUE)"
-    ```
-    (swap `/roots/library`/`'Library'`/`'index_in_place'` for
-    `/roots/downloads`/`'Downloads'`/`'relocate_to_dropfolder'` if it's
-    Downloads you're adding.)
-  - For a genuinely new **fourth** folder beyond these three: Docker
-    can't attach a brand-new bind mount to an already-running container
-    at all, so you'd first need to add one to `docker-compose.yml`
-    yourself, then `docker compose up -d --build`, then the same manual
-    `INSERT` as above.
-- **Changing a path in `.env` after first setup doesn't re-seed the
-  database** — the seed only runs once, against a brand-new `pgdata`
-  volume. Update the path on the `/admin` page instead (and re-run
-  `host-helper/install.sh` if it's one of the delete-allowlist paths).
+- **Adding a folder you initially skipped, or changing an existing one,
+  is now just re-running the installer** — no terminal, no manual
+  database commands. Open **SPOOL Installer** again (or re-run
+  `setup.sh`/`setup.ps1`), choose **Re-run Full Setup**, then **No**
+  when asked to keep your existing folder configuration as-is — you'll
+  be walked through the same three folder questions again (add a
+  Library/Downloads you skipped the first time, change a path that
+  moved, or clear one out entirely), and the install picks up the
+  change on its own: your database password is preserved (it doesn't
+  regenerate one that would stop working), and the underlying watched
+  folder is added, updated, or turned off to match, automatically.
+  - **Exception: a genuinely new *fourth* watched folder** beyond drop
+    folder/Library/Downloads isn't supported this way — Docker can't
+    attach a brand-new bind mount to an already-running container, so
+    that specific case still needs a manual edit to `docker-compose.yml`
+    (adding a new volume mount) before `docker compose up -d --build`,
+    and isn't something the installer's three-folder flow covers.
+  - The `/admin` page's own edit form only changes a root's **label**,
+    **ingest mode**, or **active/paused** state — it was never able to
+    change the underlying folder path itself; re-running the installer
+    (above) is the way to actually change where a root points.
 - **Nothing SPOOL does can write to or delete from your Library folder**
   — it's mounted read-only in Docker (an "existing library" root is
   never supposed to be written to), and separately, the native

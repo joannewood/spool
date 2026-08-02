@@ -142,6 +142,46 @@ function New-DesktopShortcut {
 # Shared by the fast "Restart SPOOL" path above and the full setup flow's
 # own Step 3 below, so re-running the whole guided setup doesn't need a
 # second, duplicate copy of this.
+function ConvertTo-SqlLiteral($s) {
+    return $s -replace "'", "''"
+}
+
+# Keeps watched_roots in sync with whatever DROPFOLDER_HOST_PATH/
+# LIBRARY_HOST_PATH/DOWNLOADS_HOST_PATH currently say in .env -- this is
+# what used to require a manual `docker compose exec postgres psql ...
+# INSERT` by hand (see README's old "Adding a folder you initially
+# skipped" instructions) every time a previously-blank folder was filled
+# in, an existing one's path changed, or one was cleared. Safe to call
+# every time Start-AndWait finishes, not just after a reconfigure -- it's
+# a no-op UPDATE-to-the-same-value when .env hasn't actually changed.
+# Deliberately never touches label/kind/ingest_mode on a row that
+# already exists, only host_path/active -- an admin-page customization
+# (e.g. a renamed label) must survive this running again.
+function Sync-WatchedRoots {
+    $envContent = Get-Content ".env"
+    $dropfolder = ConvertTo-SqlLiteral (($envContent | Where-Object { $_ -match "^DROPFOLDER_HOST_PATH=" }) -replace "^DROPFOLDER_HOST_PATH=", "")
+    $library = ConvertTo-SqlLiteral (($envContent | Where-Object { $_ -match "^LIBRARY_HOST_PATH=" }) -replace "^LIBRARY_HOST_PATH=", "")
+    $downloads = ConvertTo-SqlLiteral (($envContent | Where-Object { $_ -match "^DOWNLOADS_HOST_PATH=" }) -replace "^DOWNLOADS_HOST_PATH=", "")
+
+    $sql = "UPDATE watched_roots SET host_path = '$dropfolder', active = TRUE WHERE container_path = '/roots/dropfolder';`n"
+
+    if ($library) {
+        $sql += "INSERT INTO watched_roots (host_path, container_path, label, kind, ingest_mode, active) SELECT '$library', '/roots/library', 'Library', 'existing_library', 'index_in_place', TRUE WHERE NOT EXISTS (SELECT 1 FROM watched_roots WHERE container_path = '/roots/library');`n"
+        $sql += "UPDATE watched_roots SET host_path = '$library', active = TRUE WHERE container_path = '/roots/library';`n"
+    } else {
+        $sql += "UPDATE watched_roots SET active = FALSE WHERE container_path = '/roots/library';`n"
+    }
+
+    if ($downloads) {
+        $sql += "INSERT INTO watched_roots (host_path, container_path, label, kind, ingest_mode, active) SELECT '$downloads', '/roots/downloads', 'Downloads', 'existing_library', 'relocate_to_dropfolder', TRUE WHERE NOT EXISTS (SELECT 1 FROM watched_roots WHERE container_path = '/roots/downloads');`n"
+        $sql += "UPDATE watched_roots SET host_path = '$downloads', active = TRUE WHERE container_path = '/roots/downloads';`n"
+    } else {
+        $sql += "UPDATE watched_roots SET active = FALSE WHERE container_path = '/roots/downloads';`n"
+    }
+
+    $sql | docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U spool -d spool | Out-Null
+}
+
 function Start-AndWait {
     docker compose up -d --build
 
@@ -158,6 +198,7 @@ function Start-AndWait {
     Write-Host ""
     if ($ready) {
         Write-Host "SPOOL is up: http://localhost:8000"
+        Sync-WatchedRoots
         New-DesktopShortcut
     } else {
         Write-Host "SPOOL didn't respond within two minutes -- check what's happening with:"
@@ -214,6 +255,17 @@ if (-not (Test-DockerRunning)) {
 
 Step "Configuring your folders"
 
+# Tracked before anything below touches the filesystem -- the wipe-check
+# further down (a fresh .env that doesn't match an already-provisioned
+# database) only makes sense when .env genuinely didn't exist yet at the
+# start of this run. Reconfiguring folders on an *already* set-up install
+# ("Re-run Full Setup" -> "no, reconfigure" below) also sets
+# $Reconfigure = $true, but there .env already exists with a real,
+# working POSTGRES_PASSWORD -- that path preserves it instead (see the
+# password-generation step further down) rather than needing the wipe
+# warning at all.
+$EnvExistedBefore = Test-Path ".env"
+
 $Reconfigure = $true
 if (Test-Path ".env") {
     Write-Host "Found an existing .env file -- SPOOL looks like it's already set up here."
@@ -267,10 +319,12 @@ if ($Reconfigure) {
     # update landing in a differently-named folder -- but that only
     # helps if this fresh setup doesn't also generate a *new* database
     # password that can't authenticate against that already-existing
-    # database. Detected by checking for the volume before writing
-    # anything.
+    # database. Only meaningful when .env didn't exist yet at the start
+    # of this run -- if it did, we're reconfiguring an already-set-up
+    # install and preserve its real POSTGRES_PASSWORD below regardless,
+    # so there's no mismatch risk to warn about here.
     docker volume inspect spool_pgdata 2>$null 1>$null
-    if ($LASTEXITCODE -eq 0) {
+    if ((-not $EnvExistedBefore) -and $LASTEXITCODE -eq 0) {
         Write-Host ""
         Write-Host "Found an existing SPOOL database from a previous setup, but there's"
         Write-Host "no .env in this folder yet to match it. This usually means you're"
@@ -338,8 +392,23 @@ if ($Reconfigure) {
     $LibraryHostPath = $LibraryHostPath -replace '\\', '/'
     $DownloadsHostPath = $DownloadsHostPath -replace '\\', '/'
 
-    $chars = (48..57) + (65..90) + (97..122)
-    $GeneratedPassword = -join ((1..24) | ForEach-Object { [char](Get-Random -InputObject $chars) })
+    # Preserve an existing real password rather than generating a new one
+    # that can't authenticate against an already-provisioned database --
+    # a real bug this used to have: reconfiguring folders on an already
+    # set-up install (.env existed, with a real password matching the
+    # live Postgres volume) silently regenerated POSTGRES_PASSWORD every
+    # time, breaking every service's connection to that same database.
+    # Only generate fresh when .env is genuinely new or still has the
+    # unfilled "changeme" placeholder from .env.example.
+    $ExistingPassword = (Get-Content ".env" | Where-Object { $_ -match "^POSTGRES_PASSWORD=" }) -replace "^POSTGRES_PASSWORD=", ""
+    if ($ExistingPassword -and $ExistingPassword -ne "changeme") {
+        $GeneratedPassword = $ExistingPassword
+        $KeptExistingPassword = $true
+    } else {
+        $chars = (48..57) + (65..90) + (97..122)
+        $GeneratedPassword = -join ((1..24) | ForEach-Object { [char](Get-Random -InputObject $chars) })
+        $KeptExistingPassword = $false
+    }
 
     $envContent = Get-Content ".env"
     $envContent = $envContent -replace '^DROPFOLDER_HOST_PATH=.*', "DROPFOLDER_HOST_PATH=$DropfolderHostPath"
@@ -348,7 +417,11 @@ if ($Reconfigure) {
     $envContent = $envContent -replace '^POSTGRES_PASSWORD=.*', "POSTGRES_PASSWORD=$GeneratedPassword"
     Set-Content -Path ".env" -Value $envContent
 
-    Write-Host "Wrote .env -- a random database password was generated for you (nothing to remember)."
+    if ($KeptExistingPassword) {
+        Write-Host "Wrote .env -- kept your existing database password."
+    } else {
+        Write-Host "Wrote .env -- a random database password was generated for you (nothing to remember)."
+    }
 }
 
 # ---- Step 3: bring up the stack -------------------------------------------

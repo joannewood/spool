@@ -85,6 +85,56 @@ create_desktop_shortcut() {
 WEBLOC
 }
 
+# Postgres identifier/string-literal escaping for values interpolated
+# into the SQL text below — real folder paths essentially never contain
+# a literal single quote, but this costs nothing and matches the same
+# defensive care _as_escape gives AppleScript strings above.
+sql_escape() { printf '%s' "${1//\'/\'\'}"; }
+
+# Keeps watched_roots in sync with whatever DROPFOLDER_HOST_PATH/
+# LIBRARY_HOST_PATH/DOWNLOADS_HOST_PATH currently say in .env — this is
+# what used to require a manual `docker compose exec postgres psql ...
+# INSERT` by hand (see README's old "Adding a folder you initially
+# skipped" instructions) every time a previously-blank folder was filled
+# in, an existing one's path changed, or one was cleared. Safe to call
+# every time Step 3 finishes, not just after a reconfigure — it's a
+# no-op UPDATE-to-the-same-value when .env hasn't actually changed.
+# Deliberately never touches label/kind/ingest_mode on a row that
+# already exists, only host_path/active — an admin-page customization
+# (e.g. a renamed label) must survive this running again.
+reconcile_watched_roots() {
+  local dropfolder library downloads sql
+  dropfolder=$(sql_escape "$(sed -n 's/^DROPFOLDER_HOST_PATH=//p' .env)")
+  library=$(sql_escape "$(sed -n 's/^LIBRARY_HOST_PATH=//p' .env)")
+  downloads=$(sql_escape "$(sed -n 's/^DOWNLOADS_HOST_PATH=//p' .env)")
+
+  sql="UPDATE watched_roots SET host_path = '$dropfolder', active = TRUE WHERE container_path = '/roots/dropfolder';"
+
+  if [ -n "$library" ]; then
+    sql="$sql
+INSERT INTO watched_roots (host_path, container_path, label, kind, ingest_mode, active)
+SELECT '$library', '/roots/library', 'Library', 'existing_library', 'index_in_place', TRUE
+WHERE NOT EXISTS (SELECT 1 FROM watched_roots WHERE container_path = '/roots/library');
+UPDATE watched_roots SET host_path = '$library', active = TRUE WHERE container_path = '/roots/library';"
+  else
+    sql="$sql
+UPDATE watched_roots SET active = FALSE WHERE container_path = '/roots/library';"
+  fi
+
+  if [ -n "$downloads" ]; then
+    sql="$sql
+INSERT INTO watched_roots (host_path, container_path, label, kind, ingest_mode, active)
+SELECT '$downloads', '/roots/downloads', 'Downloads', 'existing_library', 'relocate_to_dropfolder', TRUE
+WHERE NOT EXISTS (SELECT 1 FROM watched_roots WHERE container_path = '/roots/downloads');
+UPDATE watched_roots SET host_path = '$downloads', active = TRUE WHERE container_path = '/roots/downloads';"
+  else
+    sql="$sql
+UPDATE watched_roots SET active = FALSE WHERE container_path = '/roots/downloads';"
+  fi
+
+  echo "$sql" | docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U spool -d spool >/dev/null
+}
+
 # Shared by the fast "Restart SPOOL" path above and the full setup flow's
 # own Step 3 below, so re-running the whole guided setup doesn't need a
 # second, duplicate copy of this.
@@ -104,6 +154,7 @@ start_and_wait() {
   echo
   if [ "$READY" -eq 1 ]; then
     echo "SPOOL is up: http://localhost:8000"
+    reconcile_watched_roots
     create_desktop_shortcut
   else
     echo "SPOOL didn't respond within two minutes — check what's happening with:"
@@ -151,6 +202,18 @@ fi
 
 step "Configuring your folders"
 
+# Tracked before anything below touches the filesystem — the wipe-check
+# further down (a fresh .env that doesn't match an already-provisioned
+# database) only makes sense when .env genuinely didn't exist yet at the
+# start of this run. Reconfiguring folders on an *already* set-up install
+# (the "Re-run Full Setup" -> "no, reconfigure" path) also sets
+# RECONFIGURE=1 below, but there .env already exists with a real,
+# working POSTGRES_PASSWORD — that path preserves it instead (see the
+# password-generation step further down) rather than needing the wipe
+# warning at all.
+ENV_EXISTED_BEFORE=0
+[ -f .env ] && ENV_EXISTED_BEFORE=1
+
 RECONFIGURE=1
 if [ -f .env ]; then
   echo "Found an existing .env file — SPOOL looks like it's already set up here."
@@ -191,9 +254,12 @@ if [ "$RECONFIGURE" -eq 1 ]; then
   # comment) specifically so your database survives a downloaded update
   # landing in a differently-named folder — but that only helps if this
   # fresh setup doesn't also generate a *new* database password that
-  # can't authenticate against that already-existing database. Detected
-  # by checking for the volume before writing anything.
-  if docker volume inspect spool_pgdata >/dev/null 2>&1; then
+  # can't authenticate against that already-existing database. Only
+  # meaningful when .env didn't exist yet at the start of this run — if
+  # it did, we're reconfiguring an already-set-up install and preserve
+  # its real POSTGRES_PASSWORD below regardless, so there's no mismatch
+  # risk to warn about here.
+  if [ "$ENV_EXISTED_BEFORE" -eq 0 ] && docker volume inspect spool_pgdata >/dev/null 2>&1; then
     echo
     echo "⚠ Found an existing SPOOL database from a previous setup, but there's"
     echo "  no .env in this folder yet to match it. This usually means you're"
@@ -246,7 +312,22 @@ if [ "$RECONFIGURE" -eq 1 ]; then
     echo "    skipping — you can add this later; see \"Known limitations\" in README.md for how."
   fi
 
-  PGPASSWORD_GENERATED=$(openssl rand -hex 16 2>/dev/null || echo "spool-$(date +%s)")
+  # Preserve an existing real password rather than generating a new one
+  # that can't authenticate against an already-provisioned database —
+  # a real bug this used to have: reconfiguring folders on an already
+  # set-up install (.env existed, with a real password matching the live
+  # Postgres volume) silently regenerated POSTGRES_PASSWORD every time,
+  # breaking every service's connection to that same database. Only
+  # generate fresh when .env is genuinely new or still has the unfilled
+  # "changeme" placeholder from .env.example.
+  EXISTING_PGPASSWORD=$(sed -n 's/^POSTGRES_PASSWORD=//p' .env)
+  if [ -n "$EXISTING_PGPASSWORD" ] && [ "$EXISTING_PGPASSWORD" != "changeme" ]; then
+    PGPASSWORD_GENERATED="$EXISTING_PGPASSWORD"
+    KEPT_EXISTING_PASSWORD=1
+  else
+    PGPASSWORD_GENERATED=$(openssl rand -hex 16 2>/dev/null || echo "spool-$(date +%s)")
+    KEPT_EXISTING_PASSWORD=0
+  fi
 
   # sed, not `source .env` — a plain source word-splits unquoted values, and
   # a real path like "/Users/you/Documents/3D Printing" (unquoted, same as
@@ -259,7 +340,11 @@ if [ "$RECONFIGURE" -eq 1 ]; then
     -e "s#^POSTGRES_PASSWORD=.*#POSTGRES_PASSWORD=$PGPASSWORD_GENERATED#" \
     .env
 
-  echo "Wrote .env — a random database password was generated for you (nothing to remember)."
+  if [ "$KEPT_EXISTING_PASSWORD" -eq 1 ]; then
+    echo "Wrote .env — kept your existing database password."
+  else
+    echo "Wrote .env — a random database password was generated for you (nothing to remember)."
+  fi
 fi
 
 # ---- Step 3: bring up the stack -----------------------------------------
