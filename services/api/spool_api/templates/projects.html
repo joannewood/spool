@@ -4,6 +4,20 @@
 {% block title %}Projects — SPOOL{% endblock %}
 {% block content %}
 
+{% macro pagination(position) %}
+  {% if total_pages > 1 %}
+  <nav class="pagination pagination-{{ position }}">
+    {% if page > 1 %}
+    <a href="/projects?{{ base_qs }}&page={{ page - 1 }}" hx-get="/projects?{{ base_qs }}&page={{ page - 1 }}" hx-target="#project-list" hx-select="#project-list" hx-swap="outerHTML" hx-push-url="true">← Prev</a>
+    {% endif %}
+    <span>Page {{ page }} of {{ total_pages }}</span>
+    {% if page < total_pages %}
+    <a href="/projects?{{ base_qs }}&page={{ page + 1 }}" hx-get="/projects?{{ base_qs }}&page={{ page + 1 }}" hx-target="#project-list" hx-select="#project-list" hx-swap="outerHTML" hx-push-url="true">Next →</a>
+    {% endif %}
+  </nav>
+  {% endif %}
+{% endmacro %}
+
 <div class="page-header-row">
   <h1>Projects</h1>
   <button type="button" class="chip-add-btn modal-trigger" data-modal="create-project-modal" title="Create a new project">{{ icons.plus() }}</button>
@@ -49,6 +63,7 @@
 </div>
 
 <div id="project-list">
+{{ pagination("top") }}
 {% if view == "cards" %}
   <div class="grid">
     {% for p in card_projects %}
@@ -85,6 +100,7 @@
     {% endfor %}
   </div>
 {% endif %}
+{{ pagination("bottom") }}
 </div>
 
 {% endblock %}

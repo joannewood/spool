@@ -1372,6 +1372,56 @@ def test_projects_index_cards_view_respects_search(client):
             cur.execute("DELETE FROM projects WHERE id = ANY(%s)", ([matching_id, other_id],))
 
 
+# ---- /projects pagination (tree, cards, and search-results views) --------
+
+def test_projects_tree_view_paginates_by_top_level_project(client):
+    from spool_api import queries
+    from spool_api.queries import PAGE_SIZE
+
+    ids = [queries.create_project(f"Pagination Root {i:03d}", "", None) for i in range(PAGE_SIZE + 1)]
+    try:
+        resp = client.get("/projects")
+        assert resp.status_code == 200
+        assert "Page 1 of 2" in resp.text
+        assert resp.text.count('class="pagination pagination-top"') == 1
+        assert resp.text.count('class="pagination pagination-bottom"') == 1
+
+        resp2 = client.get("/projects", params={"page": 2})
+        assert resp2.status_code == 200
+        assert "Page 2 of 2" in resp2.text
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = ANY(%s)", (ids,))
+
+
+def test_projects_cards_view_paginates(client):
+    from spool_api import queries
+    from spool_api.queries import PAGE_SIZE
+
+    ids = [queries.create_project(f"Pagination Card {i:03d}", "", None) for i in range(PAGE_SIZE + 1)]
+    try:
+        resp = client.get("/projects", params={"view": "cards"})
+        assert resp.status_code == 200
+        assert "Page 1 of 2" in resp.text
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = ANY(%s)", (ids,))
+
+
+def test_projects_search_results_paginate(client):
+    from spool_api import queries
+    from spool_api.queries import PAGE_SIZE
+
+    ids = [queries.create_project(f"Pagsearch Result {i:03d}", "", None) for i in range(PAGE_SIZE + 1)]
+    try:
+        resp = client.get("/projects", params={"q": "Pagsearch Result"})
+        assert resp.status_code == 200
+        assert "Page 1 of 2" in resp.text
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = ANY(%s)", (ids,))
+
+
 def test_projects_page_links_to_bulk_rename_when_cleanup_needed(client):
     from spool_api import queries
 

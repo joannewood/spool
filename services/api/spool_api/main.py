@@ -329,7 +329,7 @@ def _build_project_tree(rows):
 
 
 @app.get("/projects", response_class=HTMLResponse)
-def projects_index(request: Request, q: str = "", view: str = None):
+def projects_index(request: Request, q: str = "", view: str = None, page: int = 1):
     # An explicit `view` query value wins (the toggle links always send
     # one); otherwise fall back to a previously-saved cookie, defaulting
     # to the original tree/list view — same resolve-then-persist pattern
@@ -338,28 +338,60 @@ def projects_index(request: Request, q: str = "", view: str = None):
         view = request.cookies.get(PROJECTS_VIEW_COOKIE, "list")
     if view not in ("list", "cards"):
         view = "list"
+    page = max(1, page)
 
     projects = queries.list_projects()
     search_results = queries.search_projects(q) if q else None
-    card_projects = None
+
+    # Same PAGE_SIZE/flat-slice pagination as the library grid, applied to
+    # whichever flat list is actually being displayed. The no-search tree
+    # view is the one exception: a tree can't be sliced by row without
+    # breaking parent/child continuity across pages, so it paginates by
+    # top-level project instead -- each page shows a full subtree for N
+    # root projects rather than a fixed count of nodes overall. Slicing
+    # happens before attach_project_card_visuals (Cards view only) so
+    # that per-item enrichment work is never done for a page that isn't
+    # even being rendered.
     if view == "cards":
         # Cards always render as a flat grid — reuses the search-results
         # list when searching (already flat), or every project otherwise,
         # since a nested tree doesn't have a natural grid layout anyway.
-        card_projects = search_results if search_results is not None else list(projects)
+        full_list = search_results if search_results is not None else list(projects)
+        total = len(full_list)
+        offset = (page - 1) * queries.PAGE_SIZE
+        card_projects = full_list[offset : offset + queries.PAGE_SIZE]
         queries.attach_project_card_visuals(card_projects)
+        tree = []
+    elif search_results is not None:
+        total = len(search_results)
+        offset = (page - 1) * queries.PAGE_SIZE
+        search_results = search_results[offset : offset + queries.PAGE_SIZE]
+        card_projects = None
+        tree = []
+    else:
+        card_projects = None
+        all_roots = _build_project_tree(projects)
+        total = len(all_roots)
+        offset = (page - 1) * queries.PAGE_SIZE
+        tree = all_roots[offset : offset + queries.PAGE_SIZE]
+
+    total_pages = max(1, -(-total // queries.PAGE_SIZE))
+    base_qs = urlencode({"view": view, **({"q": q} if q else {})})
 
     response = templates.TemplateResponse(
         request,
         "projects.html",
         {
             "projects": projects,
-            "tree": _build_project_tree(projects),
+            "tree": tree,
             "q": q,
             "view": view,
             "search_results": search_results,
             "card_projects": card_projects,
             "cleanup_count": queries.count_projects_needing_name_cleanup(),
+            "page": page,
+            "total_pages": total_pages,
+            "base_qs": base_qs,
         },
     )
     response.set_cookie(PROJECTS_VIEW_COOKIE, view, max_age=31536000)
