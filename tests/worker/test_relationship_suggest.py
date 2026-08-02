@@ -153,6 +153,54 @@ def test_folder_project_suggested_for_single_file(conn, make_root):
     assert row == ("SoloWidget", "suggested")
 
 
+def test_folder_project_skipped_when_single_file_matches_folder_name(conn, make_root):
+    root = make_root()
+    file_id, path = _insert_file(conn, root, "Widget Stand.stl", ".stl", "hash", subdir="Widget Stand")
+
+    suggest_folder_project(conn, file_id, path, root)
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM projects")
+        assert cur.fetchone()[0] == 0
+
+
+def test_folder_project_skipped_ignoring_case_punctuation_and_extension(conn, make_root):
+    # "widget_stand!.stl" vs "Widget-Stand" -- different case, different
+    # separators, extra punctuation -- all of that is exactly the noise
+    # this check is meant to see through.
+    root = make_root()
+    file_id, path = _insert_file(conn, root, "widget_stand!.stl", ".stl", "hash", subdir="Widget-Stand")
+
+    suggest_folder_project(conn, file_id, path, root)
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM projects")
+        assert cur.fetchone()[0] == 0
+
+
+def test_folder_project_still_created_once_a_second_file_arrives(conn, make_root):
+    # The skip only ever looks at the siblings that exist *right now* --
+    # a later, differently-named file in the same folder should still
+    # sweep the originally-skipped file into a real project.
+    root = make_root()
+    solo_id, solo_path = _insert_file(conn, root, "Widget Stand.stl", ".stl", "hash-a", subdir="Widget Stand")
+    suggest_folder_project(conn, solo_id, solo_path, root)
+    with conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM projects")
+        assert cur.fetchone()[0] == 0  # confirmed skipped
+
+    extra_id, extra_path = _insert_file(conn, root, "base.stl", ".stl", "hash-b", subdir="Widget Stand")
+    suggest_folder_project(conn, extra_id, extra_path, root)
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM projects WHERE name = 'Widget Stand'")
+        assert cur.fetchone()[0] == 1
+        cur.execute(
+            "SELECT count(*) FROM project_files pf JOIN projects p ON p.id = pf.project_id WHERE p.name = 'Widget Stand'"
+        )
+        assert cur.fetchone()[0] == 2  # both files, including the originally-skipped one
+
+
 def test_folder_project_skipped_when_file_sits_directly_in_root(conn, make_root):
     root = make_root()
     file_id, path = _insert_file(conn, root, "widget.stl", ".stl", "hash")  # no subdir
@@ -180,6 +228,10 @@ def test_folder_project_reuses_existing_project_by_name(conn, make_root):
 
 
 def test_folder_project_uses_parent_name_when_immediate_folder_is_generic(conn, make_root):
+    # Also guards the same-name-as-folder skip: "widget.stl" bare-matches
+    # the *parent* folder name "Widget" once "files" is substituted away,
+    # but must NOT be skipped -- the skip only ever compares against the
+    # file's real immediate folder ("files"), which doesn't match.
     root = make_root()
     file_id, path = _insert_file(conn, root, "widget.stl", ".stl", "hash", subdir="Widget/files")
 

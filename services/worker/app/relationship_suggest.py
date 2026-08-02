@@ -58,6 +58,19 @@ _SEPARATOR_TO_SPACE_RE = re.compile(r"[_\-]+")
 # pairs plus the two top-level container projects.
 _MODEL_PRINT_SUFFIX_RE = re.compile(r"^(.*)-(model|print)_files$", re.IGNORECASE)
 
+# Strips everything but letters/digits for a strict "same name really" check
+# — "Widget Stand", "widget-stand", "Widget_Stand (v2)" and "WidgetStand"
+# all reduce to "widgetstand". Deliberately stricter than the underscore/
+# hyphen-only normalization used elsewhere in this module (generic-
+# container detection, sibling matching) since this one specific check
+# needs to treat basically any punctuation/whitespace as noise, not just
+# the two separator characters folder-naming conventions actually use.
+_NON_ALNUM_RE = re.compile(r"[^a-z0-9]")
+
+
+def _bare_name(name):
+    return _NON_ALNUM_RE.sub("", clean_name(name).lower())
+
 
 def _sibling_model_print_path(directory):
     """If any single path component of `directory` ends in
@@ -297,6 +310,21 @@ def suggest_folder_project(conn, file_id, host_path, root):
     exists) is reused instead — so the two halves of a kit split this way
     end up with one shared project rather than two, with neither side's
     project ever getting disambiguated against the other.
+
+    One exception to "even alone" above: if the folder holds exactly one
+    file and that file's own name is really just its *immediate* folder's
+    name again (ignoring case, whitespace, punctuation, and the extension
+    — see _bare_name), a project of one adds nothing a plain file browse
+    doesn't already show ("Widget Stand/Widget Stand.stl" is already
+    self-explanatory) — skip suggesting a project for it. Checked against
+    the real immediate folder name, deliberately before the generic-
+    container-name substitution below — "Widget/files/widget.stl" must
+    NOT skip just because "widget" happens to match the *parent* folder
+    "Widget" once "files" is substituted away; the file only ever matches
+    the folder it's actually sitting in for this specific check. A second
+    file showing up later still gets a real suggestion at that point,
+    since this check only ever runs against however many siblings exist
+    *right now*, not something remembered from a skipped earlier pass.
     """
     directory = os.path.dirname(host_path)
     if os.path.normpath(directory) == os.path.normpath(root.host_path):
@@ -311,8 +339,14 @@ def suggest_folder_project(conn, file_id, host_path, root):
     if not siblings:
         return
 
+    immediate_folder_name = os.path.basename(directory)
+    if len(siblings) == 1:
+        sibling_stem = os.path.splitext(os.path.basename(siblings[0]["path"]))[0]
+        if _bare_name(sibling_stem) == _bare_name(immediate_folder_name):
+            return
+
     match_directory = directory
-    folder_name = os.path.basename(directory)
+    folder_name = immediate_folder_name
     if _SEPARATOR_TO_SPACE_RE.sub(" ", folder_name).lower() in _GENERIC_CONTAINER_NAMES:
         parent_directory = os.path.dirname(directory)
         if os.path.normpath(parent_directory) != os.path.normpath(root.host_path):
