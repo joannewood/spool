@@ -123,6 +123,22 @@ function Show-QuickActionMenu {
     return $form.ShowDialog()
 }
 
+# Best-effort desktop shortcut -- a .url file is the direct Windows
+# equivalent of macOS's .webloc (double-click opens the URL in your
+# default browser), needing no browser-specific scripting or extra
+# permissions. Never fatal if the Desktop folder is missing/unwritable
+# for some reason -- this is a convenience, not a requirement.
+function New-DesktopShortcut {
+    try {
+        $desktop = [Environment]::GetFolderPath("Desktop")
+        $shortcutPath = Join-Path $desktop "SPOOL.url"
+        $content = "[InternetShortcut]`r`nURL=http://localhost:8000`r`n"
+        [System.IO.File]::WriteAllText($shortcutPath, $content, (New-Object System.Text.UTF8Encoding($false)))
+    } catch {
+        # Convenience only -- ignored on failure.
+    }
+}
+
 # Shared by the fast "Restart SPOOL" path above and the full setup flow's
 # own Step 3 below, so re-running the whole guided setup doesn't need a
 # second, duplicate copy of this.
@@ -142,6 +158,7 @@ function Start-AndWait {
     Write-Host ""
     if ($ready) {
         Write-Host "SPOOL is up: http://localhost:8000"
+        New-DesktopShortcut
     } else {
         Write-Host "SPOOL didn't respond within two minutes -- check what's happening with:"
         Note "docker compose ps"
@@ -364,6 +381,7 @@ powershell -ExecutionPolicy Bypass -File "host-helper\install_windows.ps1"
 Step "All set"
 
 Write-Host "SPOOL is running at http://localhost:8000"
+Write-Host "A SPOOL shortcut has been added to your Desktop -- double-click it any time to open SPOOL."
 Start-Process "http://localhost:8000"
 Write-Host ""
 Write-Host "Unlike on a Mac, there's no extra permission step needed for the"

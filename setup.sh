@@ -65,6 +65,26 @@ prompt_quick_action() {
   osascript -e 'button returned of (display dialog "SPOOL is already set up in this folder. What would you like to do?" buttons {"Exit", "Re-run Full Setup", "Restart SPOOL"} default button "Restart SPOOL")' 2>/dev/null
 }
 
+# Best-effort desktop shortcut — a .webloc file is a native macOS internet
+# shortcut (double-click opens the URL in your default browser), the
+# simplest reliable equivalent of "add to Dock" that needs no browser-
+# specific scripting or extra permissions. Never fatal if the Desktop
+# folder is missing/unwritable for some reason — this is a convenience,
+# not a requirement, same "best-effort, don't fail the whole script over
+# it" treatment as configure_apps.py's icon extraction.
+create_desktop_shortcut() {
+  cat > "$HOME/Desktop/SPOOL.webloc" 2>/dev/null <<'WEBLOC' || true
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>URL</key>
+	<string>http://localhost:8000</string>
+</dict>
+</plist>
+WEBLOC
+}
+
 # Shared by the fast "Restart SPOOL" path above and the full setup flow's
 # own Step 3 below, so re-running the whole guided setup doesn't need a
 # second, duplicate copy of this.
@@ -84,6 +104,7 @@ start_and_wait() {
   echo
   if [ "$READY" -eq 1 ]; then
     echo "SPOOL is up: http://localhost:8000"
+    create_desktop_shortcut
   else
     echo "SPOOL didn't respond within two minutes — check what's happening with:"
     note "docker compose ps"
@@ -270,6 +291,7 @@ host-helper/install.sh
 step "All set"
 
 echo "SPOOL is running at http://localhost:8000"
+echo "A SPOOL shortcut has been added to your Desktop — double-click it any time to open SPOOL."
 open "http://localhost:8000" 2>/dev/null || true
 echo
 echo "One thing that still needs a one-time manual click: deleting a"
