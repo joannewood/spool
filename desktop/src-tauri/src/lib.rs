@@ -165,13 +165,21 @@ fn start_spool(app: AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
-            if cfg!(debug_assertions) {
-                app.handle().plugin(
-                    tauri_plugin_log::Builder::default()
-                        .level(log::LevelFilter::Info)
-                        .build(),
-                )?;
-            }
+            // Always on, not just in debug builds -- a release .app launched
+            // via Finder/Dock has no visible console at all, and a real
+            // tester's install getting stuck with zero diagnostic trail is
+            // exactly the class of problem setup.sh's own trap handler was
+            // added to solve (see its commit history). Builder::default()
+            // already writes to the platform log dir
+            // (~/Library/Logs/com.spool.desktop on macOS) on its own --
+            // don't add explicit LogDir/Stdout targets on top of that
+            // default, confirmed live to double every line (identical
+            // timestamps, written twice).
+            app.handle().plugin(
+                tauri_plugin_log::Builder::default()
+                    .level(log::LevelFilter::Info)
+                    .build(),
+            )?;
             let handle = app.handle().clone();
             std::thread::spawn(move || start_spool(handle));
             Ok(())
