@@ -16,6 +16,32 @@ $ErrorActionPreference = "Stop"
 $Dir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $Dir
 
+# A real tester's install crashed silently -- the PowerShell window just
+# closed partway through, with no visible error at all, because Inno's
+# unmodified `powershell.exe -File ...` [Run] launch closes the console
+# the instant the process exits, terminating error or not. `trap` (unlike
+# try/catch) applies for the rest of this script's scope without needing
+# to indent everything below it in one big block -- prints the real
+# exception and waits for a keypress instead of just vanishing. Skips the
+# pause under CI ($env:CI is set by GitHub Actions) so the syntax-check/
+# build workflow doesn't hang waiting for a keypress that will never come.
+trap {
+    Write-Host ""
+    Write-Host "SPOOL setup hit an unexpected error and has to stop:" -ForegroundColor Red
+    Write-Host "  $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Where it happened:" -ForegroundColor DarkGray
+    Write-Host "  $($_.InvocationInfo.PositionMessage)" -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "Please screenshot this and let Jo know (or open a GitHub issue)." -ForegroundColor Yellow
+    if (-not $env:CI) {
+        Write-Host ""
+        Write-Host "Press Enter to close this window."
+        Read-Host | Out-Null
+    }
+    exit 1
+}
+
 function Step($msg) { Write-Host ""; Write-Host "==> $msg" -ForegroundColor Cyan }
 function Note($msg) { Write-Host "    $msg" -ForegroundColor DarkGray }
 
@@ -521,7 +547,7 @@ WizardStep "Setting up 'Open in...' for your CAD/slicer apps"
 # you'd rather have it scan Program Files and offer a pick-from-list
 # instead of browsing directly to the .exe yourself.
 if (Read-YesNo "Set up your CAD/slicer apps now?") {
-    powershell -ExecutionPolicy Bypass -File "host-helper\configure_apps_windows.ps1"
+    powershell -ExecutionPolicy Bypass -STA -File "host-helper\configure_apps_windows.ps1"
 } else {
     Note "Skipped -- 'Open in...' buttons won't work until you run"
     Note "host-helper\configure_apps_windows.ps1 (or edit host_helper_windows.py by hand) later."

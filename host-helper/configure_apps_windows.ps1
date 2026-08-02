@@ -15,6 +15,26 @@
 # format, so it's fine to use either one, including switching between them
 # across separate runs.
 
+# See setup.ps1's own header comment for why this trap exists -- same
+# "the window just vanishes on any uncaught error" risk applies here too,
+# since this script is runnable standalone as well as via setup.ps1.
+trap {
+    Write-Host ""
+    Write-Host "This hit an unexpected error and has to stop:" -ForegroundColor Red
+    Write-Host "  $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Where it happened:" -ForegroundColor DarkGray
+    Write-Host "  $($_.InvocationInfo.PositionMessage)" -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "Please screenshot this and let Jo know (or open a GitHub issue)." -ForegroundColor Yellow
+    if (-not $env:CI) {
+        Write-Host ""
+        Write-Host "Press Enter to close this window."
+        Read-Host | Out-Null
+    }
+    exit 1
+}
+
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing

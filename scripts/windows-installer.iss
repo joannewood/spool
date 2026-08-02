@@ -61,4 +61,13 @@ Source: "..\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignorev
 ; this installer despite PrivilegesRequired=lowest — keeps setup.ps1
 ; running as the normal user either way, same reasoning as avoiding a
 ; .pkg's root-context scripts on the Mac side.
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\setup.ps1"""; WorkingDir: "{app}"; Flags: postinstall runasoriginaluser skipifsilent; Description: "Run SPOOL setup now"
+;
+; -STA: every dialog in setup.ps1 is a WinForms MessageBox/Form, which
+; needs an STA thread — powershell.exe defaults to STA on its own in most
+; contexts, but a real tester's install crashed silently right at the
+; first folder-picker dialog, the console window just closing with no
+; visible error (setup.ps1's own trap handler now at least surfaces the
+; real exception instead of vanishing — this flag is the actual fix
+; attempt, forcing the mode those dialogs need regardless of how this
+; specific launch context would otherwise have defaulted).
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -STA -File ""{app}\setup.ps1"""; WorkingDir: "{app}"; Flags: postinstall runasoriginaluser skipifsilent; Description: "Run SPOOL setup now"

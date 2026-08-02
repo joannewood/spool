@@ -36,6 +36,21 @@ jobs:
           }
           if ($failed) { throw "one or more PowerShell scripts failed to parse" }
 
+      - name: Verify -STA actually produces an STA thread
+        shell: pwsh
+        # Exercises the same `powershell.exe -STA ...` invocation
+        # windows-installer.iss now uses for setup.ps1 (see its [Run]
+        # section's own comment), on a real Windows runner -- not just a
+        # syntax parse. `& powershell.exe ...` spawns a genuinely separate
+        # process (not just checking this step's own pwsh host), which is
+        # what actually matters here: added after a real tester's install
+        # crashed silently at the very first WinForms dialog, with no
+        # visible error at all.
+        run: |
+          $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Threading.Thread]::CurrentThread.GetApartmentState()"
+          Write-Host "Apartment state: $output"
+          if ($output -ne "STA") { throw "expected STA, got '$output'" }
+
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
 
