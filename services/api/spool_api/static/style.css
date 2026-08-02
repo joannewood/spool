@@ -891,7 +891,6 @@ button.app-icon-btn {
 .live-status-row > .live-status-panel { flex: 2 1 0; }
 .live-status-row > .live-status-totals-panel { flex: 1 1 0; }
 table.live-status-totals { width: 100%; }
-.live-status-totals th { text-align: left; }
 .live-status-totals td:last-child { text-align: right; font-weight: 600; padding-left: 24px; }
 @media (max-width: 700px) {
   .live-status-row { flex-direction: column; }
@@ -926,6 +925,12 @@ table.live-status-totals { width: 100%; }
    for exactly that reason, before switching to a compound selector). */
 .status-line.status-line-lg { font-size: var(--fs-lg); gap: 12px; margin-bottom: 16px; }
 .status-line-lg svg { flex-shrink: 0; }
+/* The trailing "-- last scan 4 minutes ago" / "-- nothing currently
+   processing" clause reads as supporting detail, not the headline
+   itself -- smaller and muted so the actual status word/phrase (kept at
+   the full .status-line-lg size via its own <strong>) is what a glance
+   actually lands on. */
+.status-explain { font-size: var(--fs-sm); color: var(--ink-muted); }
 
 /* Small colored circle giving an at-a-glance health read, used on the
    live-status dashboard (admin.html's top section, admin_status.html's

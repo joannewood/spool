@@ -22,17 +22,17 @@
     {% if not rescan_enabled %}
     <p class="status-line status-line-lg">
       {{ icons.sync_glyph("var(--ink-muted)", 28) }}
-      Auto-sync paused
+      <strong>Auto-sync paused</strong>
     </p>
     {% elif rescan_overdue %}
     <p class="status-line status-line-lg">
       {{ icons.sync_glyph("var(--danger)", 28) }}
-      <strong>Auto-sync looks stopped</strong> — last scan {{ last_scan_at | format_relative_time }}
+      <strong>Auto-sync looks stopped</strong> <span class="status-explain">— last scan {{ last_scan_at | format_relative_time }}</span>
     </p>
     {% else %}
     <p class="status-line status-line-lg">
       {{ icons.sync_glyph("var(--ok)", 28) }}
-      Auto-sync normal — next scan {{ next_scan_at | format_relative_time }}
+      <strong>Auto-sync normal</strong> <span class="status-explain">— next scan {{ next_scan_at | format_relative_time }}</span>
     </p>
     {% endif %}
 
@@ -55,17 +55,22 @@
         </tbody>
       </table>
     </div>
+    {% elif total_queued > 0 %}
+    <p class="status-line status-line-lg">
+      {{ icons.sync_glyph("var(--danger)", 28) }}
+      <strong>File processing stuck</strong> <span class="status-explain">— {{ total_queued }} job{{ "s" if total_queued != 1 else "" }} queued, none running</span>
+    </p>
     {% else %}
     <p class="status-line status-line-lg">
       {{ icons.sync_glyph("var(--ink-muted)", 28) }}
-      File processing idle — nothing currently processing
+      <strong>File processing idle</strong> <span class="status-explain">— nothing currently processing</span>
     </p>
     {% endif %}
   </section>
 
   <section class="panel live-status-totals-panel">
+    <h2>Ingestion totals</h2>
     <table class="admin-table live-status-totals">
-      <thead><tr><th colspan="2">Ingestion totals</th></tr></thead>
       <tbody>
         <tr><td>Total files</td><td>{{ totals.total_files }}</td></tr>
         <tr>

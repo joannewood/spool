@@ -733,6 +733,7 @@ def _job_queue_status(running_jobs, job_matrix):
 def admin(request: Request):
     rescan_timing = _get_rescan_timing()
     totals = queries.get_ingestion_totals()
+    job_matrix = _pivot_job_queue(queries.get_job_queue_summary())
     return templates.TemplateResponse(
         request,
         "admin.html",
@@ -744,6 +745,7 @@ def admin(request: Request):
             "suggested_project_count": queries.count_suggested_project_assignments(),
             "suggested_relationship_count": queries.count_suggested_relationships(),
             "running_jobs": queries.get_running_jobs(),
+            "total_queued": sum(row["counts"]["queued"] for row in job_matrix),
             "totals": totals,
             "overall_status": _overall_admin_status(rescan_timing),
             **rescan_timing,
