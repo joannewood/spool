@@ -105,9 +105,10 @@
     Zip, 7z, and rar archives found in watched roots that contain a recognized model file inside —
     nothing is extracted until you confirm. Rejecting one means it's never asked about again on later scans.
   </p>
-  {% if pending_zip_count %}
-  <p><a class="note-link" href="/admin/pending-archives">Review {{ pending_zip_count }} pending archive{{ "s" if pending_zip_count != 1 else "" }} →</a></p>
-  {% endif %}
+  <p><a class="note-link" href="/admin/pending-archives">
+    {% if pending_zip_count %}Review {{ pending_zip_count }} pending archive{{ "s" if pending_zip_count != 1 else "" }} →
+    {% else %}Pending archives →{% endif %}
+  </a></p>
   <p><a class="note-link" href="/admin/rejected-archives">View rejected archives →</a></p>
 </section>
 

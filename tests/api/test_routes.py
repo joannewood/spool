@@ -470,10 +470,15 @@ def test_admin_page_shows_suggestions_section_when_relationship_suggestion_exist
 
 # ---- admin page: archives section ----------------------------------------
 
-def test_admin_page_hides_pending_archives_link_when_none_pending(client):
+def test_admin_page_always_shows_pending_archives_link(client):
+    # Deliberately always reachable, not conditional on count -- the
+    # auto-accept-archives setting lives on /admin/pending-archives, and
+    # would otherwise be unreachable whenever the library is fully caught
+    # up (a real bug: the count-gated link was the only way there).
     resp = client.get("/admin")
     assert resp.status_code == 200
-    assert "pending archive" not in resp.text.lower()
+    assert 'href="/admin/pending-archives"' in resp.text
+    assert "Review" not in resp.text.split('href="/admin/pending-archives"')[1].split("</a>")[0]
 
 
 def test_admin_page_always_shows_rejected_archives_link(client):
