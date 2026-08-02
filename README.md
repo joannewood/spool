@@ -202,6 +202,13 @@ If suggestions pile up faster than you want to review them one at a time,
 `/admin` has dedicated bulk-review pages for suggested projects and
 suggested relationships, each with a "confirm all" option.
 
+The **Projects** tab has its own searchable list/cards view of every
+project. From a project's own page you can rename it, merge it into
+another project, or move it under a different parent project. If a lot
+of your projects ended up with messy auto-generated names, `/projects/
+bulk-rename` suggests cleaned-up names for all of them at once, either
+one at a time or all together.
+
 ### Marking what you've printed
 
 On a file's page, click the small printer badge over the thumbnail to
@@ -234,7 +241,11 @@ but every configured app is always clickable for any file.
 - **Rejected archives** — anything you've dismissed, in case you change
   your mind.
 - **Watched roots** — edit the label, pause, or reactivate any of your
-  three configured folders.
+  three configured folders. Each one's **Kind** (drop folder / library /
+  downloads) reflects its fixed role, and **Ingest mode** is only ever
+  editable for a library-kind root — the drop folder and Downloads each
+  have exactly one mode that makes sense for what they do, so those two
+  are shown locked.
 
 The top of `/admin` also shows an at-a-glance summary — auto-sync health
 and what's currently processing. For the full picture (recent successes/
