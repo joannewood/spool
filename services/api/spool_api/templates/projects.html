@@ -63,6 +63,7 @@
     <div class="project-node">
       {% if p.parent_path %}<span class="parent-path-prefix">{{ p.parent_path }} / </span>{% endif %}<a href="/projects/{{ p.id }}">{{ p.name }}</a>
       <span class="project-count">{{ p.file_count }} file{{ "s" if p.file_count != 1 else "" }}</span>
+      {% if p.subproject_count %}<span class="project-count">{{ p.subproject_count }} sub-project{{ "s" if p.subproject_count != 1 else "" }}</span>{% endif %}
     </div>
     {% else %}
     <p class="empty">No projects match "{{ q }}".</p>
@@ -74,6 +75,7 @@
     <div class="project-node">
       <a href="/projects/{{ item.id }}">{{ item.name }}</a>
       <span class="project-count">{{ item.file_count }} file{{ "s" if item.file_count != 1 else "" }}</span>
+      {% if item.subproject_count %}<span class="project-count">{{ item.subproject_count }} sub-project{{ "s" if item.subproject_count != 1 else "" }}</span>{% endif %}
       {% if item.children %}
       <div class="project-children">{{ loop(item.children) }}</div>
       {% endif %}

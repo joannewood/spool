@@ -1435,6 +1435,28 @@ def test_attach_project_card_visuals_empty_list_is_a_no_op():
     queries.attach_project_card_visuals([])  # must not raise
 
 
+def test_attach_project_card_visuals_includes_descendant_files(make_file, db_conn):
+    """A pure umbrella project (no direct files of its own) should still
+    get real thumbnails/extensions pulled from its sub-project's files —
+    the real-world case this closed: a project like "Hex3D" with
+    hundreds of sub-projects and zero direct members previously showed a
+    blank card with no ext badges at all."""
+    parent_id = queries.create_project("Card Visuals Parent", "", None)
+    child_id = queries.create_project("Card Visuals Child", "", parent_id)
+    try:
+        step_file = make_file(filename="visualskit.step", ext=".step", thumbnail_path="c.png", content_hash="hc")
+        queries.add_file_to_project(step_file, child_id)
+
+        projects = [{"id": parent_id}]
+        queries.attach_project_card_visuals(projects)
+
+        assert projects[0]["extensions"] == [".step"]
+        assert len(projects[0]["thumbnails"]) == 1
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id IN (%s, %s)", (child_id, parent_id))
+
+
 def test_list_projects_includes_created_at():
     project_id = queries.create_project("Created At List Test", "", None)
     try:
@@ -1443,6 +1465,57 @@ def test_list_projects_includes_created_at():
     finally:
         with queries.get_connection() as conn, conn.cursor() as cur:
             cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_list_projects_recursive_counts_include_nested_descendants(make_file):
+    """A grandparent with no direct files/children of its own, everything
+    living two levels down, should still report the real totals -- the
+    same real-world "Hex3D" umbrella-project scenario as the file-summary
+    recursive test, but for the /projects listing's own file_count/
+    subproject_count instead of a single project's detail page."""
+    grandparent_id = queries.create_project("List Recursive Grandparent", "", None)
+    parent_id = queries.create_project("List Recursive Parent", "", grandparent_id)
+    child_id = queries.create_project("List Recursive Child", "", parent_id)
+    try:
+        stl_file = make_file(ext=".stl")
+        queries.add_file_to_project(stl_file, child_id)
+
+        rows_by_id = {p["id"]: p for p in queries.list_projects()}
+        assert rows_by_id[grandparent_id]["file_count"] == 1
+        assert rows_by_id[grandparent_id]["subproject_count"] == 2
+        assert rows_by_id[parent_id]["file_count"] == 1
+        assert rows_by_id[parent_id]["subproject_count"] == 1
+        assert rows_by_id[child_id]["file_count"] == 1
+        assert rows_by_id[child_id]["subproject_count"] == 0
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM projects WHERE id IN (%s, %s, %s)", (child_id, parent_id, grandparent_id)
+            )
+
+
+def test_get_project_children_reports_each_childs_own_recursive_count(make_file):
+    """A direct child that itself has a grandchild should report the
+    grandchild's files/count too, not just its own direct membership --
+    each child card on a parent's page needs to be internally consistent
+    with what that same child's own detail page would show."""
+    parent_id = queries.create_project("Children Recursive Parent", "", None)
+    child_id = queries.create_project("Children Recursive Child", "", parent_id)
+    grandchild_id = queries.create_project("Children Recursive Grandchild", "", child_id)
+    try:
+        stl_file = make_file(ext=".stl")
+        queries.add_file_to_project(stl_file, grandchild_id)
+
+        children = queries.get_project_children(parent_id)
+        assert len(children) == 1
+        assert children[0]["id"] == child_id
+        assert children[0]["file_count"] == 1
+        assert children[0]["subproject_count"] == 1
+    finally:
+        with queries.get_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM projects WHERE id IN (%s, %s, %s)", (grandchild_id, child_id, parent_id)
+            )
 
 
 def test_summarize_project_files_counts_and_merges_step_stp():

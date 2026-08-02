@@ -20,6 +20,7 @@
   <span class="ext-badge {{ ext | ext_class }}">{{ ext }}</span>
   {% endfor %}
   <span class="note-inline">{{ file_summary.file_count }} file{{ "s" if file_summary.file_count != 1 else "" }}</span>
+  {% if file_summary.subproject_count %}<span class="note-inline">{{ file_summary.subproject_count }} sub-project{{ "s" if file_summary.subproject_count != 1 else "" }}</span>{% endif %}
   <span class="note-inline">created {{ project.created_at | format_date }}</span>
 </div>
 
@@ -71,9 +72,11 @@
 
 {% if children %}
 <h2>Sub-projects</h2>
-<ul class="project-list">
-  {% for c in children %}<li><a href="/projects/{{ c.id }}">{{ c.name }}</a></li>{% endfor %}
-</ul>
+<div class="grid">
+  {% for c in children %}
+  {{ cards.project_card(c) }}
+  {% endfor %}
+</div>
 {% endif %}
 
 <h2>Files</h2>

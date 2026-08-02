@@ -353,6 +353,7 @@ def summarize_project_files_recursive(project_id, descendant_ids):
     return {
         "file_count": len(rows),
         "extensions": sorted({_merge_step_ext(r["ext"]) for r in rows}),
+        "subproject_count": len(descendant_ids),
     }
 
 
@@ -609,19 +610,50 @@ def remove_tag_from_file(file_id, tag_id):
 
 # ---- projects ---------------------------------------------------------------
 
+# Shared by list_projects/get_project_children — every (ancestor_id,
+# descendant_id) pair, including each project as its own descendant, so
+# a plain JOIN against it gives "this project plus everything nested
+# under it at any depth" for free. Computed via a recursive CTE rather
+# than get_project_descendant_ids' in-Python BFS specifically because
+# these two callers need it for *every* project in a list at once (a
+# whole-library page, or one project's direct children) — one query
+# beats re-walking the projects table once per row.
+_PROJECT_CLOSURE_CTE = """
+    WITH RECURSIVE closure(ancestor_id, descendant_id) AS (
+        SELECT id, id FROM projects
+        UNION ALL
+        SELECT cl.ancestor_id, p.id
+        FROM closure cl
+        JOIN projects p ON p.parent_project_id = cl.descendant_id
+    )
+"""
+
+
 def list_projects():
-    """All projects with their parent + a member-file count, for the tree
-    page — also the base data for /projects' Cards view and its search,
-    so `created_at` is included here too even though the plain tree/list
-    rendering doesn't show it."""
+    """All projects with their parent + a *recursive* member-file count
+    and sub-project count (this project plus every descendant at any
+    depth, not just its own direct members) — for the tree page, also
+    the base data for /projects' Cards view and its search, so
+    `created_at` is included here too even though the plain tree/list
+    rendering doesn't show it. Recursive because a pure umbrella project
+    (all its real files living in sub-projects, none directly in it)
+    would otherwise misleadingly show "0 files" — the same gap
+    summarize_project_files_recursive closed for the single-project
+    detail page, generalized here to every project in one query via
+    _PROJECT_CLOSURE_CTE. DISTINCT on file id since a file could in
+    principle be a confirmed member of more than one nested project at
+    once and shouldn't be double-counted."""
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
-                """
+                _PROJECT_CLOSURE_CTE
+                + """
                 SELECT p.id, p.name, p.description, p.parent_project_id, p.created_at,
-                       count(pf.file_id) FILTER (WHERE pf.status = 'confirmed') AS file_count
+                       count(DISTINCT pf.file_id) FILTER (WHERE pf.status = 'confirmed') AS file_count,
+                       count(DISTINCT cl.descendant_id) FILTER (WHERE cl.descendant_id != p.id) AS subproject_count
                 FROM projects p
-                LEFT JOIN project_files pf ON pf.project_id = p.id
+                JOIN closure cl ON cl.ancestor_id = p.id
+                LEFT JOIN project_files pf ON pf.project_id = cl.descendant_id
                 GROUP BY p.id
                 ORDER BY p.name
                 """
@@ -686,23 +718,28 @@ def attach_project_card_visuals(projects):
     thumbnails) and `extensions` (sorted distinct file types, .step/.stp
     merged) to each project dict in place — the same two fields
     _collapse_fully_matching_projects computes for a collapsed search
-    result, reused here so /projects' card view can render with the
-    identical project_card() macro. One batched query keyed off every
-    given project's id (not one query per project), covering each
-    project's *own* confirmed active membership directly rather than
-    reusing any search/collapse machinery, since this isn't about a
-    search matching — every project just always shows its own files."""
+    result, reused here so /projects' card view (and a parent project's
+    own "Sub-projects" card grid) can render with the identical
+    project_card() macro. Pulled from the project's own files AND every
+    descendant's at any depth (same _PROJECT_CLOSURE_CTE list_projects/
+    get_project_children use for their counts) — otherwise a pure
+    umbrella project would show a blank thumbnail and no ext badges
+    despite genuinely containing thousands of files, just none directly
+    assigned to it. One batched query keyed off every given project's id
+    (not one query per project)."""
     project_ids = [p["id"] for p in projects]
     if not project_ids:
         return
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
-                """
-                SELECT pf.project_id, f.thumbnail_path, f.content_hash, f.ext
-                FROM project_files pf
+                _PROJECT_CLOSURE_CTE
+                + """
+                SELECT cl.ancestor_id AS project_id, f.thumbnail_path, f.content_hash, f.ext
+                FROM closure cl
+                JOIN project_files pf ON pf.project_id = cl.descendant_id AND pf.status = 'confirmed'
                 JOIN files f ON f.id = pf.file_id AND f.status = 'active'
-                WHERE pf.status = 'confirmed' AND pf.project_id = ANY(%s)
+                WHERE cl.ancestor_id = ANY(%s)
                 ORDER BY f.first_seen_at DESC
                 """,
                 (project_ids,),
@@ -730,9 +767,30 @@ def get_project(project_id):
 
 
 def get_project_children(project_id):
+    """Same recursive file_count/subproject_count shape as list_projects
+    — so a parent project's own page can render its direct children with
+    the identical project_card() macro Cards view uses (each child's own
+    counts still correctly include *its* descendants, not just its own
+    direct files), not a stripped-down id/name-only variant. Scoped to
+    direct children of project_id via the outer WHERE, unlike
+    list_projects' unscoped version."""
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute("SELECT id, name FROM projects WHERE parent_project_id = %s ORDER BY name", (project_id,))
+            cur.execute(
+                _PROJECT_CLOSURE_CTE
+                + """
+                SELECT p.id, p.name, p.description, p.parent_project_id, p.created_at,
+                       count(DISTINCT pf.file_id) FILTER (WHERE pf.status = 'confirmed') AS file_count,
+                       count(DISTINCT cl.descendant_id) FILTER (WHERE cl.descendant_id != p.id) AS subproject_count
+                FROM projects p
+                JOIN closure cl ON cl.ancestor_id = p.id
+                LEFT JOIN project_files pf ON pf.project_id = cl.descendant_id
+                WHERE p.parent_project_id = %s
+                GROUP BY p.id
+                ORDER BY p.name
+                """,
+                (project_id,),
+            )
             return cur.fetchall()
 
 

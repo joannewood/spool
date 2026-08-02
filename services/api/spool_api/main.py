@@ -445,13 +445,15 @@ def project_detail(request: Request, project_id: int, open_status: str = ""):
     descendant_ids = queries.get_project_descendant_ids(project_id)
     excluded_ids = {project_id} | descendant_ids
     other_projects = [p for p in queries.list_projects() if p["id"] not in excluded_ids]
+    children = queries.get_project_children(project_id)
+    queries.attach_project_card_visuals(children)
     return templates.TemplateResponse(
         request,
         "project_detail.html",
         {
             "project": project,
             "file_summary": queries.summarize_project_files_recursive(project_id, descendant_ids),
-            "children": queries.get_project_children(project_id),
+            "children": children,
             "files": files,
             "suggested_files": suggested_files,
             "parent": queries.get_project(project["parent_project_id"]) if project["parent_project_id"] else None,

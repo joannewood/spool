@@ -85,6 +85,7 @@
       <span class="ext-badge {{ ext | ext_class }}">{{ ext }}</span>
       {% endfor %}
       <span class="note-inline">{{ p.file_count }} file{{ "s" if p.file_count != 1 else "" }}</span>
+      {% if p.subproject_count %}<span class="note-inline">· {{ p.subproject_count }} sub-project{{ "s" if p.subproject_count != 1 else "" }}</span>{% endif %}
       {% if p.created_at %}<span class="note-inline">· {{ p.created_at | format_date }}</span>{% endif %}
     </div>
   </div>
