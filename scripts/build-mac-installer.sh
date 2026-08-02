@@ -12,6 +12,10 @@
 #   - `xcrun notarytool store-credentials "spool-notary" --apple-id <id>
 #     --team-id <team> --password <app-specific password>` run once (get
 #     an app-specific password at appleid.apple.com).
+#   - rustup (not Homebrew's `rust` formula — it can't add cross-compile
+#     targets) with both `aarch64-apple-darwin` and `x86_64-apple-darwin`
+#     targets installed (`rustup target add x86_64-apple-darwin`), plus
+#     Node/npm, for building desktop/'s universal binary below.
 #
 # Override the identity/profile via SPOOL_SIGNING_IDENTITY /
 # SPOOL_NOTARY_PROFILE env vars if you're building under a different
@@ -60,7 +64,36 @@ if [ "$TRACKED_COUNT" != "$EXPORTED_COUNT" ]; then
 fi
 echo "Exported $EXPORTED_COUNT files."
 
-# ---- 2. Build the app icon from the SVG favicon ----------------------------
+# ---- 2. Build, sign, notarize the desktop wrapper app ----------------------
+
+step "Building the SPOOL desktop app (universal binary)"
+( cd "$STAGE/spool-src/desktop" && npx --yes @tauri-apps/cli@latest build --target universal-apple-darwin --bundles app )
+DESKTOP_APP_PATH="$STAGE/spool-src/desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos/SPOOL.app"
+
+step "Code-signing the desktop app"
+find "$DESKTOP_APP_PATH" -name ".DS_Store" -delete
+xattr -cr "$DESKTOP_APP_PATH"
+codesign --deep --force --options runtime --sign "$SIGNING_IDENTITY" "$DESKTOP_APP_PATH"
+codesign -dv --verbose=4 "$DESKTOP_APP_PATH"
+
+step "Notarizing the desktop app (this can take several minutes)"
+DESKTOP_ZIP_PATH="$BUILD/SPOOL-desktop.zip"
+rm -f "$DESKTOP_ZIP_PATH"
+ditto -c -k --keepParent "$DESKTOP_APP_PATH" "$DESKTOP_ZIP_PATH"
+xcrun notarytool submit "$DESKTOP_ZIP_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
+xcrun stapler staple "$DESKTOP_APP_PATH"
+
+# Rust's build output (desktop/src-tauri/target, several GB) has no reason
+# to ride along inside the installer payload — only the finished, signed
+# SPOOL.app does. Moving it out of the src-tauri/target tree it was built
+# into and deleting the rest keeps the installer's own git-archive-derived
+# file-count assertion below meaningless to it (that check already ran,
+# see step 1) while keeping dist/build's own disk footprint sane.
+mkdir -p "$STAGE/spool-src/desktop/dist-app"
+mv "$DESKTOP_APP_PATH" "$STAGE/spool-src/desktop/dist-app/SPOOL.app"
+rm -rf "$STAGE/spool-src/desktop/src-tauri/target"
+
+# ---- 3. Build the app icon from the SVG favicon ----------------------------
 
 step "Building app icon"
 ICON_WORK="$BUILD/icon"
@@ -76,7 +109,7 @@ for spec in "16:icon_16x16" "32:icon_16x16@2x" "32:icon_32x32" "64:icon_32x32@2x
 done
 iconutil -c icns "$ICON_WORK/icon.iconset" -o "$ICON_WORK/spool-icon.icns"
 
-# ---- 3. The wrapper script Platypus actually runs --------------------------
+# ---- 4. The wrapper script Platypus actually runs --------------------------
 
 step "Writing installer wrapper script"
 cat >"$BUILD/installer-wrapper.sh" <<'WRAPPER'
@@ -107,7 +140,7 @@ exec ./setup.sh
 WRAPPER
 chmod +x "$BUILD/installer-wrapper.sh"
 
-# ---- 4. Build the .app via Platypus ----------------------------------------
+# ---- 5. Build the .app via Platypus ----------------------------------------
 
 step "Building $APP_NAME.app"
 APP_PATH="$STAGE/$APP_NAME.app"
@@ -126,7 +159,7 @@ rm -rf "$APP_PATH"
   "$BUILD/installer-wrapper.sh" \
   "$APP_PATH"
 
-# ---- 5. Sign ----------------------------------------------------------------
+# ---- 6. Sign ----------------------------------------------------------------
 
 step "Code-signing $APP_NAME.app"
 find "$APP_PATH" -name ".DS_Store" -delete
@@ -134,7 +167,7 @@ xattr -cr "$APP_PATH"
 codesign --deep --force --options runtime --sign "$SIGNING_IDENTITY" "$APP_PATH"
 codesign -dv --verbose=4 "$APP_PATH"
 
-# ---- 6. Notarize + staple the .app -----------------------------------------
+# ---- 7. Notarize + staple the .app -----------------------------------------
 
 step "Notarizing $APP_NAME.app (this can take several minutes)"
 ZIP_PATH="$BUILD/$APP_NAME.zip"
@@ -143,7 +176,7 @@ ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
 xcrun notarytool submit "$ZIP_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
 xcrun stapler staple "$APP_PATH"
 
-# ---- 7. Build the .dmg ------------------------------------------------------
+# ---- 8. Build the .dmg ------------------------------------------------------
 
 step "Building .dmg"
 mkdir -p "$DIR/dist"
@@ -151,7 +184,7 @@ DMG_PATH="$DIR/dist/SPOOL-Installer.dmg"
 rm -f "$DMG_PATH"
 hdiutil create -volname "$APP_NAME" -srcfolder "$APP_PATH" -ov -format UDZO "$DMG_PATH"
 
-# ---- 8. Sign + notarize + staple the .dmg itself ---------------------------
+# ---- 9. Sign + notarize + staple the .dmg itself ---------------------------
 
 step "Code-signing .dmg"
 codesign --force --sign "$SIGNING_IDENTITY" "$DMG_PATH"
@@ -160,7 +193,7 @@ step "Notarizing .dmg (this can take several minutes)"
 xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
 xcrun stapler staple "$DMG_PATH"
 
-# ---- 9. Verify --------------------------------------------------------------
+# ---- 10. Verify --------------------------------------------------------------
 
 step "Verifying Gatekeeper acceptance"
 spctl -a -vvv --type execute "$APP_PATH"
