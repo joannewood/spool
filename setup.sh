@@ -55,6 +55,42 @@ confirm_destructive() {
   [ "$answer" = "Delete Everything" ]
 }
 
+# Shown instead of the full folder-setup flow when .env already exists —
+# lets someone who just wants to check/restart SPOOL (e.g. re-opening the
+# installer app later, the way you'd click Docker Desktop's whale icon)
+# do that in one click, without wading through the whole guided setup
+# again. Escape/closing the dialog falls through to the same "Exit"
+# handling as explicitly clicking it, same reasoning as the other dialogs.
+prompt_quick_action() {
+  osascript -e 'button returned of (display dialog "SPOOL is already set up in this folder. What would you like to do?" buttons {"Exit", "Re-run Full Setup", "Restart SPOOL"} default button "Restart SPOOL")' 2>/dev/null
+}
+
+# Shared by the fast "Restart SPOOL" path above and the full setup flow's
+# own Step 3 below, so re-running the whole guided setup doesn't need a
+# second, duplicate copy of this.
+start_and_wait() {
+  docker compose up -d --build
+
+  printf "Waiting for the web app to respond"
+  READY=0
+  for _ in $(seq 1 60); do
+    if curl -sf http://localhost:8000/health >/dev/null 2>&1; then
+      READY=1
+      break
+    fi
+    printf "."
+    sleep 2
+  done
+  echo
+  if [ "$READY" -eq 1 ]; then
+    echo "SPOOL is up: http://localhost:8000"
+  else
+    echo "SPOOL didn't respond within two minutes — check what's happening with:"
+    note "docker compose ps"
+    note "docker compose logs api"
+  fi
+}
+
 # ---- Step 1: Docker Desktop -------------------------------------------
 
 step "Checking for Docker Desktop"
@@ -96,11 +132,26 @@ step "Configuring your folders"
 
 RECONFIGURE=1
 if [ -f .env ]; then
-  echo "Found an existing .env file."
-  if confirm_yes_default "Found an existing .env file. Keep it as-is?"; then
-    RECONFIGURE=0
-    echo "Keeping your existing .env — skipping folder setup."
-  fi
+  echo "Found an existing .env file — SPOOL looks like it's already set up here."
+  ACTION=$(prompt_quick_action)
+  case "$ACTION" in
+    "Restart SPOOL")
+      step "Restarting SPOOL"
+      start_and_wait
+      open "http://localhost:8000" 2>/dev/null || true
+      exit 0
+      ;;
+    "Re-run Full Setup")
+      if confirm_yes_default "Keep your existing folder configuration as-is?"; then
+        RECONFIGURE=0
+        echo "Keeping your existing .env — skipping folder setup."
+      fi
+      ;;
+    *)
+      echo "Exiting — nothing has been changed."
+      exit 0
+      ;;
+  esac
 fi
 
 pick_folder() {
@@ -194,26 +245,7 @@ fi
 
 step "Starting SPOOL (this can take several minutes the first time)"
 
-docker compose up -d --build
-
-printf "Waiting for the web app to respond"
-READY=0
-for _ in $(seq 1 60); do
-  if curl -sf http://localhost:8000/health >/dev/null 2>&1; then
-    READY=1
-    break
-  fi
-  printf "."
-  sleep 2
-done
-echo
-if [ "$READY" -eq 1 ]; then
-  echo "SPOOL is up: http://localhost:8000"
-else
-  echo "SPOOL didn't respond within two minutes — check what's happening with:"
-  note "docker compose ps"
-  note "docker compose logs api"
-fi
+start_and_wait
 
 # ---- Step 4: host-helper (Open in Fusion/Bambu Studio/etc.) -------------
 

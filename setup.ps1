@@ -80,6 +80,75 @@ function Confirm-Destructive($message) {
     return $result -eq [System.Windows.Forms.DialogResult]::Yes
 }
 
+# Shown instead of the full folder-setup flow when .env already exists --
+# lets someone who just wants to check/restart SPOOL (e.g. re-opening the
+# installer .exe later, the way you'd click Docker Desktop's whale icon)
+# do that in one click. A custom form for the same reason Confirm-
+# Destructive is one: MessageBox can't offer three custom-labeled buttons.
+function Show-QuickActionMenu {
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = "SPOOL Setup"
+    $form.StartPosition = "CenterScreen"
+    $form.FormBorderStyle = "FixedDialog"
+    $form.MaximizeBox = $false
+    $form.MinimizeBox = $false
+    $form.TopMost = $true
+    $form.ClientSize = New-Object System.Drawing.Size(420, 160)
+
+    $label = New-Object System.Windows.Forms.Label
+    $label.Text = "SPOOL is already set up here. What would you like to do?"
+    $label.SetBounds(20, 15, 380, 50)
+    $form.Controls.Add($label)
+
+    $exitButton = New-Object System.Windows.Forms.Button
+    $exitButton.Text = "Exit"
+    $exitButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+    $exitButton.SetBounds(20, 100, 90, 30)
+    $form.Controls.Add($exitButton)
+    $form.CancelButton = $exitButton
+
+    $reconfigureButton = New-Object System.Windows.Forms.Button
+    $reconfigureButton.Text = "Re-run Full Setup"
+    $reconfigureButton.DialogResult = [System.Windows.Forms.DialogResult]::No
+    $reconfigureButton.SetBounds(130, 100, 140, 30)
+    $form.Controls.Add($reconfigureButton)
+
+    $restartButton = New-Object System.Windows.Forms.Button
+    $restartButton.Text = "Restart SPOOL"
+    $restartButton.DialogResult = [System.Windows.Forms.DialogResult]::Yes
+    $restartButton.SetBounds(290, 100, 110, 30)
+    $form.Controls.Add($restartButton)
+    $form.AcceptButton = $restartButton
+
+    return $form.ShowDialog()
+}
+
+# Shared by the fast "Restart SPOOL" path above and the full setup flow's
+# own Step 3 below, so re-running the whole guided setup doesn't need a
+# second, duplicate copy of this.
+function Start-AndWait {
+    docker compose up -d --build
+
+    Write-Host -NoNewline "Waiting for the web app to respond"
+    $ready = $false
+    for ($i = 0; $i -lt 60; $i++) {
+        try {
+            $resp = Invoke-WebRequest -Uri "http://localhost:8000/health" -UseBasicParsing -TimeoutSec 3
+            if ($resp.StatusCode -eq 200) { $ready = $true; break }
+        } catch { }
+        Write-Host -NoNewline "."
+        Start-Sleep -Seconds 2
+    }
+    Write-Host ""
+    if ($ready) {
+        Write-Host "SPOOL is up: http://localhost:8000"
+    } else {
+        Write-Host "SPOOL didn't respond within two minutes -- check what's happening with:"
+        Note "docker compose ps"
+        Note "docker compose logs api"
+    }
+}
+
 # ---- Step 1: Docker Desktop ----------------------------------------------
 
 Step "Checking for Docker Desktop"
@@ -130,9 +199,20 @@ Step "Configuring your folders"
 
 $Reconfigure = $true
 if (Test-Path ".env") {
-    Write-Host "Found an existing .env file."
-    $Reconfigure = -not (Read-YesNo "Keep it as-is?")
-    if (-not $Reconfigure) { Write-Host "Keeping your existing .env -- skipping folder setup." }
+    Write-Host "Found an existing .env file -- SPOOL looks like it's already set up here."
+    $choice = Show-QuickActionMenu
+    if ($choice -eq [System.Windows.Forms.DialogResult]::Yes) {
+        Step "Restarting SPOOL"
+        Start-AndWait
+        Start-Process "http://localhost:8000"
+        exit 0
+    } elseif ($choice -eq [System.Windows.Forms.DialogResult]::No) {
+        $Reconfigure = -not (Read-YesNo "Keep your existing folder configuration as-is?")
+        if (-not $Reconfigure) { Write-Host "Keeping your existing .env -- skipping folder setup." }
+    } else {
+        Write-Host "Exiting -- nothing has been changed."
+        exit 0
+    }
 }
 
 function Select-Folder($description, $default) {
@@ -258,26 +338,7 @@ if ($Reconfigure) {
 
 Step "Starting SPOOL (this can take several minutes the first time)"
 
-docker compose up -d --build
-
-Write-Host -NoNewline "Waiting for the web app to respond"
-$Ready = $false
-for ($i = 0; $i -lt 60; $i++) {
-    try {
-        $resp = Invoke-WebRequest -Uri "http://localhost:8000/health" -UseBasicParsing -TimeoutSec 3
-        if ($resp.StatusCode -eq 200) { $Ready = $true; break }
-    } catch { }
-    Write-Host -NoNewline "."
-    Start-Sleep -Seconds 2
-}
-Write-Host ""
-if ($Ready) {
-    Write-Host "SPOOL is up: http://localhost:8000"
-} else {
-    Write-Host "SPOOL didn't respond within two minutes -- check what's happening with:"
-    Note "docker compose ps"
-    Note "docker compose logs api"
-}
+Start-AndWait
 
 # ---- Step 4: host-helper (Open in Fusion/Bambu Studio/etc.) ---------------
 
