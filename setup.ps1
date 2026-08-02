@@ -213,6 +213,21 @@ function New-DesktopShortcut {
     }
 }
 
+# Opens the native app if New-DesktopShortcut installed one, same as
+# double-clicking the Desktop shortcut would -- falls back to the plain
+# browser URL otherwise (manual git-clone install, or the wrapper .exe
+# failed to install for some reason). Used both right after first-time
+# setup finishes and by the "Restart SPOOL" quick action, so neither path
+# regresses to a browser tab now that the shortcut itself doesn't.
+function Open-Spool {
+    $wrapperExe = Join-Path $Dir "desktop\dist-app\SPOOL.exe"
+    if (Test-Path $wrapperExe) {
+        Start-Process $wrapperExe
+    } else {
+        Start-Process "http://localhost:8000"
+    }
+}
+
 # Shared by the fast "Restart SPOOL" path above and the full setup flow's
 # own Step 3 below, so re-running the whole guided setup doesn't need a
 # second, duplicate copy of this.
@@ -356,7 +371,7 @@ if (Test-Path ".env") {
     if ($choice -eq [System.Windows.Forms.DialogResult]::Yes) {
         Step "Restarting SPOOL"
         Start-AndWait
-        Start-Process "http://localhost:8000"
+        Open-Spool
         exit 0
     } elseif ($choice -eq [System.Windows.Forms.DialogResult]::No) {
         $Reconfigure = -not (Read-YesNo "Keep your existing folder configuration as-is?")
@@ -584,7 +599,7 @@ WizardDone "All set"
 
 Write-Host "SPOOL is running at http://localhost:8000"
 Write-Host "A SPOOL shortcut has been added to your Desktop -- double-click it any time to open SPOOL."
-Start-Process "http://localhost:8000"
+Open-Spool
 Write-Host ""
 Write-Host "Unlike on a Mac, there's no extra permission step needed for the"
 Write-Host "duplicate-file delete feature -- Windows' normal file permissions"

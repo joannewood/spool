@@ -81,11 +81,12 @@ one back later isn't quite as simple as flipping a setting — see
 
 **Download the installer for your OS below, run it, and follow the
 prompts** — it handles everything: picking your folders, starting SPOOL,
-and setting up "open in" for your CAD/slicer apps. It opens SPOOL in your
-browser automatically when it's done; if that doesn't happen, go to
-`http://localhost:8000` yourself (that's a special address that always
-means "this same computer," so it works with Wi-Fi off and nobody outside
-your machine can reach it — bookmark it once you're there).
+and setting up "open in" for your CAD/slicer apps. It opens SPOOL
+automatically when it's done (in its own window, via the same app as the
+Desktop shortcut below); if that doesn't happen, go to
+`http://localhost:8000` yourself in a browser (that's a special address
+that always means "this same computer," so it works with Wi-Fi off and
+nobody outside your machine can reach it — bookmark it once you're there).
 
 ### 🍎 Mac
 
@@ -435,10 +436,12 @@ modified version, it needs to stay open under the same license. Copyright
 <summary><h2>Advanced setup: scripts and manual installation</h2></summary>
 
 **Most people should use the installer above instead** — everything here
-does exactly the same thing, just with more steps you run yourself. Use
-this if the installer didn't work for you, you'd rather not run an
-unsigned `.exe` (Windows), or you just want to understand/control every
-step.
+sets up the same SPOOL, just with more steps you run yourself, and
+without the installer's bundled native desktop app (no Dock/taskbar
+window, no menu-bar/tray icon — SPOOL still runs exactly the same, you'd
+just bookmark `http://localhost:8000` in your browser instead). Use this
+if the installer didn't work for you, you'd rather not run an unsigned
+`.exe` (Windows), or you just want to understand/control every step.
 
 ### 🍎 Mac: guided script (`setup.sh`)
 

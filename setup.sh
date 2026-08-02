@@ -158,6 +158,21 @@ create_desktop_shortcut() {
 WEBLOC
 }
 
+# Opens the native app if create_desktop_shortcut installed one, same as
+# double-clicking the Desktop shortcut would — falls back to the plain
+# browser URL otherwise (manual git-clone install, or the app bundle
+# failed to install for some reason). Used both right after first-time
+# setup finishes and by the "Restart SPOOL" quick action, so neither path
+# regresses to a browser tab now that the shortcut itself doesn't.
+open_spool() {
+  local installed_app="$HOME/Applications/SPOOL.app"
+  if [ -d "$installed_app" ]; then
+    open "$installed_app" 2>/dev/null || true
+  else
+    open "http://localhost:8000" 2>/dev/null || true
+  fi
+}
+
 # Postgres identifier/string-literal escaping for values interpolated
 # into the SQL text below — real folder paths essentially never contain
 # a literal single quote, but this costs nothing and matches the same
@@ -302,7 +317,7 @@ if [ -f .env ]; then
     "Restart SPOOL")
       step "Restarting SPOOL"
       start_and_wait
-      open "http://localhost:8000" 2>/dev/null || true
+      open_spool
       exit 0
       ;;
     "Re-run Full Setup")
@@ -478,7 +493,7 @@ wizard_done "All set"
 
 echo "SPOOL is running at http://localhost:8000"
 echo "A SPOOL shortcut has been added to your Desktop — double-click it any time to open SPOOL."
-open "http://localhost:8000" 2>/dev/null || true
+open_spool
 echo
 echo "One thing that still needs a one-time manual click: deleting a"
 echo "duplicate file needs Full Disk Access, which macOS won't let any"
