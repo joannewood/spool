@@ -9,6 +9,7 @@ from common.db import get_connection
 from common.hashing import sha256_file
 from common.paths import to_container_path
 from common.roots import fetch_root_by_id
+from common.settings import get_app_settings
 
 from .backfill import run_backfill
 from .bambu_metadata import extract_bambu_metadata, upsert_extracted_metadata
@@ -17,7 +18,7 @@ from .gcode_thumbnail import extract_gcode_thumbnail
 from .job_queue import JOB_TYPES, claim_next_job, mark_job_done, mark_job_failed, requeue_orphaned_jobs
 from .relationship_suggest import suggest_folder_project, suggest_for_file
 from .render import render_svg_thumbnail, render_thumbnail
-from .rescan import RESCAN_INTERVAL_SECONDS, run_rescan
+from .rescan import run_rescan
 from .zip_extract import process_extract_zip_job
 
 POLL_INTERVAL_SECONDS = 1.0
@@ -173,17 +174,24 @@ def main():
     # Periodic rescan owns the same "keep the index in sync with disk"
     # responsibility as backfill, so it's gated on the same flag — only the
     # fast lane (worker) runs it, not worker-step, so the two lanes never
-    # double-hash/race on the same files.
-    next_rescan_at = time.monotonic() + RESCAN_INTERVAL_SECONDS if RUN_BACKFILL else None
+    # double-hash/race on the same files. Interval/enabled are read fresh
+    # from app_settings at each check below, not a fixed constant read once
+    # at startup — a change made via /admin/status takes effect within one
+    # cycle, no worker restart needed.
+    next_rescan_at = time.monotonic() + get_app_settings(conn)["rescan_interval_seconds"] if RUN_BACKFILL else None
 
     while True:
         if next_rescan_at is not None and time.monotonic() >= next_rescan_at:
-            try:
-                print("[worker] running periodic rescan...", flush=True)
-                run_rescan(conn)
-            except Exception as exc:
-                print(f"[worker] rescan failed: {exc}", flush=True)
-            next_rescan_at = time.monotonic() + RESCAN_INTERVAL_SECONDS
+            settings = get_app_settings(conn)
+            if settings["rescan_enabled"]:
+                try:
+                    print("[worker] running periodic rescan...", flush=True)
+                    run_rescan(conn)
+                except Exception as exc:
+                    print(f"[worker] rescan failed: {exc}", flush=True)
+            else:
+                print("[worker] periodic rescan is paused (app_settings.rescan_enabled = false)", flush=True)
+            next_rescan_at = time.monotonic() + settings["rescan_interval_seconds"]
 
         job = claim_next_job(conn)
         if job is None:

@@ -6,3 +6,15 @@
   <line x1="4" y1="12" x2="20" y2="12"/>
 </svg>
 {% endmacro %}
+
+{# Same glyph as /favicon.svg (main.py), for the Auto-sync panel's
+   color legend — a static swatch per fill color, not the live route
+   (which only ever shows the *current* status), so all three states can
+   be shown side by side at once. #}
+{% macro sync_glyph(fill, size=16) %}
+<svg viewBox="0 0 32 32" width="{{ size }}" height="{{ size }}" aria-hidden="true">
+  <circle cx="16" cy="16" r="15" fill="{{ fill }}"/>
+  <circle cx="16" cy="16" r="9.5" fill="none" stroke="#ffffff" stroke-width="3"/>
+  <circle cx="16" cy="16" r="3" fill="#ffffff"/>
+</svg>
+{% endmacro %}

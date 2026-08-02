@@ -24,11 +24,6 @@ from .filters import (
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 THUMBNAILS_DIR = os.environ.get("THUMBNAILS_DIR", "/data/thumbnails")
-# Read once at startup, same as the worker's own RESCAN_INTERVAL_SECONDS
-# (services/worker/app/rescan.py) — api never runs the rescan loop, it
-# only needs this to describe the configured interval and estimate a
-# next-scan time on /admin/status and the status-aware favicon.
-RESCAN_INTERVAL_SECONDS = int(os.environ.get("RESCAN_INTERVAL_SECONDS", "300"))
 # A curated display order (raw mesh formats, then CAD source, then vector/
 # parametric source, then sliced output) rather than MODEL_EXTENSIONS' set
 # order, which Python doesn't guarantee stable across runs. The assertion
@@ -129,6 +124,11 @@ templates.env.filters["format_date"] = format_date
 templates.env.filters["format_duration"] = format_duration
 templates.env.filters["format_relative_time"] = format_relative_time
 templates.env.globals["thumb_url"] = thumb_url
+# Called directly from base.html on *every* page load to decide whether to
+# show the "auto-sync is paused" banner — a plain function reference
+# (not a value computed once at import time) so each request sees the
+# current setting, same reasoning as any other per-request DB read.
+templates.env.globals["is_rescan_enabled"] = queries.is_rescan_enabled
 
 
 @app.get("/health")
@@ -144,20 +144,38 @@ def health():
 
 
 # Same glyph as the old static static/favicon.svg, just with a fill color
-# chosen per-request from _get_rescan_timing()'s overdue check — an
-# at-a-glance "does the rescan loop look alive" signal in the browser tab
-# itself, no need to open /admin/status to notice something's wrong.
+# chosen per-request from _get_rescan_timing() — an at-a-glance "does the
+# rescan loop look alive" signal in the browser tab itself, no need to
+# open /admin/status to notice something's wrong. Three states, not just
+# two: paused (user turned it off on purpose, via the Auto-sync panel's
+# own toggle) reads very differently from overdue (should be scanning
+# and isn't) even though both are "not the healthy blue" — collapsing
+# them into one warning color would make an intentional pause look like
+# a problem. The same three constants back the legend on /admin/status
+# (see _get_rescan_timing's own callers), so the tab icon and the legend
+# explaining it can never quietly drift out of sync with each other.
 # no-cache (not a long-lived Cache-Control the way /thumbnails gets) since
 # this is meant to reflect near-live status; base.html's small polling
 # script is what actually gets an already-open tab to re-fetch it
 # periodically, since browsers don't re-request a favicon on their own.
-_FAVICON_OK_FILL = "#3b6ee0"
-_FAVICON_WARN_FILL = "#e0a458"
+FAVICON_COLORS = {
+    "ok": "#3b6ee0",
+    "paused": "#8b93a1",
+    "overdue": "#e0a458",
+}
+
+
+def _favicon_state(timing):
+    if not timing["rescan_enabled"]:
+        return "paused"
+    if timing["rescan_overdue"]:
+        return "overdue"
+    return "ok"
 
 
 @app.get("/favicon.svg")
 def favicon():
-    fill = _FAVICON_WARN_FILL if _get_rescan_timing()["rescan_overdue"] else _FAVICON_OK_FILL
+    fill = FAVICON_COLORS[_favicon_state(_get_rescan_timing())]
     svg = (
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'
         f'<circle cx="16" cy="16" r="15" fill="{fill}"/>'
@@ -622,13 +640,22 @@ def _get_rescan_timing():
     still catching a genuinely stopped worker well within an hour even
     at the default 5-minute interval. A NULL last-scan (nothing scanned
     yet, e.g. fresh install) is "not yet scanned", not "overdue" — there's
-    nothing wrong, the worker just hasn't had a first pass yet."""
+    nothing wrong, the worker just hasn't had a first pass yet. Never
+    "overdue" while rescan_enabled is false either — that's an
+    intentional, user-chosen state (see the Auto-sync panel's own pause
+    toggle), not a problem to warn about the same way a genuinely
+    stopped worker is."""
+    settings = queries.get_app_settings()
+    interval_seconds = settings["rescan_interval_seconds"]
     last_scan_at = queries.get_rescan_status()["last_scan_at"]
-    next_scan_at = last_scan_at + timedelta(seconds=RESCAN_INTERVAL_SECONDS) if last_scan_at else None
+    next_scan_at = last_scan_at + timedelta(seconds=interval_seconds) if last_scan_at else None
     now = datetime.now(timezone.utc)
-    overdue = bool(last_scan_at and (now - last_scan_at) > timedelta(seconds=RESCAN_INTERVAL_SECONDS * 2))
+    overdue = bool(
+        settings["rescan_enabled"] and last_scan_at and (now - last_scan_at) > timedelta(seconds=interval_seconds * 2)
+    )
     return {
-        "rescan_interval_seconds": RESCAN_INTERVAL_SECONDS,
+        "rescan_enabled": settings["rescan_enabled"],
+        "rescan_interval_seconds": interval_seconds,
         "last_scan_at": last_scan_at,
         "next_scan_at": next_scan_at,
         "rescan_overdue": overdue,
@@ -637,7 +664,7 @@ def _get_rescan_timing():
         # ("Next expected" vs "Overdue since"), since "Next expected:
         # about 25 minutes ago" reads oddly once it's actually in the past
         # (caught live while testing the overdue path, not by inspection).
-        "next_scan_passed": bool(next_scan_at and next_scan_at < now),
+        "next_scan_passed": bool(settings["rescan_enabled"] and next_scan_at and next_scan_at < now),
     }
 
 
@@ -686,6 +713,7 @@ def admin_status(
     recent_activity, total = queries.get_recent_job_activity(
         page=page, page_size=page_size, q=q, status=status, job_type=job_type
     )
+    rescan_timing = _get_rescan_timing()
     response = templates.TemplateResponse(
         request,
         "admin_status.html",
@@ -703,11 +731,25 @@ def admin_status(
             "q": q,
             "selected_status": status,
             "selected_job_type": job_type,
-            **_get_rescan_timing(),
+            "favicon_colors": FAVICON_COLORS,
+            "favicon_state": _favicon_state(rescan_timing),
+            **rescan_timing,
         },
     )
     response.set_cookie(BULK_REVIEW_PAGE_SIZE_COOKIE, str(page_size), max_age=31536000)
     return response
+
+
+@app.post("/admin/settings/rescan")
+def update_rescan_settings(rescan_enabled: str = Form(""), rescan_interval_minutes: float = Form(...)):
+    # Minutes in the form (friendlier unit), seconds in the database (the
+    # unit the worker/schema already use everywhere) — converted here at
+    # the boundary. queries.update_app_settings applies its own floor, so
+    # an aggressively small value here still can't turn the rescan loop
+    # into a tight poll.
+    interval_seconds = max(1, round(rescan_interval_minutes * 60))
+    queries.update_app_settings(rescan_enabled == "on", interval_seconds)
+    return RedirectResponse("/admin/status", status_code=303)
 
 
 @app.get("/admin/pending-archives", response_class=HTMLResponse)

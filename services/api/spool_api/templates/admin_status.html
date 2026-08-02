@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "_bulk_review_paging.html" as paging with context %}
+{% import "_icons.html" as icons %}
 {% block title %}Processing status — SPOOL{% endblock %}
 {% block content %}
 
@@ -21,19 +22,40 @@
 <div class="admin-sections">
 
 <section class="panel">
-  <h2>Auto-sync</h2>
+  <h2 class="panel-title-with-icon"><img src="/favicon.svg" alt="" width="20" height="20">Auto-sync</h2>
   <p class="note">Scans every {{ rescan_interval_seconds | format_duration }} for moved, edited, or deleted files.</p>
   <dl class="tight">
     <dt>Last scan</dt><dd>{{ last_scan_at | format_relative_time }}</dd>
     <dt>{{ "Overdue since" if next_scan_passed else "Next expected" }}</dt><dd>{{ next_scan_at | format_relative_time }}</dd>
   </dl>
-  {% if rescan_overdue %}
+  <ul class="favicon-legend">
+    <li>{{ icons.sync_glyph(favicon_colors.ok, 14) }} Scanning normally</li>
+    <li>{{ icons.sync_glyph(favicon_colors.paused, 14) }} Paused</li>
+    <li>{{ icons.sync_glyph(favicon_colors.overdue, 14) }} Looks stopped</li>
+  </ul>
+  {% if not rescan_enabled %}
+  <p class="badge warn">
+    ⏸ Auto-sync is paused — SPOOL won't notice new, moved, or deleted files until you turn it back on below.
+  </p>
+  {% elif rescan_overdue %}
   <p class="badge warn">
     ⚠ Looks stopped — last scan was {{ last_scan_at | format_relative_time }}, expected every
     {{ rescan_interval_seconds | format_duration }}. Re-open the SPOOL installer and choose
     "Restart SPOOL" (or run <code>docker compose restart worker</code> yourself).
   </p>
   {% endif %}
+  <form class="stack-form" method="POST" action="/admin/settings/rescan">
+    <label>
+      Scan interval (minutes)
+      <input type="number" name="rescan_interval_minutes" min="0.5" step="0.5"
+             value="{{ (rescan_interval_seconds / 60) | round(1) }}">
+    </label>
+    <label class="checkbox-label">
+      <input type="checkbox" name="rescan_enabled" {% if rescan_enabled %}checked{% endif %}>
+      Auto-sync enabled
+    </label>
+    <button type="submit">Save</button>
+  </form>
 </section>
 
 <section class="panel">

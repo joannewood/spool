@@ -1377,3 +1377,86 @@ def test_bulk_rename_accept_all_route_renames_everything(client):
     finally:
         with queries.get_connection() as conn, conn.cursor() as cur:
             cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+# ---- auto-sync settings (app_settings is a singleton row — save/restore) --
+
+def test_update_rescan_settings_route_saves_and_redirects(client):
+    from spool_api import queries
+
+    original = queries.get_app_settings()
+    try:
+        resp = client.post(
+            "/admin/settings/rescan",
+            data={"rescan_interval_minutes": "2", "rescan_enabled": "on"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers["location"] == "/admin/status"
+        settings = queries.get_app_settings()
+        assert settings["rescan_enabled"] is True
+        assert settings["rescan_interval_seconds"] == 120
+    finally:
+        queries.update_app_settings(original["rescan_enabled"], original["rescan_interval_seconds"])
+
+
+def test_update_rescan_settings_route_unchecked_checkbox_disables(client):
+    """A browser omits an unchecked checkbox from the form body entirely
+    (not "false") — confirms the route treats a missing rescan_enabled
+    field as disabled, not as an error or a silent no-op."""
+    from spool_api import queries
+
+    original = queries.get_app_settings()
+    try:
+        resp = client.post(
+            "/admin/settings/rescan", data={"rescan_interval_minutes": "5"}, follow_redirects=False
+        )
+        assert resp.status_code == 303
+        assert queries.get_app_settings()["rescan_enabled"] is False
+    finally:
+        queries.update_app_settings(original["rescan_enabled"], original["rescan_interval_seconds"])
+
+
+def test_sync_paused_banner_appears_on_every_page_when_disabled(client):
+    from spool_api import queries
+
+    original = queries.get_app_settings()
+    try:
+        queries.update_app_settings(False, original["rescan_interval_seconds"])
+        for path in ("/", "/projects", "/admin", "/admin/status"):
+            resp = client.get(path)
+            assert "sync-paused-banner" in resp.text, f"banner missing on {path}"
+    finally:
+        queries.update_app_settings(original["rescan_enabled"], original["rescan_interval_seconds"])
+
+
+def test_sync_paused_banner_absent_when_enabled(client):
+    from spool_api import queries
+
+    original = queries.get_app_settings()
+    try:
+        queries.update_app_settings(True, original["rescan_interval_seconds"])
+        resp = client.get("/")
+        assert "sync-paused-banner" not in resp.text
+    finally:
+        queries.update_app_settings(original["rescan_enabled"], original["rescan_interval_seconds"])
+
+
+def test_favicon_reflects_paused_and_enabled_state(client):
+    from spool_api import queries
+
+    original = queries.get_app_settings()
+    try:
+        queries.update_app_settings(False, original["rescan_interval_seconds"])
+        resp = client.get("/favicon.svg")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"] == "image/svg+xml"
+        from spool_api.main import FAVICON_COLORS
+
+        assert FAVICON_COLORS["paused"] in resp.text
+
+        queries.update_app_settings(True, original["rescan_interval_seconds"])
+        resp = client.get("/favicon.svg")
+        assert FAVICON_COLORS["ok"] in resp.text
+    finally:
+        queries.update_app_settings(original["rescan_enabled"], original["rescan_interval_seconds"])

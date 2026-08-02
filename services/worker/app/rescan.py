@@ -11,8 +11,6 @@ from common.zip_ingest import stage_zip_if_relevant
 
 from .backfill import _ingest_new_path, _walk_project_folders
 
-RESCAN_INTERVAL_SECONDS = int(os.environ.get("RESCAN_INTERVAL_SECONDS", "300"))
-
 _RESET_GEOMETRY = """
     thumbnail_path = NULL,
     bbox_x = NULL, bbox_y = NULL, bbox_z = NULL,

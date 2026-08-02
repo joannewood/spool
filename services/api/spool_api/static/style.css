@@ -124,6 +124,18 @@ a, a:visited {
   align-items: center;
   gap: 24px;
 }
+/* Shown on every page (base.html) whenever auto-sync is paused — a
+   deliberately prominent, unmissable full-width bar, not a small badge
+   tucked into a corner, since the whole point is that stale data could
+   be silently accumulating anywhere in the app while this is up. */
+.sync-paused-banner {
+  padding: 10px 24px;
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+.sync-paused-banner a { color: var(--warn); text-decoration: underline; margin-left: 6px; }
 .brand {
   font-weight: 700;
   font-size: var(--fs-lg);
@@ -921,6 +933,21 @@ table.live-status-totals { width: auto; flex: 0 0 auto; white-space: nowrap; }
 }
 .panel dl.tight dt { color: var(--ink-muted); }
 .panel dl.tight dd { margin: 0; }
+
+/* Auto-sync panel: the live status glyph sits right in its own <h2>,
+   and a small legend below explains what each of its colors means. */
+.panel-title-with-icon { display: flex; align-items: center; gap: 8px; }
+.favicon-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  font-size: var(--fs-xs);
+  color: var(--ink-muted);
+}
+.favicon-legend li { display: flex; align-items: center; gap: 6px; }
 @media (max-width: 700px) {
   .panel dl.tight { grid-template-columns: auto 1fr; }
 }
@@ -938,7 +965,14 @@ table.live-status-totals { width: auto; flex: 0 0 auto; white-space: nowrap; }
   color: var(--ink-muted);
   min-width: 0;
 }
-.stack-form input, .stack-form textarea, .stack-form select {
+/* :not(checkbox/radio) — the first checkbox to ever live inside a
+   .stack-form (the Auto-sync panel's "enabled" toggle) exposed this: a
+   bare .stack-form input matched it too, stretching it to width: 100%
+   with text-input padding/border/background, spacing its checkbox glyph
+   and label text far apart instead of side by side. Confirmed live via
+   getBoundingClientRect (a ~1000px-wide invisible checkbox box), not
+   just inferred from the screenshot. */
+.stack-form input:not([type="checkbox"]):not([type="radio"]), .stack-form textarea, .stack-form select {
   width: 100%;
   min-width: 0;
   padding: 7px 9px;
@@ -1024,6 +1058,26 @@ table.live-status-totals { width: auto; flex: 0 0 auto; white-space: nowrap; }
 .printed-log-form { display: flex; flex-direction: column; gap: 8px; }
 .printed-toggle {
   display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  color: var(--ink);
+  cursor: pointer;
+}
+/* Plain checkbox + inline text label, anywhere a .stack-form's default
+   label-above-input column layout would look wrong for a checkbox (e.g.
+   the Auto-sync panel's "enabled" toggle) — same flex/gap idea as
+   .printed-toggle, just without that one's printed-modal-specific
+   :has() sibling-reveal behavior. The .stack-form-qualified selector is
+   deliberate, not just for scoping: .stack-form label's own flex-
+   direction: column (one class + one type = higher specificity than a
+   single class alone) would otherwise win and stack the checkbox above
+   its text instead of beside it — confirmed live via computed styles,
+   not just inferred. */
+.checkbox-label,
+.stack-form .checkbox-label {
+  display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 6px;
   font-size: var(--fs-sm);

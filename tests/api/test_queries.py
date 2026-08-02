@@ -1604,3 +1604,43 @@ def test_rename_all_projects_needing_cleanup_renames_and_disambiguates(db_conn):
     finally:
         with queries.get_connection() as conn, conn.cursor() as cur:
             cur.execute("DELETE FROM projects WHERE id IN (%s, %s, %s)", (project_a, project_b, already_clean))
+
+
+# ---- app_settings (singleton row, id=1 — save/restore, never delete) ------
+
+@pytest.fixture
+def restore_app_settings():
+    """app_settings has exactly one row (id=1, CHECK-constrained) that
+    already exists from migration 015 — tests that change it save/restore
+    the original values instead of the usual insert-then-delete pattern,
+    since there's no row to delete without breaking every other test/
+    query that assumes it always exists."""
+    original = queries.get_app_settings()
+    yield
+    queries.update_app_settings(original["rescan_enabled"], original["rescan_interval_seconds"])
+
+
+def test_get_app_settings_shape():
+    settings = queries.get_app_settings()
+    assert set(settings) == {"rescan_enabled", "rescan_interval_seconds", "updated_at"}
+    assert isinstance(settings["rescan_enabled"], bool)
+    assert isinstance(settings["rescan_interval_seconds"], int)
+
+
+def test_update_app_settings_roundtrips(restore_app_settings):
+    queries.update_app_settings(False, 120)
+    settings = queries.get_app_settings()
+    assert settings["rescan_enabled"] is False
+    assert settings["rescan_interval_seconds"] == 120
+
+
+def test_update_app_settings_enforces_minimum_interval(restore_app_settings):
+    queries.update_app_settings(True, 5)
+    assert queries.get_app_settings()["rescan_interval_seconds"] == queries.MIN_RESCAN_INTERVAL_SECONDS
+
+
+def test_is_rescan_enabled_matches_get_app_settings(restore_app_settings):
+    queries.update_app_settings(False, 300)
+    assert queries.is_rescan_enabled() is False
+    queries.update_app_settings(True, 300)
+    assert queries.is_rescan_enabled() is True

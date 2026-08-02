@@ -1514,6 +1514,48 @@ def get_rescan_status():
             return cur.fetchone()
 
 
+# A floor, not a hard rejection — same boundary-only-validation style
+# used throughout this app (e.g. SORT_CLAUSES) — protects against an
+# accidental near-zero value turning the rescan loop into a tight poll,
+# without needing a form-validation round trip.
+MIN_RESCAN_INTERVAL_SECONDS = 30
+
+
+def get_app_settings():
+    """The single settings row (app_settings.id = 1, enforced by a CHECK
+    constraint — see migration 015). rescan_interval_seconds is stored in
+    seconds throughout the schema/worker; the /admin/status form shows
+    and accepts minutes instead, a friendlier unit for this range of
+    values — main.py converts at the boundary."""
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("SELECT rescan_enabled, rescan_interval_seconds, updated_at FROM app_settings WHERE id = 1")
+            return cur.fetchone()
+
+
+def is_rescan_enabled():
+    """Cheap, single-column version of get_app_settings — this is what
+    base.html's global per-page warning banner calls on *every* page
+    load (see main.py's Jinja global registration), so it deliberately
+    doesn't also fetch interval_seconds/updated_at the way the fuller
+    Auto-sync panel needs."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT rescan_enabled FROM app_settings WHERE id = 1")
+            return cur.fetchone()[0]
+
+
+def update_app_settings(rescan_enabled, rescan_interval_seconds):
+    rescan_interval_seconds = max(MIN_RESCAN_INTERVAL_SECONDS, rescan_interval_seconds)
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE app_settings SET rescan_enabled = %s, rescan_interval_seconds = %s, updated_at = now() "
+                "WHERE id = 1",
+                (rescan_enabled, rescan_interval_seconds),
+            )
+
+
 def get_ingestion_totals():
     """Library-wide counts across the hash/render pipeline — the same
     numbers checked by hand via `SELECT count(*) FROM files WHERE

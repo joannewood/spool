@@ -22,6 +22,12 @@
       <a href="/admin/status">Status</a>
     </nav>
   </header>
+  {% if not is_rescan_enabled() %}
+  <div class="sync-paused-banner">
+    ⏸ Auto-sync is paused — SPOOL won't notice new, moved, or deleted files until you turn it back on.
+    <a href="/admin/status">Manage in Status →</a>
+  </div>
+  {% endif %}
   <main>
     {% block content %}{% endblock %}
   </main>
