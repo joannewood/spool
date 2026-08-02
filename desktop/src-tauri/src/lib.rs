@@ -10,7 +10,11 @@
 // CLAUDE.md's architecture note), so quitting this window should behave
 // like closing a browser tab, not like shutting SPOOL down. If you want to
 // actually stop it, `docker compose down` in the install folder still
-// works exactly as documented.
+// works exactly as documented. Closing the window (the red button) hides
+// it rather than quitting the app -- the tray icon is this app's real
+// "always there" presence, same convention as Docker Desktop's own
+// menu-bar whale icon (the actual reference point this was built to
+// match); Cmd+Q/the tray's own Quit item still fully quits.
 
 use std::env;
 use std::path::PathBuf;
@@ -18,7 +22,10 @@ use std::process::Command;
 use std::time::Duration;
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
+use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder};
+use tauri::tray::TrayIconBuilder;
+use tauri::{AppHandle, Emitter, Manager, WindowEvent};
+use tauri_plugin_autostart::ManagerExt;
 
 const SPOOL_URL: &str = "http://localhost:8000";
 const HEALTH_URL: &str = "http://localhost:8000/health";
@@ -161,9 +168,104 @@ fn start_spool(app: AppHandle) {
     );
 }
 
+fn show_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
+fn restart_spool(app: AppHandle) {
+    log::info!("Restart SPOOL requested from tray menu");
+    let dir = spool_dir();
+    match docker_command()
+        .args(["compose", "up", "-d"])
+        .current_dir(&dir)
+        .output()
+    {
+        Ok(output) if output.status.success() => {
+            log::info!("Restart SPOOL: docker compose up -d succeeded");
+        }
+        Ok(output) => {
+            let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            log::error!("Restart SPOOL failed: {detail}");
+            emit_error(&app, "Couldn't restart SPOOL's containers.", &detail);
+        }
+        Err(e) => {
+            log::error!("Restart SPOOL: couldn't run docker compose: {e}");
+            emit_error(&app, "Couldn't run `docker compose up -d`.", &e.to_string());
+        }
+    }
+}
+
+// Docker Desktop's own menu-bar icon (status + restart) was the explicit
+// reference point requested for this app -- Open/Restart/Start at
+// Login/Quit is the same shape, minus live status coloring (would need an
+// SVG rasterizer just to reuse /favicon.svg's colors; left as a possible
+// follow-up rather than adding that dependency now).
+fn build_tray(app: &AppHandle) -> tauri::Result<()> {
+    let open_item = MenuItemBuilder::with_id("open", "Open SPOOL").build(app)?;
+    let autostart_enabled = app.autolaunch().is_enabled().unwrap_or(false);
+    let autostart_item = CheckMenuItemBuilder::with_id("autostart", "Start at Login")
+        .checked(autostart_enabled)
+        .build(app)?;
+    let restart_item = MenuItemBuilder::with_id("restart", "Restart SPOOL").build(app)?;
+    let quit_item = MenuItemBuilder::with_id("quit", "Quit SPOOL").build(app)?;
+
+    let menu = MenuBuilder::new(app)
+        .item(&open_item)
+        .separator()
+        .item(&autostart_item)
+        .item(&restart_item)
+        .separator()
+        .item(&quit_item)
+        .build()?;
+
+    let mut tray_builder = TrayIconBuilder::new()
+        .menu(&menu)
+        .show_menu_on_left_click(true);
+    if let Some(icon) = app.default_window_icon() {
+        tray_builder = tray_builder.icon(icon.clone());
+    }
+
+    let autostart_item_for_handler = autostart_item.clone();
+    tray_builder
+        .on_menu_event(move |app, event| match event.id().as_ref() {
+            "open" => show_main_window(app),
+            "restart" => {
+                let handle = app.clone();
+                std::thread::spawn(move || restart_spool(handle));
+            }
+            "autostart" => {
+                let manager = app.autolaunch();
+                let now_enabled = manager.is_enabled().unwrap_or(false);
+                let result = if now_enabled {
+                    manager.disable()
+                } else {
+                    manager.enable()
+                };
+                match result {
+                    Ok(()) => {
+                        let _ = autostart_item_for_handler.set_checked(!now_enabled);
+                    }
+                    Err(e) => log::error!("autostart toggle failed: {e}"),
+                }
+            }
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .build(app)?;
+
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .setup(|app| {
             // Always on, not just in debug builds -- a release .app launched
             // via Finder/Dock has no visible console at all, and a real
@@ -182,7 +284,14 @@ pub fn run() {
             )?;
             let handle = app.handle().clone();
             std::thread::spawn(move || start_spool(handle));
+            build_tray(app.handle())?;
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
