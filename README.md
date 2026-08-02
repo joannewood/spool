@@ -311,19 +311,11 @@ Set up via the terminal script or fully manually instead? See "Updating
 without the installer" in [**Advanced setup**](#advanced-setup-scripts-and-manual-installation)
 below.
 
-## Day-to-day operations
-
-For normal use you shouldn't need any of this — restarting or checking on
-SPOOL day-to-day is the **SPOOL Installer**'s quick menu and
-`/admin/status`, both covered in [**If SPOOL looks stopped, or something
-seems wrong**](#if-spool-looks-stopped-or-something-seems-wrong) above.
-
-### Working on SPOOL itself
+## Working on SPOOL itself
 
 Running the test suite, the codebase's architecture, and how to build a
 release installer all live in [CONTRIBUTING.md](CONTRIBUTING.md) instead
-— this section of the README is for using an already-running SPOOL, not
-developing it.
+— this README is for using an already-running SPOOL, not developing it.
 
 ## Known limitations
 
