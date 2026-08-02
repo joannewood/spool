@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from common.text import clean_name  # noqa: F401 — re-exported as a Jinja filter, see main.py
 
 
@@ -61,6 +63,44 @@ def format_date(dt):
     if dt is None:
         return "—"
     return dt.strftime("%b %-d, %Y")
+
+
+def format_duration(seconds):
+    """Plain description of a duration ("5 minutes", "30 seconds") — for
+    describing the configured rescan interval itself, as opposed to
+    format_relative_time's "X ago" / "in X" framing for a specific point
+    in time."""
+    if seconds is None:
+        return "—"
+    if seconds < 60:
+        return f"{seconds} second{'s' if seconds != 1 else ''}"
+    minutes = round(seconds / 60)
+    return f"{minutes} minute{'s' if minutes != 1 else ''}"
+
+
+def format_relative_time(dt):
+    """Short, human relative time ("3 minutes ago" / "in about 2 minutes")
+    instead of an absolute clock time the reader has to mentally diff
+    against "now" themselves — used for the /admin/status auto-sync
+    panel's last/next-scan display, which self-refreshes every 4s anyway
+    (see admin_status.html's htmx polling), so a server-computed relative
+    value stays reasonably live without any client-side clock."""
+    if dt is None:
+        return "—"
+    delta_seconds = (dt - datetime.now(timezone.utc)).total_seconds()
+    future = delta_seconds > 0
+    delta_seconds = abs(delta_seconds)
+    if delta_seconds < 45:
+        phrase = "a few seconds"
+    elif delta_seconds < 90:
+        phrase = "about a minute"
+    elif delta_seconds < 3600:
+        phrase = f"about {round(delta_seconds / 60)} minutes"
+    elif delta_seconds < 7200:
+        phrase = "about an hour"
+    else:
+        phrase = f"about {round(delta_seconds / 3600)} hours"
+    return f"in {phrase}" if future else f"{phrase} ago"
 
 
 def format_size(num_bytes):

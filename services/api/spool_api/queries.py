@@ -1500,6 +1500,20 @@ def get_recent_job_activity(page=1, page_size=BULK_REVIEW_PAGE_SIZE_DEFAULT, q="
             return rows, total
 
 
+def get_rescan_status():
+    """Best-effort "is the rescan loop still alive" signal — there's no
+    direct worker heartbeat, so this leans on watched_roots.last_scanned_at
+    (updated by run_rescan itself, per-root, right after that root's own
+    walk finishes within a pass) as a stand-in for "when did the rescan
+    loop last complete a pass." NULL if no active root has ever been
+    scanned yet (e.g. right after a fresh install, before the worker's
+    first pass)."""
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("SELECT max(last_scanned_at) AS last_scan_at FROM watched_roots WHERE active = true")
+            return cur.fetchone()
+
+
 def get_ingestion_totals():
     """Library-wide counts across the hash/render pipeline — the same
     numbers checked by hand via `SELECT count(*) FROM files WHERE

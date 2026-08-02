@@ -1,19 +1,34 @@
 import os
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
 import psycopg
 from fastapi import FastAPI, Form, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from common.config import MODEL_EXTENSIONS
 
 from . import host_helper_client, queries
-from .filters import clean_name, ext_class, format_date, format_size, render_error_label, thumb_url
+from .filters import (
+    clean_name,
+    ext_class,
+    format_date,
+    format_duration,
+    format_relative_time,
+    format_size,
+    render_error_label,
+    thumb_url,
+)
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 THUMBNAILS_DIR = os.environ.get("THUMBNAILS_DIR", "/data/thumbnails")
+# Read once at startup, same as the worker's own RESCAN_INTERVAL_SECONDS
+# (services/worker/app/rescan.py) — api never runs the rescan loop, it
+# only needs this to describe the configured interval and estimate a
+# next-scan time on /admin/status and the status-aware favicon.
+RESCAN_INTERVAL_SECONDS = int(os.environ.get("RESCAN_INTERVAL_SECONDS", "300"))
 # A curated display order (raw mesh formats, then CAD source, then vector/
 # parametric source, then sliced output) rather than MODEL_EXTENSIONS' set
 # order, which Python doesn't guarantee stable across runs. The assertion
@@ -111,6 +126,8 @@ templates.env.filters["ext_class"] = ext_class
 templates.env.filters["clean_name"] = clean_name
 templates.env.filters["render_error_label"] = render_error_label
 templates.env.filters["format_date"] = format_date
+templates.env.filters["format_duration"] = format_duration
+templates.env.filters["format_relative_time"] = format_relative_time
 templates.env.globals["thumb_url"] = thumb_url
 
 
@@ -124,6 +141,31 @@ def health():
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"database unreachable: {exc}")
     return {"status": "ok", "database": "connected"}
+
+
+# Same glyph as the old static static/favicon.svg, just with a fill color
+# chosen per-request from _get_rescan_timing()'s overdue check — an
+# at-a-glance "does the rescan loop look alive" signal in the browser tab
+# itself, no need to open /admin/status to notice something's wrong.
+# no-cache (not a long-lived Cache-Control the way /thumbnails gets) since
+# this is meant to reflect near-live status; base.html's small polling
+# script is what actually gets an already-open tab to re-fetch it
+# periodically, since browsers don't re-request a favicon on their own.
+_FAVICON_OK_FILL = "#3b6ee0"
+_FAVICON_WARN_FILL = "#e0a458"
+
+
+@app.get("/favicon.svg")
+def favicon():
+    fill = _FAVICON_WARN_FILL if _get_rescan_timing()["rescan_overdue"] else _FAVICON_OK_FILL
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'
+        f'<circle cx="16" cy="16" r="15" fill="{fill}"/>'
+        '<circle cx="16" cy="16" r="9.5" fill="none" stroke="#ffffff" stroke-width="3"/>'
+        '<circle cx="16" cy="16" r="3" fill="#ffffff"/>'
+        "</svg>"
+    )
+    return Response(content=svg, media_type="image/svg+xml", headers={"Cache-Control": "no-cache"})
 
 
 # ---- browse / search --------------------------------------------------------
@@ -569,6 +611,36 @@ def open_sidecar(project_id: int, sidecar_id: int):
 
 # ---- admin: watched roots -------------------------------------------------
 
+def _get_rescan_timing():
+    """Shared by /admin/status (the human-readable panel) and /favicon.svg
+    (the at-a-glance tab-color signal) — both need the same "is the
+    rescan loop overdue" judgment, and computing it in one place means
+    they can never quietly disagree with each other. Overdue is defined
+    as more than 2x the configured interval since the last completed
+    pass — double, not 1x, specifically to absorb ordinary pass-to-pass
+    jitter (one root's walk running long) without a false alarm, while
+    still catching a genuinely stopped worker well within an hour even
+    at the default 5-minute interval. A NULL last-scan (nothing scanned
+    yet, e.g. fresh install) is "not yet scanned", not "overdue" — there's
+    nothing wrong, the worker just hasn't had a first pass yet."""
+    last_scan_at = queries.get_rescan_status()["last_scan_at"]
+    next_scan_at = last_scan_at + timedelta(seconds=RESCAN_INTERVAL_SECONDS) if last_scan_at else None
+    now = datetime.now(timezone.utc)
+    overdue = bool(last_scan_at and (now - last_scan_at) > timedelta(seconds=RESCAN_INTERVAL_SECONDS * 2))
+    return {
+        "rescan_interval_seconds": RESCAN_INTERVAL_SECONDS,
+        "last_scan_at": last_scan_at,
+        "next_scan_at": next_scan_at,
+        "rescan_overdue": overdue,
+        # A milder signal than rescan_overdue's 2x threshold — the plain
+        # "next expected" time has simply passed. Drives the panel's label
+        # ("Next expected" vs "Overdue since"), since "Next expected:
+        # about 25 minutes ago" reads oddly once it's actually in the past
+        # (caught live while testing the overdue path, not by inspection).
+        "next_scan_passed": bool(next_scan_at and next_scan_at < now),
+    }
+
+
 def _pivot_job_queue(rows):
     """Turn the flat (job_type, status, n) rows from get_job_queue_summary
     (queued/running only — see its docstring) into one row per job_type
@@ -631,6 +703,7 @@ def admin_status(
             "q": q,
             "selected_status": status,
             "selected_job_type": job_type,
+            **_get_rescan_timing(),
         },
     )
     response.set_cookie(BULK_REVIEW_PAGE_SIZE_COOKIE, str(page_size), max_age=31536000)

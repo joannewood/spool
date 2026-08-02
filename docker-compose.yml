@@ -57,6 +57,11 @@ services:
       # page know a file is undeletable *before* offering to delete it,
       # instead of only finding out when host-helper rejects the request.
       LIBRARY_HOST_PATH: ${LIBRARY_HOST_PATH}
+      # Same value the worker service reads below — api only reads this to
+      # *display* the configured interval on /admin/status (next-scan
+      # estimate, "does the worker look alive" check), it never runs the
+      # rescan loop itself.
+      RESCAN_INTERVAL_SECONDS: ${RESCAN_INTERVAL_SECONDS:-300}
     ports:
       - "8000:8000"
     volumes:
