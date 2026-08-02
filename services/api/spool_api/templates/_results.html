@@ -1,28 +1,19 @@
 {% import "_file_card.html" as cards %}
+{# Same grouped shape as _bulk_review_paging.html's controls() (total +
+   page size + Prev/Next all in one .bulk-review-paging row, repeated
+   above and below the results) -- the one deliberate difference is the
+   page-size <select> itself only appears in the top instance. It's tied
+   into the one shared #search-form (via form="search-form", the same
+   trick the sidebar filter checkboxes use) so changing it resubmits
+   every other active filter along with it, rather than resetting them;
+   a second <select name="page_size"> tied to that same form would just
+   submit two conflicting values, so the bottom row shows total + nav
+   only. #}
 {% macro pagination(position) %}
-  {% if total_pages > 1 %}
-  <nav class="pagination pagination-{{ position }}">
-    {% if page > 1 %}
-    <a href="/?{{ base_qs }}&page={{ page - 1 }}" hx-get="/?{{ base_qs }}&page={{ page - 1 }}" hx-target="#results" hx-select="#results" hx-swap="outerHTML" hx-push-url="true">← Prev</a>
-    {% endif %}
-    <span>Page {{ page }} of {{ total_pages }}</span>
-    {% if page < total_pages %}
-    <a href="/?{{ base_qs }}&page={{ page + 1 }}" hx-get="/?{{ base_qs }}&page={{ page + 1 }}" hx-target="#results" hx-select="#results" hx-swap="outerHTML" hx-push-url="true">Next →</a>
-    {% endif %}
-  </nav>
-  {% endif %}
-{% endmacro %}
-<div id="results">
-  <div class="result-count-row">
-    <p class="result-count">{{ total }} file{{ "s" if total != 1 else "" }}</p>
-    {# form="search-form" (not a nested <form>) -- same trick the sidebar
-       filter-panel checkboxes already use to submit into the one outer
-       #search-form despite living elsewhere in the DOM; the form's own
-       "change from:select" htmx trigger already covers this control for
-       free. Rendered once (not inside the pagination macro, which is
-       called for both top and bottom) since two <select name="page_size">
-       tied to the same form would submit two conflicting values. #}
-    <label class="page-size-label">
+  <div class="bulk-review-paging">
+    <span class="note-inline">{{ total }} file{{ "s" if total != 1 else "" }}</span>
+    {% if position == "top" %}
+    <label>
       Page size
       <select name="page_size" form="search-form">
         {% for size in page_sizes %}
@@ -30,8 +21,21 @@
         {% endfor %}
       </select>
     </label>
+    {% endif %}
+    {% if total_pages > 1 %}
+    <nav class="pagination pagination-{{ position }}">
+      {% if page > 1 %}
+      <a href="/?{{ base_qs }}&page={{ page - 1 }}" hx-get="/?{{ base_qs }}&page={{ page - 1 }}" hx-target="#results" hx-select="#results" hx-swap="outerHTML" hx-push-url="true">← Prev</a>
+      {% endif %}
+      <span>Page {{ page }} of {{ total_pages }}</span>
+      {% if page < total_pages %}
+      <a href="/?{{ base_qs }}&page={{ page + 1 }}" hx-get="/?{{ base_qs }}&page={{ page + 1 }}" hx-target="#results" hx-select="#results" hx-swap="outerHTML" hx-push-url="true">Next →</a>
+      {% endif %}
+    </nav>
+    {% endif %}
   </div>
-
+{% endmacro %}
+<div id="results">
   {{ pagination("top") }}
 
   <div class="grid">
