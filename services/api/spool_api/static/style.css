@@ -198,10 +198,13 @@ main {
 .view-toggle a:hover { background: color-mix(in oklab, var(--accent) 12%, var(--surface)); }
 .view-toggle a.active { background: var(--accent); color: #fff; font-weight: 600; }
 .view-toggle a.active:hover { background: var(--accent); }
-/* Sits directly below the Job queue/Watched roots panels on
+/* Sits directly below the File processing/Watched roots panels on
    /admin/status, outside their own .panel card — without this it reads
-   as glued to the Watched roots table right above it. */
-#status-filter-form { margin-top: 24px; }
+   as glued to the Watched roots table right above it. 20px matches the
+   gap already used between every other pair of stacked panels on this
+   page (was 24px — close enough to go unnoticed alone, but broke the
+   established rhythm once actually measured). */
+#status-filter-form { margin-top: 20px; }
 .searchbar input[type="search"] {
   flex: 1 1 260px;
   padding: 9px 12px;
@@ -886,7 +889,14 @@ button.app-icon-btn {
    because the colored overall-health border below belongs to the status
    card alone; Ingestion totals keeps a plain, uncolored border. Stacks
    once the two can't sit side by side comfortably. */
-.live-status-row { display: flex; gap: 24px; align-items: stretch; }
+/* align-items: flex-start (not stretch) deliberately — stretching the
+   Status card to match Ingestion totals' height left a large empty gap
+   below its two status lines whenever nothing was running (the common
+   case), since Ingestion totals always has 5 fixed rows regardless of
+   activity. Each card sizes to its own content instead; a same-row
+   height mismatch reads better than a card with dead space at the
+   bottom. */
+.live-status-row { display: flex; gap: 24px; align-items: flex-start; }
 .live-status-row > .panel { min-width: 0; }
 .live-status-row > .live-status-panel { flex: 2 1 0; }
 .live-status-row > .live-status-totals-panel { flex: 1 1 0; }
