@@ -134,6 +134,33 @@ very bottom of this page. The vast majority of people should just use the
 installer above — the advanced routes exist for troubleshooting, or if
 you'd rather understand/control every step yourself.
 
+## If SPOOL looks stopped, or something seems wrong
+
+The fix for almost anything — Docker Desktop wasn't running, a container
+crashed, files stopped being picked up — is the same installer you used
+for setup, not the Desktop shortcut (that shortcut just opens
+`http://localhost:8000`, which can't do anything if SPOOL itself isn't
+running):
+
+1. Find the **SPOOL Installer** file you downloaded (or wherever you
+   saved it — check Downloads, or re-download it from the
+   [Releases page](https://github.com/joannewood/spool/releases/latest)
+   if you can't find it) and open it again.
+2. Since SPOOL is already set up, it now shows a quick menu instead of
+   the full setup wizard: **Restart SPOOL**, **Re-run Full Setup**, or
+   **Exit**.
+3. Choose **Restart SPOOL**. This brings everything back up and opens
+   SPOOL in your browser once it's ready — no need to touch your folder
+   settings or CAD/slicer configuration again.
+
+Still not working? Open `/admin/status` in your browser — the small
+icon in the browser tab, and the "Auto-sync" panel on that page, both
+turn amber if the background scanning looks stopped, and the page tells
+you exactly what to check next (usually `docker compose ps` and `docker
+compose logs api`, run from a terminal inside your SPOOL folder). If
+you're still stuck, see [**Found a bug, or something
+confusing?**](#found-a-bug-or-something-confusing) below.
+
 ## Using SPOOL
 
 **Give it time after first setup.** SPOOL doesn't wait for you to ask —
