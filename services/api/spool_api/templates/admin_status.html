@@ -30,8 +30,15 @@
    not every 4s like Job queue/Watched roots below — an acceptable
    accuracy-vs-correctness trade given the alternative is a form that
    fights the user. #}
-<section class="panel">
-  <h2 class="panel-title-with-icon"><img src="/favicon.svg" alt="" width="20" height="20">Auto-sync</h2>
+<section class="panel live-status-panel status-{{ overall_status }}">
+  <h2>Auto-sync</h2>
+  {% if not rescan_enabled %}
+  <p class="status-line status-line-lg">{{ icons.sync_glyph("var(--ink-muted)", 28) }} Auto-sync paused</p>
+  {% elif rescan_overdue %}
+  <p class="status-line status-line-lg">{{ icons.sync_glyph("var(--danger)", 28) }} <strong>Auto-sync looks stopped</strong></p>
+  {% else %}
+  <p class="status-line status-line-lg">{{ icons.sync_glyph("var(--ok)", 28) }} Auto-sync normal</p>
+  {% endif %}
   <p class="note">Scans every {{ rescan_interval_seconds | format_duration }} for moved, edited, or deleted files.</p>
   <dl class="tight">
     <dt>Last scan</dt><dd>{{ last_scan_at | format_relative_time }}</dd>
@@ -76,8 +83,28 @@
 
 <div class="admin-sections">
 
-<section class="panel">
+<section class="panel live-status-panel status-{{ job_queue_status }}">
   <h2>Job queue</h2>
+  {% if running_jobs %}
+  <p class="status-line status-line-lg">
+    {{ icons.sync_glyph("var(--ok)", 28) }}
+    <strong>Processing {{ running_jobs|length }} job{{ "s" if running_jobs|length != 1 else "" }}</strong>
+  </p>
+  {% elif total_queued > 0 %}
+  <p class="status-line status-line-lg">
+    {{ icons.sync_glyph("var(--danger)", 28) }}
+    <strong>{{ total_queued }} job{{ "s" if total_queued != 1 else "" }} queued, none running</strong>
+  </p>
+  <p class="badge warn">
+    ⚠ Looks stuck — jobs are queued but nothing is currently processing. Open
+    <strong>SPOOL Installer</strong> again and choose <strong>Restart SPOOL</strong>.
+  </p>
+  {% else %}
+  <p class="status-line status-line-lg">
+    {{ icons.sync_glyph("var(--ink-muted)", 28) }}
+    <span class="empty-inline">idle — nothing queued or running</span>
+  </p>
+  {% endif %}
   <p class="note">
     Live queue depth by job type — <code>jobs</code> rows are never deleted once
     finished, so a "done"/"failed" count here would just be an ever-growing

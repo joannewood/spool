@@ -671,17 +671,21 @@ def _get_rescan_timing():
     }
 
 
-def _overall_admin_status(rescan_timing, totals):
+def _overall_admin_status(rescan_timing):
     """One red/orange/green read of "is anything wrong right now" for the
-    colored border around the top of /admin — combines the two signals
-    already shown there (auto-sync state, render failures) rather than
-    introducing a third, independent judgment. Worst signal wins: a
-    stopped scan loop is red (looks genuinely broken), a paused scan loop
-    or any render failures is orange (worth knowing, not an emergency),
-    otherwise green."""
+    colored border around the status card at the top of /admin — based
+    purely on the auto-sync (rescan) state. Deliberately does NOT factor
+    in render failures: unlike a stopped scan loop, most render failures
+    in this library are permanent, un-actionable facts about a specific
+    file (an unsupported 3MF structure, a mesh too large/complex to
+    render safely) rather than a transient problem — folding them into
+    this border would leave it permanently orange with nothing to
+    actually do about it. A stopped scan loop is red (looks genuinely
+    broken, worth restarting SPOOL over), a paused scan loop is orange
+    (an intentional but worth-noticing deviation), otherwise green."""
     if rescan_timing["rescan_overdue"]:
         return "danger"
-    if not rescan_timing["rescan_enabled"] or totals["render_failed"] > 0:
+    if not rescan_timing["rescan_enabled"]:
         return "warn"
     return "ok"
 
@@ -701,6 +705,22 @@ def _pivot_job_queue(rows):
     return [{"job_type": jt, "counts": by_type[jt]} for jt in JOB_TYPES]
 
 
+def _job_queue_status(running_jobs, job_matrix):
+    """Red/green read of the job queue's own health, for the same colored-
+    border treatment as the Auto-sync panel — deliberately a coarser
+    two-state signal (no orange) since there isn't a meaningful "worth
+    noticing but not urgent" middle state here the way an intentional
+    pause is for Auto-sync. Green whenever something is actively being
+    worked on, or the queue is simply empty (fully caught up, nothing
+    wrong). Red only when jobs are sitting queued with nothing at all
+    running — a real "looks stuck" signal, since a live worker picks up
+    a queued job within its own poll loop almost immediately."""
+    if running_jobs:
+        return "ok"
+    total_queued = sum(row["counts"]["queued"] for row in job_matrix)
+    return "danger" if total_queued > 0 else "ok"
+
+
 @app.get("/admin", response_class=HTMLResponse)
 def admin(request: Request):
     rescan_timing = _get_rescan_timing()
@@ -717,7 +737,7 @@ def admin(request: Request):
             "suggested_relationship_count": queries.count_suggested_relationships(),
             "running_jobs": queries.get_running_jobs(),
             "totals": totals,
-            "overall_status": _overall_admin_status(rescan_timing, totals),
+            "overall_status": _overall_admin_status(rescan_timing),
             **rescan_timing,
         },
     )
@@ -736,12 +756,17 @@ def admin_status(
         page=page, page_size=page_size, q=q, status=status, job_type=job_type
     )
     rescan_timing = _get_rescan_timing()
+    job_matrix = _pivot_job_queue(queries.get_job_queue_summary())
+    running_jobs = queries.get_running_jobs()
+    total_queued = sum(row["counts"]["queued"] for row in job_matrix)
     response = templates.TemplateResponse(
         request,
         "admin_status.html",
         {
-            "job_matrix": _pivot_job_queue(queries.get_job_queue_summary()),
+            "job_matrix": job_matrix,
             "job_statuses": JOB_STATUSES,
+            "running_jobs": running_jobs,
+            "total_queued": total_queued,
             "recent_activity": recent_activity,
             "total": total,
             "page": page,
@@ -755,6 +780,8 @@ def admin_status(
             "selected_job_type": job_type,
             "favicon_colors": FAVICON_COLORS,
             "favicon_state": _favicon_state(rescan_timing),
+            "overall_status": _overall_admin_status(rescan_timing),
+            "job_queue_status": _job_queue_status(running_jobs, job_matrix),
             **rescan_timing,
         },
     )

@@ -816,6 +816,37 @@ def test_admin_status_page_self_polls_via_htmx(client):
     assert 'hx-select="#recent-activity-panel"' in resp.text
 
 
+def test_admin_status_shows_colored_borders_for_both_panels(client):
+    resp = client.get("/admin/status")
+    assert resp.status_code == 200
+    assert resp.text.count("live-status-panel") == 2
+
+
+def test_admin_status_job_queue_shows_processing_when_job_running(client, make_file, db_conn):
+    file_id = make_file(filename="status-job-queue-running.stl")
+    with db_conn.cursor() as cur:
+        cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'render', 'running')", (file_id,))
+
+    resp = client.get("/admin/status")
+    assert resp.status_code == 200
+    job_queue_html = resp.text.split("Job queue")[1].split("Watched roots")[0]
+    assert "Processing 1 job" in job_queue_html
+    assert "status-ok" in resp.text.split('<section class="panel live-status-panel')[2]
+
+
+def test_admin_status_job_queue_shows_stuck_when_queued_with_nothing_running(client, make_file, db_conn):
+    file_id = make_file(filename="status-job-queue-stuck.stl")
+    with db_conn.cursor() as cur:
+        cur.execute("INSERT INTO jobs (file_id, job_type, status) VALUES (%s, 'render', 'queued')", (file_id,))
+
+    resp = client.get("/admin/status")
+    assert resp.status_code == 200
+    job_queue_html = resp.text.split("Job queue")[1].split("Watched roots")[0]
+    assert "queued, none running" in job_queue_html
+    assert "Looks stuck" in job_queue_html
+    assert "status-danger" in resp.text.split('<section class="panel live-status-panel')[2]
+
+
 def test_admin_status_job_queue_is_a_type_by_status_matrix(client, make_file, db_conn):
     file_id = make_file(filename="matrix-check.stl")
     with db_conn.cursor() as cur:
