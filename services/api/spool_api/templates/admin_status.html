@@ -44,11 +44,6 @@
     <dt>Last scan</dt><dd>{{ last_scan_at | format_relative_time }}</dd>
     <dt>{{ "Overdue since" if next_scan_passed else "Next expected" }}</dt><dd>{{ next_scan_at | format_relative_time }}</dd>
   </dl>
-  <ul class="favicon-legend">
-    <li>{{ icons.sync_glyph(favicon_colors.ok, 14) }} Scanning normally</li>
-    <li>{{ icons.sync_glyph(favicon_colors.paused, 14) }} Paused</li>
-    <li>{{ icons.sync_glyph(favicon_colors.overdue, 14) }} Looks stopped</li>
-  </ul>
   {% if not rescan_enabled %}
   <p class="badge warn">
     ⏸ Auto-sync is paused — SPOOL won't notice new, moved, or deleted files until you turn it back on below.

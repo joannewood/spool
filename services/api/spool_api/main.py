@@ -788,8 +788,6 @@ def admin_status(
             "q": q,
             "selected_status": status,
             "selected_job_type": job_type,
-            "favicon_colors": FAVICON_COLORS,
-            "favicon_state": _favicon_state(rescan_timing),
             "overall_status": _overall_admin_status(rescan_timing),
             "job_queue_status": _job_queue_status(running_jobs, job_matrix),
             **rescan_timing,
