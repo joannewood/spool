@@ -10,6 +10,18 @@ set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$DIR"
 
+# A double-clicked/Platypus-wrapped app doesn't inherit the user's shell
+# PATH (that only gets built up by /etc/paths.d, .zshrc, etc. for an
+# interactive login shell) -- it gets a minimal LaunchServices default
+# that's missing /usr/local/bin and /opt/homebrew/bin, both real install
+# locations for Docker Desktop's `docker` CLI depending on the machine.
+# Confirmed live: this script reported "Docker isn't installed" on a
+# machine where `docker` worked fine from Terminal and Docker Desktop was
+# genuinely running -- `command -v docker` simply couldn't see it in the
+# PATH this process actually got. Appended, not prepended, so anything
+# already legitimately on PATH still wins if it somehow differs.
+export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin"
+
 BOLD=$(tput bold 2>/dev/null || true)
 DIM=$(tput dim 2>/dev/null || true)
 RESET=$(tput sgr0 2>/dev/null || true)
