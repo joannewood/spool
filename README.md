@@ -306,18 +306,12 @@ launchctl print gui/$(id -u)/com.spool.hosthelper    # confirm it's running
 tail -f ~/Library/Logs/spool/host-helper.log         # watch open/delete requests
 ```
 
-### Running the test suite
+### Working on SPOOL itself
 
-```bash
-docker compose up -d postgres        # only postgres needs to be running
-python3 -m venv .venv
-.venv/bin/pip install -r requirements-dev.txt
-.venv/bin/pytest
-```
-
-Tests run on the host (not in a container) against a real, separate
-`spool_test` database on the same Postgres instance (exposed at
-`localhost:55432` for exactly this).
+Running the test suite, the codebase's architecture, and how to build a
+release installer all live in [CONTRIBUTING.md](CONTRIBUTING.md) instead
+— this section of the README is for using an already-running SPOOL, not
+developing it.
 
 ## Known limitations
 
