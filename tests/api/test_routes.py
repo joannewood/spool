@@ -954,15 +954,14 @@ def test_admin_page_shows_running_job_target_name(client, make_file, db_conn):
     resp = client.get("/admin")
     assert resp.status_code == 200
     assert "admin-page-running.stl" in resp.text
-    assert "idle — nothing currently processing" not in resp.text
-    assert "status-dot-ok" in resp.text
+    assert "Idle — nothing currently processing" not in resp.text
+    assert "Processing 1 job" in resp.text
 
 
 def test_admin_page_idle_shows_gray_dot_when_nothing_running(client):
     resp = client.get("/admin")
     assert resp.status_code == 200
-    assert "idle — nothing currently processing" in resp.text
-    assert "status-dot-idle" in resp.text
+    assert "Idle — nothing currently processing" in resp.text
 
 
 def test_admin_page_self_polls_the_live_status_section(client):

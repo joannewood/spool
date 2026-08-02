@@ -149,17 +149,25 @@ def health():
 # open /admin/status to notice something's wrong. Three states, not just
 # two: paused (user turned it off on purpose, via the Auto-sync panel's
 # own toggle) reads very differently from overdue (should be scanning
-# and isn't) even though both are "not the healthy blue" — collapsing
+# and isn't) even though both are "not the healthy green" — collapsing
 # them into one warning color would make an intentional pause look like
 # a problem. The same three constants back the legend on /admin/status
 # (see _get_rescan_timing's own callers), so the tab icon and the legend
 # explaining it can never quietly drift out of sync with each other.
+# "ok" is the same green as --ok (dark-theme value — a fixed, non-theme-
+# aware SVG has no access to the page's own light/dark variables, so this
+# just hardcodes the more-vibrant-at-small-sizes dark variant, same as
+# "overdue" already reuses --warn's dark value below) so the tab icon and
+# legend agree with the colored spool-glyph headlines added to /admin and
+# /admin/status elsewhere on the page — those all read "green = all is
+# well," and this used to be blue, which read as a fourth, unrelated color
+# rather than agreeing with them.
 # no-cache (not a long-lived Cache-Control the way /thumbnails gets) since
 # this is meant to reflect near-live status; base.html's small polling
 # script is what actually gets an already-open tab to re-fetch it
 # periodically, since browsers don't re-request a favicon on their own.
 FAVICON_COLORS = {
-    "ok": "#3b6ee0",
+    "ok": "#4cd08a",
     "paused": "#8b93a1",
     "overdue": "#e0a458",
 }
