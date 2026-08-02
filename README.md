@@ -154,10 +154,10 @@ web page, which can't do anything if SPOOL itself isn't running):
    SPOOL in your browser once it's ready — no need to touch your folder
    settings or CAD/slicer configuration again.
 
-Still not working? Open `/admin/status` in your browser — the small
-icon in the browser tab, and the "Auto-sync" panel on that page, both
-turn amber if the background scanning looks stopped. If restarting still
-doesn't fix it, see [**Found a bug, or something
+Still not working? Open <http://localhost:8000/admin/status> in your
+browser — the small icon in the browser tab, and the "Auto-sync" panel
+on that page, both turn amber if the background scanning looks stopped.
+If restarting still doesn't fix it, see [**Found a bug, or something
 confusing?**](#found-a-bug-or-something-confusing) below.
 
 ## Using SPOOL
