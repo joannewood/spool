@@ -25,9 +25,35 @@ export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin"
 BOLD=$(tput bold 2>/dev/null || true)
 DIM=$(tput dim 2>/dev/null || true)
 RESET=$(tput sgr0 2>/dev/null || true)
+RULE="────────────────────────────────────────"
 
 step() { echo; echo "${BOLD}==> $1${RESET}"; }
 note() { echo "${DIM}    $1${RESET}"; }
+
+# A boxed "Step N of TOTAL_STEPS" banner for the main numbered sequence
+# below (Docker check -> folders -> start SPOOL -> host-helper) -- reads
+# more like a step-by-step wizard installer than a scrolling terminal
+# log. Deliberately separate from the plain step() above, which is still
+# used for one-off headers outside the main sequence (e.g. the quick-menu
+# "Restarting SPOOL" path) that shouldn't consume a step count of their
+# own or claim to be "step N of 4" when they're not part of that flow.
+TOTAL_STEPS=4
+STEP_COUNT=0
+wizard_step() {
+  STEP_COUNT=$((STEP_COUNT + 1))
+  echo
+  echo "${DIM}${RULE}${RESET}"
+  echo "${BOLD}Step $STEP_COUNT of $TOTAL_STEPS: $1${RESET}"
+  echo "${DIM}${RULE}${RESET}"
+}
+# Same framing, no step count, for the closing summary screen -- the
+# "Completing the Setup Wizard" page every installer ends on.
+wizard_done() {
+  echo
+  echo "${DIM}${RULE}${RESET}"
+  echo "${BOLD}✓ $1${RESET}"
+  echo "${DIM}${RULE}${RESET}"
+}
 
 # Native Yes/No dialogs instead of reading stdin — this script never reads
 # input from the terminal at all now, so it works identically whether run
@@ -197,7 +223,7 @@ start_and_wait() {
 
 # ---- Step 1: Docker Desktop -------------------------------------------
 
-step "Checking for Docker Desktop"
+wizard_step "Checking for Docker Desktop"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "Docker isn't installed."
@@ -232,7 +258,7 @@ fi
 
 # ---- Step 2: .env -------------------------------------------------------
 
-step "Configuring your folders"
+wizard_step "Configuring your folders"
 
 # Tracked before anything below touches the filesystem — the wipe-check
 # further down (a fresh .env that doesn't match an already-provisioned
@@ -270,9 +296,27 @@ if [ -f .env ]; then
   esac
 fi
 
+# Shows a small dialog with a "Choose Folder…" button first, rather than
+# the native Finder browser just appearing unprompted mid-flow -- you
+# explicitly click to open it. "Use Suggested Path" is the other button
+# (not a plain Cancel), so falling back to the suggested path is a
+# deliberate, visible choice rather than a side effect of dismissing a
+# picker you didn't mean to dismiss.
 pick_folder() {
-  # $1 = prompt text, $2 = fallback path if the picker is cancelled/unavailable
-  local prompt="$1" fallback="$2" result
+  # $1 = what we're choosing (shown in the button dialog)
+  # $2 = prompt text for the native folder browser itself
+  # $3 = suggested/fallback path
+  local label prompt fallback fallback_escaped choice result
+  label=$(_as_escape "$1")
+  prompt="$2"
+  fallback="$3"
+  fallback_escaped=$(_as_escape "$fallback")
+  activate_installer
+  choice=$(osascript -e "button returned of (display dialog \"$label\n\nSuggested: $fallback_escaped\" buttons {\"Use Suggested Path\", \"Choose Folder…\"} default button \"Choose Folder…\")" 2>/dev/null)
+  if [ "$choice" != "Choose Folder…" ]; then
+    echo "$fallback"
+    return
+  fi
   activate_installer
   if result=$(osascript -e "POSIX path of (choose folder with prompt \"$prompt\")" 2>/dev/null); then
     echo "${result%/}"
@@ -317,20 +361,22 @@ if [ "$RECONFIGURE" -eq 1 ]; then
   cp -n .env.example .env 2>/dev/null || true
 
   echo
-  echo "A Finder window will pop up for each folder below — navigate to (or use"
-  echo "Finder's \"New Folder\" button to create) the right one, then click Choose."
+  echo "For each folder below, you'll see a small dialog first — click \"Choose"
+  echo "Folder…\" to open Finder and pick it (use Finder's \"New Folder\" button"
+  echo "there if it doesn't exist yet), or \"Use Suggested Path\" to accept the"
+  echo "suggestion shown without opening Finder at all."
   echo
 
   note "1 of 3 — your drop folder (where new downloads/exports land to be indexed)"
   echo "This one's required — it's SPOOL's main working folder."
   DEFAULT_DROP="$HOME/Documents/3DPrintFiles"
-  DROPFOLDER_HOST_PATH=$(pick_folder "Choose your SPOOL drop folder" "$DEFAULT_DROP")
+  DROPFOLDER_HOST_PATH=$(pick_folder "Where should SPOOL watch for new downloads and exports?" "Choose your SPOOL drop folder" "$DEFAULT_DROP")
   mkdir -p "$DROPFOLDER_HOST_PATH"
 
   note "2 of 3 — your existing 3D print library (optional; read-only, SPOOL only indexes it)"
   LIBRARY_HOST_PATH=""
   if confirm_no_default "Do you have an existing 3D print library folder you'd like SPOOL to index too?"; then
-    LIBRARY_HOST_PATH=$(pick_folder "Choose your existing 3D print library folder" "$HOME/Documents/3D Printing")
+    LIBRARY_HOST_PATH=$(pick_folder "Where's your existing 3D print library?" "Choose your existing 3D print library folder" "$HOME/Documents/3D Printing")
   else
     echo "    skipping — SPOOL will only watch your drop folder for now. You can add"
     echo "    this later; see \"Known limitations\" in README.md for how."
@@ -382,13 +428,13 @@ fi
 
 # ---- Step 3: bring up the stack -----------------------------------------
 
-step "Starting SPOOL (this can take several minutes the first time)"
+wizard_step "Starting SPOOL (this can take several minutes the first time)"
 
 start_and_wait
 
 # ---- Step 4: host-helper (Open in Fusion/Bambu Studio/etc.) -------------
 
-step "Setting up 'Open in...' for your CAD/slicer apps"
+wizard_step "Setting up 'Open in...' for your CAD/slicer apps"
 
 if confirm_yes_default "Auto-detect your installed CAD/slicer apps now?"; then
   if command -v python3 >/dev/null 2>&1; then
@@ -406,7 +452,7 @@ host-helper/install.sh
 
 # ---- Done -----------------------------------------------------------------
 
-step "All set"
+wizard_done "All set"
 
 echo "SPOOL is running at http://localhost:8000"
 echo "A SPOOL shortcut has been added to your Desktop — double-click it any time to open SPOOL."

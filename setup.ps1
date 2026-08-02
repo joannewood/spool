@@ -19,6 +19,35 @@ Set-Location $Dir
 function Step($msg) { Write-Host ""; Write-Host "==> $msg" -ForegroundColor Cyan }
 function Note($msg) { Write-Host "    $msg" -ForegroundColor DarkGray }
 
+# A boxed "Step N of TotalSteps" banner for the main numbered sequence
+# below (Docker check -> folders -> start SPOOL -> host-helper) -- reads
+# more like a step-by-step wizard installer than a scrolling console log.
+# Deliberately separate from the plain Step above, which is still used
+# for one-off headers outside the main sequence (e.g. the quick-menu
+# "Restarting SPOOL" path) that shouldn't consume a step count of their
+# own or claim to be "step N of 4" when they're not part of that flow.
+# Plain ASCII rule (not a Unicode box-drawing character) matching this
+# file's existing convention of avoiding non-ASCII console output --
+# never verified on a real Windows console's code page, so this doesn't
+# introduce the first exception.
+$TotalSteps = 4
+$script:StepCount = 0
+function WizardStep($msg) {
+    $script:StepCount++
+    Write-Host ""
+    Write-Host ("-" * 44) -ForegroundColor DarkGray
+    Write-Host "Step $($script:StepCount) of $($TotalSteps): $msg" -ForegroundColor Cyan
+    Write-Host ("-" * 44) -ForegroundColor DarkGray
+}
+# Same framing, no step count, for the closing summary screen -- the
+# "Completing the Setup Wizard" page every installer ends on.
+function WizardDone($msg) {
+    Write-Host ""
+    Write-Host ("-" * 44) -ForegroundColor DarkGray
+    Write-Host "Done: $msg" -ForegroundColor Cyan
+    Write-Host ("-" * 44) -ForegroundColor DarkGray
+}
+
 # Native dialogs instead of reading stdin -- this script never reads input
 # from the console at all now, so it works identically whether run from a
 # PowerShell window or from inside a wrapped installer (e.g. an Inno Setup
@@ -209,7 +238,7 @@ function Start-AndWait {
 
 # ---- Step 1: Docker Desktop ----------------------------------------------
 
-Step "Checking for Docker Desktop"
+WizardStep "Checking for Docker Desktop"
 
 $DockerCmd = Get-Command docker -ErrorAction SilentlyContinue
 if (-not $DockerCmd) {
@@ -253,7 +282,7 @@ if (-not (Test-DockerRunning)) {
 
 # ---- Step 2: .env ---------------------------------------------------------
 
-Step "Configuring your folders"
+WizardStep "Configuring your folders"
 
 # Tracked before anything below touches the filesystem -- the wipe-check
 # further down (a fresh .env that doesn't match an already-provisioned
@@ -284,7 +313,51 @@ if (Test-Path ".env") {
     }
 }
 
+# Shows a small dialog with a "Browse..." button first, rather than the
+# native folder browser just appearing unprompted mid-flow -- you
+# explicitly click to open it. "Use Suggested Path" is the other button
+# (not a plain Cancel), so falling back to the suggested path is a
+# deliberate, visible choice rather than a side effect of dismissing a
+# picker you didn't mean to dismiss. Same custom-Form pattern as
+# Confirm-Destructive/Show-QuickActionMenu, for the same reason: a plain
+# MessageBox can't relabel its buttons.
+function Confirm-BrowseFolder($description, $defaultPath) {
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = "SPOOL Setup"
+    $form.StartPosition = "CenterScreen"
+    $form.FormBorderStyle = "FixedDialog"
+    $form.MaximizeBox = $false
+    $form.MinimizeBox = $false
+    $form.TopMost = $true
+    $form.ClientSize = New-Object System.Drawing.Size(440, 150)
+
+    $label = New-Object System.Windows.Forms.Label
+    $label.Text = "$description`r`n`r`nSuggested: $defaultPath"
+    $label.SetBounds(20, 15, 400, 80)
+    $form.Controls.Add($label)
+
+    $useDefaultButton = New-Object System.Windows.Forms.Button
+    $useDefaultButton.Text = "Use Suggested Path"
+    $useDefaultButton.DialogResult = [System.Windows.Forms.DialogResult]::No
+    $useDefaultButton.SetBounds(110, 105, 160, 30)
+    $form.Controls.Add($useDefaultButton)
+    $form.CancelButton = $useDefaultButton
+    $form.AcceptButton = $useDefaultButton
+
+    $browseButton = New-Object System.Windows.Forms.Button
+    $browseButton.Text = "Browse..."
+    $browseButton.DialogResult = [System.Windows.Forms.DialogResult]::Yes
+    $browseButton.SetBounds(280, 105, 130, 30)
+    $form.Controls.Add($browseButton)
+
+    $result = $form.ShowDialog()
+    return $result -eq [System.Windows.Forms.DialogResult]::Yes
+}
+
 function Select-Folder($description, $default) {
+    if (-not (Confirm-BrowseFolder $description $default)) {
+        return $default
+    }
     # FolderBrowserDialog needs an STA thread -- Windows PowerShell 5.1
     # (the default on most Windows installs, what most people get from
     # right-click > "Run with PowerShell") already runs as STA, but
@@ -352,8 +425,10 @@ if ($Reconfigure) {
     }
 
     Write-Host ""
-    Write-Host "A folder picker will pop up for each folder below -- navigate to (or use"
-    Write-Host "its 'Make New Folder' button to create) the right one, then click OK."
+    Write-Host "For each folder below, you'll see a small dialog first -- click 'Browse...'"
+    Write-Host "to open a folder picker (use its 'Make New Folder' button if it doesn't"
+    Write-Host "exist yet), or 'Use Suggested Path' to accept the suggestion shown without"
+    Write-Host "opening a picker at all."
     Write-Host ""
 
     Note "1 of 3 -- your drop folder (where new downloads/exports land to be indexed)"
@@ -426,13 +501,13 @@ if ($Reconfigure) {
 
 # ---- Step 3: bring up the stack -------------------------------------------
 
-Step "Starting SPOOL (this can take several minutes the first time)"
+WizardStep "Starting SPOOL (this can take several minutes the first time)"
 
 Start-AndWait
 
 # ---- Step 4: host-helper (Open in Fusion/Bambu Studio/etc.) ---------------
 
-Step "Setting up 'Open in...' for your CAD/slicer apps"
+WizardStep "Setting up 'Open in...' for your CAD/slicer apps"
 
 # A native file-picker per app (host-helper\configure_apps_windows.ps1)
 # instead of the Python-based auto-detect-and-confirm flow
@@ -451,7 +526,7 @@ powershell -ExecutionPolicy Bypass -File "host-helper\install_windows.ps1"
 
 # ---- Done -------------------------------------------------------------------
 
-Step "All set"
+WizardDone "All set"
 
 Write-Host "SPOOL is running at http://localhost:8000"
 Write-Host "A SPOOL shortcut has been added to your Desktop -- double-click it any time to open SPOOL."
