@@ -182,7 +182,7 @@ step "Checking for Docker Desktop"
 if ! command -v docker >/dev/null 2>&1; then
   echo "Docker isn't installed."
   note "Download Docker Desktop for Mac from https://www.docker.com/products/docker-desktop/"
-  note "then run this script again."
+  note "then open SPOOL Installer again."
   open "https://www.docker.com/products/docker-desktop/" 2>/dev/null || true
   exit 1
 fi
@@ -203,7 +203,7 @@ if ! docker info >/dev/null 2>&1; then
     echo
     echo "Docker Desktop still isn't responding after two minutes."
     note "Open Docker Desktop from Applications yourself, wait for the whale icon"
-    note "in your menu bar to stop animating, then run this script again."
+    note "in your menu bar to stop animating, then open SPOOL Installer again."
     exit 1
   fi
 else
