@@ -136,11 +136,10 @@ you'd rather understand/control every step yourself.
 
 ## If SPOOL looks stopped, or something seems wrong
 
-The fix for almost anything — Docker Desktop wasn't running, a container
+The fix for almost anything — Docker Desktop wasn't running, something
 crashed, files stopped being picked up — is the same installer you used
-for setup, not the Desktop shortcut (that shortcut just opens
-`http://localhost:8000`, which can't do anything if SPOOL itself isn't
-running):
+for setup, not the Desktop shortcut (that shortcut just opens the SPOOL
+web page, which can't do anything if SPOOL itself isn't running):
 
 1. Find the **SPOOL Installer** file you downloaded (or wherever you
    saved it — check Downloads, or re-download it from the
@@ -155,10 +154,8 @@ running):
 
 Still not working? Open `/admin/status` in your browser — the small
 icon in the browser tab, and the "Auto-sync" panel on that page, both
-turn amber if the background scanning looks stopped, and the page tells
-you exactly what to check next (usually `docker compose ps` and `docker
-compose logs api`, run from a terminal inside your SPOOL folder). If
-you're still stuck, see [**Found a bug, or something
+turn amber if the background scanning looks stopped. If restarting still
+doesn't fix it, see [**Found a bug, or something
 confusing?**](#found-a-bug-or-something-confusing) below.
 
 ## Using SPOOL

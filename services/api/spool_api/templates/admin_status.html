@@ -48,9 +48,8 @@
   </p>
   {% elif rescan_overdue %}
   <p class="badge warn">
-    ⚠ Looks stopped — last scan was {{ last_scan_at | format_relative_time }}, expected every
-    {{ rescan_interval_seconds | format_duration }}. Re-open the SPOOL installer and choose
-    "Restart SPOOL" (or run <code>docker compose restart worker</code> yourself).
+    ⚠ Looks stopped — last scan was {{ last_scan_at | format_relative_time }}. Open
+    <strong>SPOOL Installer</strong> again and choose <strong>Restart SPOOL</strong>.
   </p>
   {% endif %}
   <form class="stack-form" method="POST" action="/admin/settings/rescan">
