@@ -1033,6 +1033,58 @@ def test_admin_page_shows_ingestion_totals_with_warn_dot_on_failures(client, mak
     assert "status-dot-warn" in resp.text
 
 
+# ---- watched-roots table: ingest_mode is only editable for kind=library ----
+
+def test_admin_page_ingest_mode_is_a_select_for_library_kind(client, test_root_id):
+    # test_root_id is seeded as kind='library'
+    resp = client.get("/admin")
+    assert resp.status_code == 200
+    roots_html = resp.text.split("Watched roots")[1]
+    assert f'<select name="ingest_mode" form="root-form-{test_root_id}"' in roots_html
+
+
+def test_admin_page_ingest_mode_is_locked_for_drop_folder_and_downloads(client, db_conn):
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO watched_roots (host_path, container_path, label, kind, ingest_mode, active) "
+            "VALUES ('/tmp/route-test-dropfolder', '/tmp/route-test-dropfolder', 'Route Test Drop', "
+            "'drop_folder', 'index_in_place', true) RETURNING id"
+        )
+        dropfolder_id = cur.fetchone()[0]
+    try:
+        resp = client.get("/admin")
+        assert resp.status_code == 200
+        roots_html = resp.text.split("Watched roots")[1]
+        assert f'<select name="ingest_mode" form="root-form-{dropfolder_id}"' not in roots_html
+        assert f'<input type="hidden" name="ingest_mode" form="root-form-{dropfolder_id}"' in roots_html
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM watched_roots WHERE id = %s", (dropfolder_id,))
+
+
+def test_admin_update_root_route_ignores_ingest_mode_change_for_drop_folder(client, db_conn):
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO watched_roots (host_path, container_path, label, kind, ingest_mode, active) "
+            "VALUES ('/tmp/route-test-dropfolder2', '/tmp/route-test-dropfolder2', 'Route Test Drop 2', "
+            "'drop_folder', 'index_in_place', true) RETURNING id"
+        )
+        dropfolder_id = cur.fetchone()[0]
+    try:
+        resp = client.post(
+            f"/admin/roots/{dropfolder_id}",
+            data={"label": "Route Test Drop 2", "ingest_mode": "relocate_to_dropfolder", "active": "on"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        with db_conn.cursor() as cur:
+            cur.execute("SELECT ingest_mode FROM watched_roots WHERE id = %s", (dropfolder_id,))
+            assert cur.fetchone()[0] == "index_in_place"
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM watched_roots WHERE id = %s", (dropfolder_id,))
+
+
 # ---- library page pagination (top and bottom) ------------------------------
 
 def test_index_shows_pagination_at_top_and_bottom_when_multiple_pages(client, make_file):

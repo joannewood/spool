@@ -113,7 +113,7 @@ reconcile_watched_roots() {
   if [ -n "$library" ]; then
     sql="$sql
 INSERT INTO watched_roots (host_path, container_path, label, kind, ingest_mode, active)
-SELECT '$library', '/roots/library', 'Library', 'existing_library', 'index_in_place', TRUE
+SELECT '$library', '/roots/library', 'Library', 'library', 'index_in_place', TRUE
 WHERE NOT EXISTS (SELECT 1 FROM watched_roots WHERE container_path = '/roots/library');
 UPDATE watched_roots SET host_path = '$library', active = TRUE WHERE container_path = '/roots/library';"
   else
@@ -124,7 +124,7 @@ UPDATE watched_roots SET active = FALSE WHERE container_path = '/roots/library';
   if [ -n "$downloads" ]; then
     sql="$sql
 INSERT INTO watched_roots (host_path, container_path, label, kind, ingest_mode, active)
-SELECT '$downloads', '/roots/downloads', 'Downloads', 'existing_library', 'relocate_to_dropfolder', TRUE
+SELECT '$downloads', '/roots/downloads', 'Downloads', 'downloads', 'relocate_to_dropfolder', TRUE
 WHERE NOT EXISTS (SELECT 1 FROM watched_roots WHERE container_path = '/roots/downloads');
 UPDATE watched_roots SET host_path = '$downloads', active = TRUE WHERE container_path = '/roots/downloads';"
   else

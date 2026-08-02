@@ -1,0 +1,13 @@
+-- Split from 017 into its own file specifically so it runs as a separate
+-- `psql -f` invocation, after 017's ADD VALUE has fully committed --
+-- Postgres won't let a brand-new enum value be used in the same
+-- transaction that added it, and every migration here is applied one
+-- file at a time (see tests/conftest.py, CLAUDE.md's manual-apply
+-- instructions), so this ordering is guaranteed by construction rather
+-- than by hoping psql doesn't wrap the whole file in one transaction.
+--
+-- Any root seeded with ingest_mode='relocate_to_dropfolder' is, by
+-- definition, the Downloads-style root (only Downloads uses that
+-- ingest_mode) -- 017 already renamed its kind from 'existing_library'
+-- to 'library', this corrects it to the new, more specific 'downloads'.
+UPDATE watched_roots SET kind = 'downloads' WHERE ingest_mode = 'relocate_to_dropfolder';

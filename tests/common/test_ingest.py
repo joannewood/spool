@@ -208,7 +208,7 @@ def test_stage_sidecar_is_idempotent_on_same_path(conn, make_root):
 # ---- relocate ---------------------------------------------------------------
 
 def test_relocate_root_level_file_flattens_into_dropfolder(make_root):
-    downloads = make_root(kind="existing_library", ingest_mode="relocate_to_dropfolder")
+    downloads = make_root(kind="downloads", ingest_mode="relocate_to_dropfolder")
     dropfolder = make_root(kind="drop_folder")
 
     src = _touch(downloads, "widget.stl")
@@ -220,7 +220,7 @@ def test_relocate_root_level_file_flattens_into_dropfolder(make_root):
 
 
 def test_relocate_root_level_collision_gets_hash_suffix(make_root):
-    downloads = make_root(kind="existing_library", ingest_mode="relocate_to_dropfolder")
+    downloads = make_root(kind="downloads", ingest_mode="relocate_to_dropfolder")
     dropfolder = make_root(kind="drop_folder")
 
     _touch(dropfolder, "widget.stl", content=b"already-here")
@@ -237,7 +237,7 @@ def test_relocate_root_level_collision_gets_hash_suffix(make_root):
 
 
 def test_relocate_leaf_folder_moves_whole_folder(make_root):
-    downloads = make_root(kind="existing_library", ingest_mode="relocate_to_dropfolder")
+    downloads = make_root(kind="downloads", ingest_mode="relocate_to_dropfolder")
     dropfolder = make_root(kind="drop_folder")
 
     kit_dir = os.path.join(downloads.container_path, "Kit")
@@ -260,7 +260,7 @@ def test_relocate_leaf_folder_moves_whole_folder(make_root):
 
 
 def test_relocate_leaf_folder_collision_gets_numeric_suffix(make_root):
-    downloads = make_root(kind="existing_library", ingest_mode="relocate_to_dropfolder")
+    downloads = make_root(kind="downloads", ingest_mode="relocate_to_dropfolder")
     dropfolder = make_root(kind="drop_folder")
 
     os.makedirs(os.path.join(dropfolder.container_path, "Kit"))
@@ -282,7 +282,7 @@ def test_relocate_leaf_folder_collision_gets_numeric_suffix(make_root):
 
 
 def test_relocate_parent_with_subdirectories_falls_back_to_flatten(make_root):
-    downloads = make_root(kind="existing_library", ingest_mode="relocate_to_dropfolder")
+    downloads = make_root(kind="downloads", ingest_mode="relocate_to_dropfolder")
     dropfolder = make_root(kind="drop_folder")
 
     kit_dir = os.path.join(downloads.container_path, "Kit")
@@ -303,7 +303,7 @@ def test_relocate_parent_with_subdirectories_falls_back_to_flatten(make_root):
 
 
 def test_relocate_already_relocated_by_concurrent_handler_returns_none(make_root):
-    downloads = make_root(kind="existing_library", ingest_mode="relocate_to_dropfolder")
+    downloads = make_root(kind="downloads", ingest_mode="relocate_to_dropfolder")
     dropfolder = make_root(kind="drop_folder")
 
     kit_dir = os.path.join(downloads.container_path, "Kit")

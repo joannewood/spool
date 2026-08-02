@@ -1717,6 +1717,73 @@ def test_rename_all_projects_needing_cleanup_renames_and_disambiguates(db_conn):
             cur.execute("DELETE FROM projects WHERE id IN (%s, %s, %s)", (project_a, project_b, already_clean))
 
 
+# ---- watched roots: ingest_mode is kind-locked -----------------------------
+
+def _make_watched_root(db_conn, path, label, kind, ingest_mode):
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO watched_roots (host_path, container_path, label, kind, ingest_mode, active) "
+            "VALUES (%s, %s, %s, %s, %s, true) RETURNING id",
+            (path, path, label, kind, ingest_mode),
+        )
+        return cur.fetchone()[0]
+
+
+def test_update_watched_root_applies_ingest_mode_for_library_kind(db_conn):
+    root_id = _make_watched_root(db_conn, "/tmp/kind-test-library", "Test Library", "library", "index_in_place")
+    try:
+        queries.update_watched_root(root_id, "Test Library", "relocate_to_dropfolder", True)
+        with db_conn.cursor() as cur:
+            cur.execute("SELECT ingest_mode FROM watched_roots WHERE id = %s", (root_id,))
+            assert cur.fetchone()[0] == "relocate_to_dropfolder"
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM watched_roots WHERE id = %s", (root_id,))
+
+
+def test_update_watched_root_ignores_ingest_mode_for_drop_folder_kind(db_conn):
+    # drop_folder always stays index_in_place -- relocate_to_dropfolder
+    # would try to move a file into the folder it's already in
+    # (common/ingest.py::relocate), a real, untested hazard.
+    root_id = _make_watched_root(db_conn, "/tmp/kind-test-dropfolder", "Test Drop", "drop_folder", "index_in_place")
+    try:
+        queries.update_watched_root(root_id, "Test Drop", "relocate_to_dropfolder", True)
+        with db_conn.cursor() as cur:
+            cur.execute("SELECT ingest_mode FROM watched_roots WHERE id = %s", (root_id,))
+            assert cur.fetchone()[0] == "index_in_place"
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM watched_roots WHERE id = %s", (root_id,))
+
+
+def test_update_watched_root_ignores_ingest_mode_for_downloads_kind(db_conn):
+    root_id = _make_watched_root(
+        db_conn, "/tmp/kind-test-downloads", "Test Downloads", "downloads", "relocate_to_dropfolder"
+    )
+    try:
+        queries.update_watched_root(root_id, "Test Downloads", "index_in_place", True)
+        with db_conn.cursor() as cur:
+            cur.execute("SELECT ingest_mode FROM watched_roots WHERE id = %s", (root_id,))
+            assert cur.fetchone()[0] == "relocate_to_dropfolder"
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM watched_roots WHERE id = %s", (root_id,))
+
+
+def test_update_watched_root_always_updates_label_and_active(db_conn):
+    root_id = _make_watched_root(db_conn, "/tmp/kind-test-label", "Old Label", "drop_folder", "index_in_place")
+    try:
+        queries.update_watched_root(root_id, "New Label", "index_in_place", False)
+        with db_conn.cursor() as cur:
+            cur.execute("SELECT label, active FROM watched_roots WHERE id = %s", (root_id,))
+            label, active = cur.fetchone()
+            assert label == "New Label"
+            assert active is False
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM watched_roots WHERE id = %s", (root_id,))
+
+
 # ---- app_settings (singleton row, id=1 — save/restore, never delete) ------
 
 @pytest.fixture

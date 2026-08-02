@@ -1483,10 +1483,25 @@ def list_watched_roots():
 
 
 def update_watched_root(root_id, label, ingest_mode, active):
+    """ingest_mode is only actually applied for kind='library' roots --
+    drop_folder and downloads each have exactly one sane ingest_mode
+    implied by their role (index_in_place / relocate_to_dropfolder
+    respectively; the admin UI locks their dropdown to a fixed display
+    for the same reason). This is the server-side backstop against a raw
+    POST bypassing that UI: relocate() moving a file into the folder it's
+    already in (drop_folder) is a real, untested code path, and flipping
+    downloads to index_in_place would silently disable the one thing that
+    root exists to do."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE watched_roots SET label = %s, ingest_mode = %s, active = %s WHERE id = %s",
+                """
+                UPDATE watched_roots
+                SET label = %s,
+                    ingest_mode = CASE WHEN kind = 'library' THEN %s ELSE ingest_mode END,
+                    active = %s
+                WHERE id = %s
+                """,
                 (label.strip(), ingest_mode, active, root_id),
             )
 

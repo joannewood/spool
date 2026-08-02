@@ -25,6 +25,16 @@ set -euo pipefail
 
 : "${DROPFOLDER_HOST_PATH:?DROPFOLDER_HOST_PATH must be set — copy .env.example to .env and fill in your real paths}"
 
+# Both rows below intentionally still use the pre-split 'existing_library'
+# kind, not 'library'/'downloads' — this file runs (003) before migrations
+# 017/018 (which rename that value to 'library' and reclassify the
+# Downloads-shaped row to 'downloads') on a fresh volume, so 'library'/
+# 'downloads' aren't valid enum values yet at the point this INSERT runs.
+# 017/018 fix these rows up automatically afterward in the same init
+# sequence — don't "fix" this to the new names, it would break a fresh
+# install. setup.sh/setup.ps1's own watched_roots INSERTs use the new
+# names directly since those run later, against an already-fully-migrated
+# database.
 VALUES="('$DROPFOLDER_HOST_PATH', '/roots/dropfolder', 'Drop folder', 'drop_folder', 'index_in_place', TRUE)"
 
 if [ -n "${LIBRARY_HOST_PATH:-}" ]; then

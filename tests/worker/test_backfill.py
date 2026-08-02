@@ -44,14 +44,14 @@ def test_walk_project_folders_yields_empty_model_paths_for_non_model_folder(tmp_
 # ---- run_backfill ------------------------------------------------------------
 
 def test_run_backfill_requires_a_dropfolder_root(conn, make_root):
-    make_root(kind="existing_library")  # no drop_folder root at all
+    make_root(kind="library")  # no drop_folder root at all
     with pytest.raises(RuntimeError):
         run_backfill(conn)
 
 
 def test_run_backfill_indexes_new_files_in_index_in_place_root(conn, make_root):
     dropfolder = make_root(kind="drop_folder")
-    library = make_root(kind="existing_library", ingest_mode="index_in_place")
+    library = make_root(kind="library", ingest_mode="index_in_place")
     _touch(os.path.join(library.container_path, "widget.stl"), b"geometry")
 
     run_backfill(conn)
@@ -66,7 +66,7 @@ def test_run_backfill_indexes_new_files_in_index_in_place_root(conn, make_root):
 
 def test_run_backfill_indexes_sidecar_only_for_folder_with_model_file(conn, make_root):
     dropfolder = make_root(kind="drop_folder")
-    library = make_root(kind="existing_library", ingest_mode="index_in_place")
+    library = make_root(kind="library", ingest_mode="index_in_place")
     _touch(os.path.join(library.container_path, "ProjectA", "widget.stl"))
     _touch(os.path.join(library.container_path, "ProjectA", "README.txt"))
     _touch(os.path.join(library.container_path, "JustPhotos", "photo.jpg"))
@@ -92,7 +92,7 @@ def test_run_backfill_relocates_whole_folder_for_relocate_to_dropfolder_root(con
     cycle, exercised below) picks up the straggler once it's already
     sitting in the drop folder."""
     dropfolder = make_root(kind="drop_folder")
-    downloads = make_root(kind="existing_library", ingest_mode="relocate_to_dropfolder")
+    downloads = make_root(kind="downloads", ingest_mode="relocate_to_dropfolder")
     _touch(os.path.join(downloads.container_path, "Kit", "part_a.stl"))
     _touch(os.path.join(downloads.container_path, "Kit", "part_b.stl"))
     _touch(os.path.join(downloads.container_path, "Kit", "README.txt"))
@@ -129,7 +129,7 @@ def test_run_backfill_relocates_whole_folder_for_relocate_to_dropfolder_root(con
 
 def test_run_backfill_creates_suggested_project_for_single_file_folder(conn, make_root):
     dropfolder = make_root(kind="drop_folder")
-    library = make_root(kind="existing_library", ingest_mode="index_in_place")
+    library = make_root(kind="library", ingest_mode="index_in_place")
     _touch(os.path.join(library.container_path, "SoloWidget", "widget.stl"))
 
     run_backfill(conn)
@@ -160,7 +160,7 @@ def test_run_backfill_skips_unreadable_file_without_crashing(conn, make_root, mo
     import common.ingest as ingest_module
 
     dropfolder = make_root(kind="drop_folder")
-    library = make_root(kind="existing_library", ingest_mode="index_in_place")
+    library = make_root(kind="library", ingest_mode="index_in_place")
     bad_path = _touch(os.path.join(library.container_path, "corrupted.stl"))
     _touch(os.path.join(library.container_path, "good.stl"))
 

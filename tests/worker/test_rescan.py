@@ -28,14 +28,14 @@ def _get_file(conn, filename):
 def test_run_rescan_requires_a_dropfolder_root(conn, make_root):
     import pytest
 
-    make_root(kind="existing_library")
+    make_root(kind="library")
     with pytest.raises(RuntimeError):
         run_rescan(conn)
 
 
 def test_run_rescan_discovers_new_file(conn, make_root):
     make_root(kind="drop_folder")
-    library = make_root(kind="existing_library")
+    library = make_root(kind="library")
     _touch(os.path.join(library.container_path, "widget.stl"), b"geometry")
 
     run_rescan(conn)
@@ -49,7 +49,7 @@ def test_run_rescan_discovers_new_file(conn, make_root):
 
 def test_run_rescan_marks_removed_file_missing(conn, make_root):
     make_root(kind="drop_folder")
-    library = make_root(kind="existing_library")
+    library = make_root(kind="library")
     path = _touch(os.path.join(library.container_path, "widget.stl"))
     run_rescan(conn)  # first pass: discover it
 
@@ -62,7 +62,7 @@ def test_run_rescan_marks_removed_file_missing(conn, make_root):
 
 def test_run_rescan_revives_missing_file_with_unchanged_content(conn, make_root):
     make_root(kind="drop_folder")
-    library = make_root(kind="existing_library")
+    library = make_root(kind="library")
     path = _touch(os.path.join(library.container_path, "widget.stl"), b"geometry")
     run_rescan(conn)
     original_hash = _get_file(conn, "widget.stl")["content_hash"]
@@ -81,7 +81,7 @@ def test_run_rescan_revives_missing_file_with_unchanged_content(conn, make_root)
 
 def test_run_rescan_rehashes_on_real_content_change(conn, make_root):
     make_root(kind="drop_folder")
-    library = make_root(kind="existing_library")
+    library = make_root(kind="library")
     path = _touch(os.path.join(library.container_path, "widget.stl"), b"geometry-v1")
     run_rescan(conn)
     before = _get_file(conn, "widget.stl")
@@ -116,7 +116,7 @@ def test_run_rescan_rehashes_on_real_content_change(conn, make_root):
 
 def test_run_rescan_touch_only_does_not_trigger_rerender(conn, make_root):
     make_root(kind="drop_folder")
-    library = make_root(kind="existing_library")
+    library = make_root(kind="library")
     path = _touch(os.path.join(library.container_path, "widget.stl"), b"geometry")
     run_rescan(conn)
     before = _get_file(conn, "widget.stl")
@@ -150,7 +150,7 @@ def test_run_rescan_touch_only_does_not_trigger_rerender(conn, make_root):
 
 def test_run_rescan_detects_moved_file_and_preserves_relationships(conn, make_root):
     make_root(kind="drop_folder")
-    library = make_root(kind="existing_library")
+    library = make_root(kind="library")
     path = _touch(os.path.join(library.container_path, "widget.stl"), b"geometry")
     run_rescan(conn)
     before = _get_file(conn, "widget.stl")
@@ -191,7 +191,7 @@ def test_run_rescan_does_not_treat_a_missing_files_old_hash_as_a_move_source(con
     # (e.g. re-downloading the exact same model) should get its own new
     # row, not silently resurrect the old one at the new path.
     make_root(kind="drop_folder")
-    library = make_root(kind="existing_library")
+    library = make_root(kind="library")
     path = _touch(os.path.join(library.container_path, "widget.stl"), b"geometry")
     run_rescan(conn)
     before = _get_file(conn, "widget.stl")
@@ -218,7 +218,7 @@ def _get_sidecar(conn, filename):
 
 def test_run_rescan_marks_removed_sidecar_missing(conn, make_root):
     make_root(kind="drop_folder")
-    library = make_root(kind="existing_library")
+    library = make_root(kind="library")
     folder = os.path.join(library.container_path, "Kit")
     _touch(os.path.join(folder, "widget.stl"))
     sidecar_path = _touch(os.path.join(folder, "README.txt"))
@@ -233,7 +233,7 @@ def test_run_rescan_marks_removed_sidecar_missing(conn, make_root):
 
 def test_run_rescan_revives_missing_sidecar_that_reappears(conn, make_root):
     make_root(kind="drop_folder")
-    library = make_root(kind="existing_library")
+    library = make_root(kind="library")
     folder = os.path.join(library.container_path, "Kit")
     _touch(os.path.join(folder, "widget.stl"))
     sidecar_path = _touch(os.path.join(folder, "README.txt"))
@@ -278,7 +278,7 @@ def test_run_rescan_skips_unreadable_file_without_aborting_the_pass(conn, make_r
     import common.ingest as ingest_module
 
     dropfolder = make_root(kind="drop_folder")
-    library = make_root(kind="existing_library", ingest_mode="index_in_place")
+    library = make_root(kind="library", ingest_mode="index_in_place")
     bad_path = _touch(os.path.join(library.container_path, "corrupted.stl"))
     _touch(os.path.join(library.container_path, "good.stl"))
 

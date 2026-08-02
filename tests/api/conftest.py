@@ -19,7 +19,7 @@ def test_root_id(db_conn):
         cur.execute(
             """
             INSERT INTO watched_roots (host_path, container_path, label, kind, ingest_mode, active)
-            VALUES ('/tmp/api-test-root', '/tmp/api-test-root', 'api test root', 'existing_library', 'index_in_place', true)
+            VALUES ('/tmp/api-test-root', '/tmp/api-test-root', 'api test root', 'library', 'index_in_place', true)
             RETURNING id
             """
         )

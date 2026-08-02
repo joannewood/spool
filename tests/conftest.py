@@ -100,7 +100,7 @@ def make_root(conn, tmp_path):
     ingestion logic itself."""
     counter = {"n": 0}
 
-    def _make(label=None, kind="existing_library", ingest_mode="index_in_place", active=True, path=None):
+    def _make(label=None, kind="library", ingest_mode="index_in_place", active=True, path=None):
         counter["n"] += 1
         n = counter["n"]
         root_dir = path or (tmp_path / f"root{n}")

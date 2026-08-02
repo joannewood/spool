@@ -160,11 +160,16 @@
           <td><code>{{ r.host_path }}</code></td>
           <td>{{ r.kind }}</td>
           <td>
+            {% if r.kind == "library" %}
             <select name="ingest_mode" form="root-form-{{ r.id }}">
               {% for m in ingest_modes %}
               <option value="{{ m }}" {% if m == r.ingest_mode %}selected{% endif %}>{{ m }}</option>
               {% endfor %}
             </select>
+            {% else %}
+            {{ r.ingest_mode }}
+            <input type="hidden" name="ingest_mode" form="root-form-{{ r.id }}" value="{{ r.ingest_mode }}">
+            {% endif %}
           </td>
           <td><input type="checkbox" name="active" form="root-form-{{ r.id }}" {% if r.active %}checked{% endif %}></td>
           <td>{{ r.file_count }}</td>

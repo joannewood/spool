@@ -166,14 +166,14 @@ function Sync-WatchedRoots {
     $sql = "UPDATE watched_roots SET host_path = '$dropfolder', active = TRUE WHERE container_path = '/roots/dropfolder';`n"
 
     if ($library) {
-        $sql += "INSERT INTO watched_roots (host_path, container_path, label, kind, ingest_mode, active) SELECT '$library', '/roots/library', 'Library', 'existing_library', 'index_in_place', TRUE WHERE NOT EXISTS (SELECT 1 FROM watched_roots WHERE container_path = '/roots/library');`n"
+        $sql += "INSERT INTO watched_roots (host_path, container_path, label, kind, ingest_mode, active) SELECT '$library', '/roots/library', 'Library', 'library', 'index_in_place', TRUE WHERE NOT EXISTS (SELECT 1 FROM watched_roots WHERE container_path = '/roots/library');`n"
         $sql += "UPDATE watched_roots SET host_path = '$library', active = TRUE WHERE container_path = '/roots/library';`n"
     } else {
         $sql += "UPDATE watched_roots SET active = FALSE WHERE container_path = '/roots/library';`n"
     }
 
     if ($downloads) {
-        $sql += "INSERT INTO watched_roots (host_path, container_path, label, kind, ingest_mode, active) SELECT '$downloads', '/roots/downloads', 'Downloads', 'existing_library', 'relocate_to_dropfolder', TRUE WHERE NOT EXISTS (SELECT 1 FROM watched_roots WHERE container_path = '/roots/downloads');`n"
+        $sql += "INSERT INTO watched_roots (host_path, container_path, label, kind, ingest_mode, active) SELECT '$downloads', '/roots/downloads', 'Downloads', 'downloads', 'relocate_to_dropfolder', TRUE WHERE NOT EXISTS (SELECT 1 FROM watched_roots WHERE container_path = '/roots/downloads');`n"
         $sql += "UPDATE watched_roots SET host_path = '$downloads', active = TRUE WHERE container_path = '/roots/downloads';`n"
     } else {
         $sql += "UPDATE watched_roots SET active = FALSE WHERE container_path = '/roots/downloads';`n"
