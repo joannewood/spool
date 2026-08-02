@@ -4,7 +4,27 @@
 {% block title %}Projects — SPOOL{% endblock %}
 {% block content %}
 
+{# Same shape as _bulk_review_paging.html's controls() (total count +
+   page-size select + Prev/Next), duplicated here rather than imported
+   since that macro's page-size form has no q/view to preserve and
+   always targets a plain full-page GET — this version keeps /projects'
+   existing htmx partial-swap for Prev/Next and carries q/view through
+   the page-size form too. #}
 {% macro pagination(position) %}
+<div class="bulk-review-paging">
+  <span class="note-inline">{{ total }} total</span>
+  <form method="GET" action="/projects" class="inline-form">
+    <input type="hidden" name="view" value="{{ view }}">
+    {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+    <label>
+      Page size
+      <select name="page_size" onchange="this.form.submit()">
+        {% for size in page_sizes %}
+        <option value="{{ size }}" {% if size == page_size %}selected{% endif %}>{{ "All" if size == "all" else size }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </form>
   {% if total_pages > 1 %}
   <nav class="pagination pagination-{{ position }}">
     {% if page > 1 %}
@@ -16,6 +36,7 @@
     {% endif %}
   </nav>
   {% endif %}
+</div>
 {% endmacro %}
 
 <div class="page-header-row">

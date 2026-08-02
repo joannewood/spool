@@ -1093,7 +1093,7 @@ def test_admin_update_root_route_ignores_ingest_mode_change_for_drop_folder(clie
 # ---- library page pagination (top and bottom) ------------------------------
 
 def test_index_shows_pagination_at_top_and_bottom_when_multiple_pages(client, make_file):
-    from spool_api.queries import PAGE_SIZE
+    from spool_api.queries import BULK_REVIEW_PAGE_SIZE_DEFAULT as PAGE_SIZE
 
     for i in range(PAGE_SIZE + 1):
         make_file(filename=f"pagination-test-{i}.stl")
@@ -1112,6 +1112,23 @@ def test_index_no_pagination_shown_for_a_single_page(client, make_file):
     assert resp.status_code == 200
     assert "pagination-top" not in resp.text
     assert "pagination-bottom" not in resp.text
+
+
+def test_index_shows_total_and_page_size_selector_once(client):
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert resp.text.count('name="page_size"') == 1  # not once per pagination() call
+    assert 'value="100" selected' in resp.text  # the default
+
+
+def test_index_remembers_page_size_via_cookie(client):
+    first = client.get("/", params={"page_size": "500"})
+    assert first.status_code == 200
+    assert first.cookies.get("bulk_review_page_size") == "500"
+
+    second = client.get("/")
+    assert second.status_code == 200
+    assert 'value="500" selected' in second.text
 
 
 # ---- bulk-review "all" page size + page-size cookie persistence -----------
@@ -1376,7 +1393,7 @@ def test_projects_index_cards_view_respects_search(client):
 
 def test_projects_tree_view_paginates_by_top_level_project(client):
     from spool_api import queries
-    from spool_api.queries import PAGE_SIZE
+    from spool_api.queries import BULK_REVIEW_PAGE_SIZE_DEFAULT as PAGE_SIZE
 
     ids = [queries.create_project(f"Pagination Root {i:03d}", "", None) for i in range(PAGE_SIZE + 1)]
     try:
@@ -1396,7 +1413,7 @@ def test_projects_tree_view_paginates_by_top_level_project(client):
 
 def test_projects_cards_view_paginates(client):
     from spool_api import queries
-    from spool_api.queries import PAGE_SIZE
+    from spool_api.queries import BULK_REVIEW_PAGE_SIZE_DEFAULT as PAGE_SIZE
 
     ids = [queries.create_project(f"Pagination Card {i:03d}", "", None) for i in range(PAGE_SIZE + 1)]
     try:
@@ -1410,7 +1427,7 @@ def test_projects_cards_view_paginates(client):
 
 def test_projects_search_results_paginate(client):
     from spool_api import queries
-    from spool_api.queries import PAGE_SIZE
+    from spool_api.queries import BULK_REVIEW_PAGE_SIZE_DEFAULT as PAGE_SIZE
 
     ids = [queries.create_project(f"Pagsearch Result {i:03d}", "", None) for i in range(PAGE_SIZE + 1)]
     try:
@@ -1420,6 +1437,32 @@ def test_projects_search_results_paginate(client):
     finally:
         with queries.get_connection() as conn, conn.cursor() as cur:
             cur.execute("DELETE FROM projects WHERE id = ANY(%s)", (ids,))
+
+
+def test_projects_shows_total_count_and_page_size_selector(client):
+    resp = client.get("/projects")
+    assert resp.status_code == 200
+    assert "total" in resp.text
+    assert 'name="page_size"' in resp.text
+    assert 'value="100" selected' in resp.text  # the default
+
+
+def test_projects_remembers_page_size_via_cookie(client):
+    first = client.get("/projects", params={"page_size": "500"})
+    assert first.status_code == 200
+    assert first.cookies.get("bulk_review_page_size") == "500"
+
+    # No explicit page_size this time — the cookie set above should carry
+    # forward instead of resetting to the 100 default.
+    second = client.get("/projects")
+    assert second.status_code == 200
+    assert 'value="500" selected' in second.text
+
+
+def test_projects_garbage_page_size_falls_back_to_default(client):
+    resp = client.get("/projects", params={"page_size": "not-a-real-value"})
+    assert resp.status_code == 200
+    assert 'value="100" selected' in resp.text
 
 
 def test_projects_page_links_to_bulk_rename_when_cleanup_needed(client):

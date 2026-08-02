@@ -209,15 +209,17 @@ def index(
     slicer: str = "",
     sort: str = "newest",
     page: int = 1,
+    page_size: str = None,
 ):
-    page = max(page, 1)
     if sort not in queries.SORT_CLAUSES:
         sort = "newest"
     if printed not in ("", "yes", "no"):
         printed = ""
+    page, page_size = _resolve_bulk_review_paging(request, page, page_size)
     files, total, total_pages = queries.search_files(
         q, ext, tag, page, sort,
         ratings=rating, printed=printed, material=material, printer_profile=printer_profile, slicer=slicer,
+        page_size=page_size,
     )
 
     qs_params = (
@@ -230,10 +232,11 @@ def index(
         + ([("printer_profile", printer_profile)] if printer_profile else [])
         + ([("slicer", slicer)] if slicer else [])
         + ([("sort", sort)] if sort != "newest" else [])
+        + [("page_size", page_size)]
     )
     base_qs = urlencode(qs_params)
 
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         request,
         "index.html",
         {
@@ -255,10 +258,14 @@ def index(
             "sort": sort,
             "sort_options": SORT_OPTIONS,
             "page": page,
+            "page_size": page_size,
+            "page_sizes": queries.BULK_REVIEW_PAGE_SIZES,
             "total_pages": total_pages,
             "base_qs": base_qs,
         },
     )
+    response.set_cookie(BULK_REVIEW_PAGE_SIZE_COOKIE, str(page_size), max_age=31536000)
+    return response
 
 
 @app.get("/files/{file_id}", response_class=HTMLResponse)
@@ -328,55 +335,62 @@ def _build_project_tree(rows):
     return roots
 
 
+def _paginate_list(items, page, page_size):
+    """Python-side equivalent of the bulk-review pages' SQL LIMIT/OFFSET
+    slicing, for /projects' already-fully-fetched-in-Python lists (the
+    tree needs every row anyway to compute parent/child structure, so
+    there's no equivalent SQL query to push a LIMIT into)."""
+    if page_size == "all":
+        return items, len(items)
+    offset = (page - 1) * page_size
+    return items[offset : offset + page_size], len(items)
+
+
 @app.get("/projects", response_class=HTMLResponse)
-def projects_index(request: Request, q: str = "", view: str = None, page: int = 1):
+def projects_index(request: Request, q: str = "", view: str = None, page: int = 1, page_size: str = None):
     # An explicit `view` query value wins (the toggle links always send
     # one); otherwise fall back to a previously-saved cookie, defaulting
     # to the original tree/list view — same resolve-then-persist pattern
-    # already used for the bulk-review pages' page_size.
+    # already used for the bulk-review pages' page_size (reused as-is
+    # below, rather than a second near-identical cookie/constant pair —
+    # "how many rows do I want per page" is the same preference either
+    # way, review queue or plain browsing).
     if view not in ("list", "cards"):
         view = request.cookies.get(PROJECTS_VIEW_COOKIE, "list")
     if view not in ("list", "cards"):
         view = "list"
-    page = max(1, page)
+    page, page_size = _resolve_bulk_review_paging(request, page, page_size)
 
     projects = queries.list_projects()
     search_results = queries.search_projects(q) if q else None
 
-    # Same PAGE_SIZE/flat-slice pagination as the library grid, applied to
-    # whichever flat list is actually being displayed. The no-search tree
-    # view is the one exception: a tree can't be sliced by row without
-    # breaking parent/child continuity across pages, so it paginates by
-    # top-level project instead -- each page shows a full subtree for N
-    # root projects rather than a fixed count of nodes overall. Slicing
-    # happens before attach_project_card_visuals (Cards view only) so
-    # that per-item enrichment work is never done for a page that isn't
-    # even being rendered.
+    # Same flat-slice pagination as the library grid, applied to whichever
+    # flat list is actually being displayed. The no-search tree view is
+    # the one exception: a tree can't be sliced by row without breaking
+    # parent/child continuity across pages, so it paginates by top-level
+    # project instead -- each page shows a full subtree for N root
+    # projects rather than a fixed count of nodes overall. Slicing happens
+    # before attach_project_card_visuals (Cards view only) so that
+    # per-item enrichment work is never done for a page that isn't even
+    # being rendered.
     if view == "cards":
         # Cards always render as a flat grid — reuses the search-results
         # list when searching (already flat), or every project otherwise,
         # since a nested tree doesn't have a natural grid layout anyway.
         full_list = search_results if search_results is not None else list(projects)
-        total = len(full_list)
-        offset = (page - 1) * queries.PAGE_SIZE
-        card_projects = full_list[offset : offset + queries.PAGE_SIZE]
+        card_projects, total = _paginate_list(full_list, page, page_size)
         queries.attach_project_card_visuals(card_projects)
         tree = []
     elif search_results is not None:
-        total = len(search_results)
-        offset = (page - 1) * queries.PAGE_SIZE
-        search_results = search_results[offset : offset + queries.PAGE_SIZE]
+        search_results, total = _paginate_list(search_results, page, page_size)
         card_projects = None
         tree = []
     else:
         card_projects = None
-        all_roots = _build_project_tree(projects)
-        total = len(all_roots)
-        offset = (page - 1) * queries.PAGE_SIZE
-        tree = all_roots[offset : offset + queries.PAGE_SIZE]
+        tree, total = _paginate_list(_build_project_tree(projects), page, page_size)
 
-    total_pages = max(1, -(-total // queries.PAGE_SIZE))
-    base_qs = urlencode({"view": view, **({"q": q} if q else {})})
+    total_pages = _bulk_review_total_pages(total, page_size)
+    base_qs = urlencode({"view": view, "page_size": page_size, **({"q": q} if q else {})})
 
     response = templates.TemplateResponse(
         request,
@@ -390,11 +404,15 @@ def projects_index(request: Request, q: str = "", view: str = None, page: int = 
             "card_projects": card_projects,
             "cleanup_count": queries.count_projects_needing_name_cleanup(),
             "page": page,
+            "page_size": page_size,
+            "page_sizes": queries.BULK_REVIEW_PAGE_SIZES,
+            "total": total,
             "total_pages": total_pages,
             "base_qs": base_qs,
         },
     )
     response.set_cookie(PROJECTS_VIEW_COOKIE, view, max_age=31536000)
+    response.set_cookie(BULK_REVIEW_PAGE_SIZE_COOKIE, str(page_size), max_age=31536000)
     return response
 
 

@@ -13,7 +13,24 @@
   {% endif %}
 {% endmacro %}
 <div id="results">
-  <p class="result-count">{{ total }} file{{ "s" if total != 1 else "" }}</p>
+  <div class="result-count-row">
+    <p class="result-count">{{ total }} file{{ "s" if total != 1 else "" }}</p>
+    {# form="search-form" (not a nested <form>) -- same trick the sidebar
+       filter-panel checkboxes already use to submit into the one outer
+       #search-form despite living elsewhere in the DOM; the form's own
+       "change from:select" htmx trigger already covers this control for
+       free. Rendered once (not inside the pagination macro, which is
+       called for both top and bottom) since two <select name="page_size">
+       tied to the same form would submit two conflicting values. #}
+    <label class="page-size-label">
+      Page size
+      <select name="page_size" form="search-form">
+        {% for size in page_sizes %}
+        <option value="{{ size }}" {% if size == page_size %}selected{% endif %}>{{ "All" if size == "all" else size }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
 
   {{ pagination("top") }}
 

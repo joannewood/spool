@@ -418,7 +418,7 @@ def _collapse_fully_matching_projects(all_rows, fully_matching):
 
 def search_files(
     q, extensions, tags, page, sort="newest",
-    ratings=None, printed=None, material=None, printer_profile=None, slicer=None,
+    ratings=None, printed=None, material=None, printer_profile=None, slicer=None, page_size=PAGE_SIZE,
 ):
     conditions = ["status = 'active'"]
     params = []
@@ -539,11 +539,14 @@ def search_files(
             fully_matching = _find_fully_matching_projects(cur, all_rows, where, params)
             items = _collapse_fully_matching_projects(all_rows, fully_matching) if fully_matching else all_rows
 
-            offset = (page - 1) * PAGE_SIZE
-            rows = items[offset : offset + PAGE_SIZE]
+            if page_size == "all":
+                rows = items
+            else:
+                offset = (page - 1) * page_size
+                rows = items[offset : offset + page_size]
             _attach_render_errors(cur, [r for r in rows if not r.get("is_project_card")])
 
-    total_pages = max(1, -(-len(items) // PAGE_SIZE))  # ceil division, over post-collapse items
+    total_pages = 1 if page_size == "all" else max(1, -(-len(items) // page_size))  # ceil division, post-collapse
     return rows, total_files, total_pages
 
 
