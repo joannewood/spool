@@ -235,18 +235,18 @@ but every configured app is always clickable for any file.
   your mind.
 - **Watched roots** — edit the label, pause, or reactivate any of your
   three configured folders.
-- **Status** — the live processing dashboard mentioned above: what's
-  running right now, recent successes/failures (with the full error for
-  anything that failed), and per-folder file counts.
+
+The top of `/admin` also shows an at-a-glance summary — auto-sync health
+and what's currently processing. For the full picture (recent successes/
+failures with the full error for anything that failed, per-folder file
+counts, and auto-sync settings), see the **Status** page, its own tab in
+the nav.
 
 ## Best practices for testers
 
 - **This is a personal, single-user tool, not a shared service.** There's
   no login and no per-user separation — SPOOL is meant to run on *your
-  own* computer against *your own* folders. If several of you are trying
-  it out, each person should do their own setup on their own machine
-  (their own `.env`, their own `http://localhost:8000`), not share one
-  running copy over a network.
+  own* computer against *your own* folders.
 - **Confirming an archive deletes the original after extracting it.**
   Once you click Confirm on `/admin/pending-archives`, SPOOL extracts the
   contents into your drop folder and removes the original `.zip`/`.7z`/
