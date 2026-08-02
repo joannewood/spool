@@ -112,8 +112,12 @@
 <section class="panel">
   <h2>Watched roots</h2>
   <p class="note">
-    Editing or pausing a root below takes effect live within a few seconds, no restart needed.
-    Adding a brand-new root isn't supported here — Docker can't attach a new bind mount to an
+    Editing or pausing a root below takes effect live within a few seconds, no restart needed
+    (though the folder path itself can't be changed here — see below).
+    To add a Library/Downloads folder you skipped at setup, change an existing path, or turn one
+    off, re-run the SPOOL Installer (or <code>setup.sh</code> / <code>setup.ps1</code>) and choose
+    <strong>Re-run Full Setup</strong> — no terminal needed. A genuinely new <em>fourth</em> watched
+    folder beyond these three isn't supported this way — Docker can't attach a new bind mount to an
     already-running container, so that still needs a <code>docker-compose.yml</code> change and
     <code>docker compose up -d --build</code>.
   </p>
