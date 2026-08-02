@@ -1114,11 +1114,25 @@ def test_index_no_pagination_shown_for_a_single_page(client, make_file):
     assert "pagination-bottom" not in resp.text
 
 
-def test_index_shows_total_and_page_size_selector_once(client):
+def test_index_shows_total_and_page_size_selector_top_and_bottom(client):
     resp = client.get("/")
     assert resp.status_code == 200
-    assert resp.text.count('name="page_size"') == 1  # not once per pagination() call
-    assert 'value="100" selected' in resp.text  # the default
+    # Once per pagination() call (top and bottom) -- each is independently
+    # wired (own hx-get), not two fields sharing one form.
+    assert resp.text.count('name="page_size"') == 2
+    assert resp.text.count('value="100" selected') == 2  # the default, in both
+
+
+def test_index_search_form_trigger_excludes_page_size_selects(client):
+    # Regression guard: #search-form's own "change from:select" trigger
+    # used to match ANY select on the page, including the two independent
+    # page-size selects -- changing page_size fired both the select's own
+    # request AND the whole search form's (with no page_size at all), a
+    # race that silently reverted the change depending on which response
+    # landed last. Confirmed live before this exclusion was added.
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert "select:not([name='page_size'])" in resp.text
 
 
 def test_index_remembers_page_size_via_cookie(client):

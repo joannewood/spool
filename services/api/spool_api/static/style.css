@@ -584,6 +584,20 @@ main {
 }
 .bulk-review-paging .pagination { margin: 0; }
 .bulk-review-paging label { display: flex; align-items: center; gap: 6px; }
+/* The library page's page-size <select> lives directly in this row (not
+   wrapped in a .inline-form, unlike every other bulk-review-paging use)
+   since it's tied into #search-form via a form="" attribute instead of
+   its own <form> -- needs its own explicit styling or it falls back to
+   raw browser chrome (confirmed live: light-gray background, black text,
+   even in dark mode) instead of matching every other select in the app. */
+.bulk-review-paging select {
+  padding: 4px 26px 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background-color: var(--bg);
+  color: var(--ink);
+  font-size: var(--fs-sm);
+}
 
 /* detail page */
 .back {
@@ -853,7 +867,14 @@ button.app-icon-btn {
   padding: 6px 8px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: var(--bg);
+  /* background-color (not the background shorthand) -- the shorthand
+     resets background-image to none, which would silently kill the
+     select chevron the global `select {}` rule provides (same class of
+     bug already fixed once for .admin-table/.stack-form selects; this
+     .inline-form instance was missed at the time). Confirmed live: the
+     bulk-review pages' own page-size <select> (this exact class) was
+     rendering with no chevron at all in dark mode until this fix. */
+  background-color: var(--bg);
   color: var(--ink);
   font-size: var(--fs-sm);
 }
@@ -862,7 +883,6 @@ button.app-icon-btn {
   text-overflow: ellipsis;
   white-space: nowrap;
   padding-right: 26px;
-  background-color: var(--bg);
 }
 .inline-form button {
   padding: 6px 12px;

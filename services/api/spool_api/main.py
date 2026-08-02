@@ -235,6 +235,10 @@ def index(
         + [("page_size", page_size)]
     )
     base_qs = urlencode(qs_params)
+    # For the page-size <select> itself (see _results.html) -- its own
+    # value must never appear twice in one request, so this omits
+    # page_size entirely and lets the select's own name/value supply it.
+    base_qs_no_size = urlencode([p for p in qs_params if p[0] != "page_size"])
 
     response = templates.TemplateResponse(
         request,
@@ -262,6 +266,7 @@ def index(
             "page_sizes": queries.BULK_REVIEW_PAGE_SIZES,
             "total_pages": total_pages,
             "base_qs": base_qs,
+            "base_qs_no_size": base_qs_no_size,
         },
     )
     response.set_cookie(BULK_REVIEW_PAGE_SIZE_COOKIE, str(page_size), max_age=31536000)

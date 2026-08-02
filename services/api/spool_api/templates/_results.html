@@ -1,27 +1,27 @@
 {% import "_file_card.html" as cards %}
 {# Same grouped shape as _bulk_review_paging.html's controls() (total +
    page size + Prev/Next all in one .bulk-review-paging row, repeated
-   above and below the results) -- the one deliberate difference is the
-   page-size <select> itself only appears in the top instance. It's tied
-   into the one shared #search-form (via form="search-form", the same
-   trick the sidebar filter checkboxes use) so changing it resubmits
-   every other active filter along with it, rather than resetting them;
-   a second <select name="page_size"> tied to that same form would just
-   submit two conflicting values, so the bottom row shows total + nav
-   only. #}
+   above and below the results). The page-size <select> here is NOT tied
+   into #search-form (unlike the sidebar filter checkboxes, which submit
+   into it via form="search-form") -- this macro renders twice (top and
+   bottom), and two <select name="page_size"> sharing one form would
+   submit two conflicting values. Instead each copy carries its own
+   hx-get built from base_qs_no_size (every other active filter, with
+   page_size deliberately left out) -- htmx includes a triggering
+   element's own name/value in the request even without a surrounding
+   form, so the select's own choice supplies page_size cleanly either
+   way, independent of whichever other copy is on the page. #}
 {% macro pagination(position) %}
   <div class="bulk-review-paging">
     <span class="note-inline">{{ total }} file{{ "s" if total != 1 else "" }}</span>
-    {% if position == "top" %}
     <label>
       Page size
-      <select name="page_size" form="search-form">
+      <select name="page_size" hx-get="/?{{ base_qs_no_size }}" hx-target="#results" hx-select="#results" hx-swap="outerHTML" hx-push-url="true" hx-trigger="change">
         {% for size in page_sizes %}
         <option value="{{ size }}" {% if size == page_size %}selected{% endif %}>{{ "All" if size == "all" else size }}</option>
         {% endfor %}
       </select>
     </label>
-    {% endif %}
     {% if total_pages > 1 %}
     <nav class="pagination pagination-{{ position }}">
       {% if page > 1 %}
