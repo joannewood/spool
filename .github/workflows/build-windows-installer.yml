@@ -66,18 +66,39 @@ jobs:
         # throw, and (2) try/catch really does suppress it while
         # $LASTEXITCODE still correctly reflects the native process's
         # real exit code afterward.
+        #
+        # Must run under powershell.exe (Windows PowerShell 5.1), NOT
+        # this step's own pwsh (PowerShell 7) host -- confirmed live that
+        # this matters: the first version of this check ran inline under
+        # pwsh and the unwrapped call did NOT throw there at all (PS7
+        # doesn't have this 5.1-specific stderr-promotion quirk), which
+        # would have been a false negative for the exact bug this exists
+        # to catch. Inno Setup's [Run] step launches setup.ps1 via plain
+        # `powershell.exe`, so that's what has to be tested here too --
+        # same reasoning as the "Verify -STA" step above spawning a real
+        # separate process instead of trusting its own host.
         run: |
-          $ErrorActionPreference = "Stop"
-          $threw = $false
-          try {
-              cmd /c "echo fakeerror 1>&2 & exit 3" 2>$null 1>$null
-          } catch {
-              $threw = $true
-          }
-          Write-Host "Unwrapped call threw: $threw; LASTEXITCODE: $LASTEXITCODE"
-          if (-not $threw) { throw "expected the unwrapped native-stderr redirection to throw under ErrorActionPreference=Stop -- if it doesn't, the bug this fix targets may not be real" }
-          if ($LASTEXITCODE -ne 3) { throw "expected LASTEXITCODE to still be 3 after the caught exception, got $LASTEXITCODE" }
-          Write-Host "Confirmed: try/catch suppresses the spurious exception while LASTEXITCODE survives correctly."
+          # An @'...'@ here-string won't survive this YAML block's own
+          # indentation (PowerShell requires the closing '@ at column 0,
+          # which YAML block-scalar rules don't allow here) -- an array
+          # of plain single-quoted lines sidesteps that entirely.
+          $lines = @(
+              '$ErrorActionPreference = "Stop"',
+              '$threw = $false',
+              'try {',
+              '    cmd /c "echo fakeerror 1>&2 & exit 3" 2>$null 1>$null',
+              '} catch {',
+              '    $threw = $true',
+              '}',
+              'Write-Host "Unwrapped call threw: $threw; LASTEXITCODE: $LASTEXITCODE"',
+              'if (-not $threw) { throw "expected the unwrapped native-stderr redirection to throw under ErrorActionPreference=Stop on Windows PowerShell 5.1 -- if it doesn''t, the bug this fix targets may not be real" }',
+              'if ($LASTEXITCODE -ne 3) { throw "expected LASTEXITCODE to still be 3 after the caught exception, got $LASTEXITCODE" }',
+              'Write-Host "Confirmed: try/catch suppresses the spurious exception while LASTEXITCODE survives correctly."'
+          )
+          $testScript = Join-Path $env:RUNNER_TEMP "verify-stderr-fix.ps1"
+          $lines | Set-Content -Path $testScript
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $testScript
+          if ($LASTEXITCODE -ne 0) { throw "powershell.exe (Windows PowerShell 5.1) verification failed -- see output above" }
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
