@@ -69,12 +69,32 @@ function Get-DefaultAppLabel($exePath) {
 }
 
 function Select-AppExecutable($groupLabel, $hint) {
+    # A real tester reported the file dialog opening behind other windows
+    # ("you see a file explorer window but have to go and look for the
+    # prompt dialog") -- OpenFileDialog.ShowDialog() with no owner has no
+    # window to anchor its Z-order to, especially when launched from a
+    # background/detached process the way setup.ps1 does. A hidden,
+    # TopMost owner form fixes this: passing it to ShowDialog(owner)
+    # ties the dialog to a real foreground window instead of floating
+    # with no anchor.
+    $owner = New-Object System.Windows.Forms.Form
+    $owner.TopMost = $true
+    $owner.ShowInTaskbar = $false
+    $owner.StartPosition = "CenterScreen"
+    $owner.WindowState = "Minimized"
+    $owner.Show()
+    $owner.Activate()
+
     $dialog = New-Object System.Windows.Forms.OpenFileDialog
-    $dialog.Title = "Select your $groupLabel (for $hint) -- Cancel to skip"
+    # Explicit about needing the .exe specifically, not the app's folder --
+    # a real tester wasn't sure which to pick ("not clear whether to point
+    # to folder or executable").
+    $dialog.Title = "Select the $groupLabel's .exe file (for $hint) -- look inside its install folder -- Cancel to skip"
     $dialog.Filter = "Programs (*.exe)|*.exe|All files (*.*)|*.*"
     $dialog.CheckFileExists = $true
     if (Test-Path $env:ProgramFiles) { $dialog.InitialDirectory = $env:ProgramFiles }
-    $result = $dialog.ShowDialog()
+    $result = $dialog.ShowDialog($owner)
+    $owner.Close()
     if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
         return $dialog.FileName
     }
@@ -122,6 +142,12 @@ function Set-PyBlock($path, $marker, $newBody) {
     $newText = $text.Substring(0, $match.Index) + $replacement + $text.Substring($match.Index + $match.Length)
     [System.IO.File]::WriteAllText($path, $newText, $utf8NoBom)
 }
+
+Write-Host ""
+Write-Host "For each app below, a file browser window will open -- navigate to"
+Write-Host "where that app is installed and select its .exe file directly (not"
+Write-Host "the folder it's in). Cancel skips that one."
+Write-Host ""
 
 $AppMap = [ordered]@{}    # ext -> label
 $AppPaths = [ordered]@{}  # label -> exe path

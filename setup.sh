@@ -238,7 +238,15 @@ start_and_wait() {
 
   printf "Waiting for the web app to respond"
   READY=0
-  for _ in $(seq 1 60); do
+  # 150 x 2s = 5 minutes, not 2. NOT because of migrations -- measured a
+  # completely fresh Postgres volume running all of them from scratch at
+  # well under 1 second, so that's not where the time goes. A real
+  # tester's install still took longer than 2 minutes to respond with
+  # nothing else obviously broken; a worker container repeatedly
+  # crash-looping at the same time is the leading suspect (real CPU/disk
+  # contention during first boot), but this is a wider safety margin
+  # regardless of the exact cause while that's still being tracked down.
+  for _ in $(seq 1 150); do
     if curl -sf http://localhost:8000/health >/dev/null 2>&1; then
       READY=1
       break
@@ -252,7 +260,7 @@ start_and_wait() {
     reconcile_watched_roots
     create_desktop_shortcut
   else
-    echo "SPOOL didn't respond within two minutes — check what's happening with:"
+    echo "SPOOL didn't respond within five minutes — check what's happening with:"
     note "docker compose ps"
     note "docker compose logs api"
   fi

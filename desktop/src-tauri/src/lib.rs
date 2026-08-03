@@ -30,9 +30,17 @@ use tauri_plugin_autostart::ManagerExt;
 const SPOOL_URL: &str = "http://localhost:8000";
 const HEALTH_URL: &str = "http://localhost:8000/health";
 // Matches setup.sh/setup.ps1's own Start-AndWait/start_and_wait retry
-// shape (60 attempts, 2s apart == 2 minutes) -- first-run pulls a few GB
-// of images even with the pre-built-image fix, so this needs real headroom.
-const HEALTH_CHECK_ATTEMPTS: u32 = 60;
+// shape (150 attempts, 2s apart == 5 minutes) -- NOT because of image
+// pulls (docker compose up -d already blocks until those finish, before
+// this loop even starts) or migrations (measured a completely fresh
+// Postgres volume running all of them from scratch at well under 1
+// second). A real tester's install still took longer than the old
+// 2-minute window to respond with nothing else obviously broken; a
+// worker container repeatedly crash-looping at the same time is the
+// leading suspect (real CPU/disk contention during first boot), but
+// this is a wider safety margin regardless of the exact cause while
+// that's still being tracked down.
+const HEALTH_CHECK_ATTEMPTS: u32 = 150;
 const HEALTH_CHECK_INTERVAL: Duration = Duration::from_secs(2);
 const SLOW_START_NOTICE_AFTER: u32 = 10;
 

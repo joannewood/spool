@@ -281,7 +281,16 @@ function Start-AndWait {
 
     Write-Host -NoNewline "Waiting for the web app to respond"
     $ready = $false
-    for ($i = 0; $i -lt 60; $i++) {
+    # 150 x 2s = 5 minutes, not 2. NOT because of migrations -- measured a
+    # completely fresh Postgres volume running all of them from scratch
+    # at well under 1 second, so that's not where the time goes. A real
+    # tester's install still took longer than 2 minutes to respond with
+    # nothing else obviously broken; a worker container repeatedly
+    # crash-looping at the same time is the leading suspect (real
+    # CPU/disk contention during first boot), but this is a wider safety
+    # margin regardless of the exact cause while that's still being
+    # tracked down.
+    for ($i = 0; $i -lt 150; $i++) {
         try {
             $resp = Invoke-WebRequest -Uri "http://localhost:8000/health" -UseBasicParsing -TimeoutSec 3
             if ($resp.StatusCode -eq 200) { $ready = $true; break }
@@ -295,7 +304,7 @@ function Start-AndWait {
         Sync-WatchedRoots
         New-DesktopShortcut
     } else {
-        Write-Host "SPOOL didn't respond within two minutes -- check what's happening with:"
+        Write-Host "SPOOL didn't respond within five minutes -- check what's happening with:"
         Note "docker compose ps"
         Note "docker compose logs api"
     }
