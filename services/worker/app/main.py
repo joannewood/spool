@@ -15,7 +15,14 @@ from .backfill import run_backfill
 from .bambu_metadata import extract_bambu_metadata, upsert_extracted_metadata
 from .gcode_metadata import extract_gcode_metadata
 from .gcode_thumbnail import extract_gcode_thumbnail
-from .job_queue import JOB_TYPES, claim_next_job, mark_job_done, mark_job_failed, requeue_orphaned_jobs
+from .job_queue import (
+    JOB_TYPES,
+    claim_next_job,
+    mark_job_done,
+    mark_job_failed,
+    requeue_orphaned_jobs,
+    verify_job_types_exist,
+)
 from .relationship_suggest import suggest_folder_project, suggest_for_file
 from .render import render_svg_thumbnail, render_thumbnail
 from .rescan import run_rescan
@@ -162,6 +169,7 @@ def process_render_job(conn, file_id):
 def main():
     conn = get_connection()
     print(f"[worker] consuming job types: {JOB_TYPES}", flush=True)
+    verify_job_types_exist(conn)
     requeue_orphaned_jobs(conn)
 
     if RUN_BACKFILL:

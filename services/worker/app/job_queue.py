@@ -13,6 +13,37 @@ import os
 JOB_TYPES = tuple(t.strip() for t in os.environ.get("JOB_TYPES", "ingest,render").split(","))
 
 
+def verify_job_types_exist(conn):
+    """Confirmed live: a real tester's fresh-looking install actually had a
+    stale spool_pgdata Docker volume left over from an earlier, since-fixed
+    installer crash -- that earlier attempt got far enough to initialize
+    Postgres (docker-entrypoint-initdb.d only ever runs once per volume,
+    see CLAUDE.md's "Migrations only run once" gotcha) but was interrupted
+    before every migration file finished applying, permanently freezing
+    the schema at whatever point it stopped. The result was a raw
+    `psycopg.errors.InvalidTextRepresentation: invalid input value for
+    enum job_type: "extract_zip"` crash-looping forever with no indication
+    of what was actually wrong or how to fix it. This check runs before
+    anything touches the jobs table, so a partially-migrated database
+    fails loudly and actionably instead."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT enumlabel FROM pg_enum JOIN pg_type ON pg_type.oid = pg_enum.enumtypid WHERE pg_type.typname = 'job_type'"
+        )
+        existing = {row[0] for row in cur.fetchall()}
+    missing = [t for t in JOB_TYPES if t not in existing]
+    if missing:
+        raise RuntimeError(
+            f"Database is missing job_type value(s) {missing} that this worker needs "
+            f"(JOB_TYPES={list(JOB_TYPES)}). This usually means an earlier, interrupted "
+            "install left a partially-migrated database -- migrations only ever run once "
+            "per Postgres volume, so a first-time setup that got cut off partway through "
+            "leaves the schema frozen at whatever point it stopped. Fix: stop SPOOL, run "
+            "`docker compose down -v` in the SPOOL install folder to wipe the database "
+            "volume, then restart SPOOL for a genuinely fresh install."
+        )
+
+
 def requeue_orphaned_jobs(conn):
     """A job left in 'running' status at our own startup means the
     previous instance of this same lane died mid-job (crash/OOM-kill —

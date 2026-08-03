@@ -1,4 +1,7 @@
-from app.job_queue import JOB_TYPES, requeue_orphaned_jobs
+import pytest
+
+from app import job_queue
+from app.job_queue import JOB_TYPES, requeue_orphaned_jobs, verify_job_types_exist
 
 
 def _make_file(conn, root, filename="widget.stl"):
@@ -70,3 +73,21 @@ def test_requeue_orphaned_jobs_leaves_queued_and_done_jobs_alone(conn, make_root
 
     assert _status_of(conn, queued_id) == "queued"
     assert _status_of(conn, done_id) == "done"
+
+
+def test_verify_job_types_exist_passes_for_real_job_types(conn):
+    # The real JOB_TYPES (from the JOB_TYPES env var) should always be
+    # valid enum values in a fully-migrated database -- the normal,
+    # expected case. Just needs to not raise.
+    verify_job_types_exist(conn)
+
+
+def test_verify_job_types_exist_raises_for_a_missing_job_type(conn, monkeypatch):
+    # Confirmed live: a real tester's database was frozen mid-migration
+    # (an earlier, since-fixed installer crash left a stale Docker volume
+    # behind — see verify_job_types_exist's own docstring) and was
+    # missing the extract_zip enum value entirely, crash-looping with a
+    # raw, unactionable psycopg traceback instead of this clear message.
+    monkeypatch.setattr(job_queue, "JOB_TYPES", ("ingest", "definitely_not_a_real_job_type"))
+    with pytest.raises(RuntimeError, match="definitely_not_a_real_job_type"):
+        verify_job_types_exist(conn)
