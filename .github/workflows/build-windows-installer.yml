@@ -51,6 +51,34 @@ jobs:
           Write-Host "Apartment state: $output"
           if ($output -ne "STA") { throw "expected STA, got '$output'" }
 
+      - name: Verify native-stderr try/catch fix actually works
+        shell: pwsh
+        # A real tester's install crashed silently at `docker volume
+        # inspect spool_pgdata 2>$null 1>$null` on a fresh machine (no
+        # such volume yet) -- confirmed root cause: under
+        # $ErrorActionPreference = "Stop", Windows PowerShell promotes
+        # each line a native command writes to stderr into a terminating
+        # error BEFORE the redirection destination is honored, so
+        # "2>$null" alone never actually suppresses it. Both call sites
+        # in setup.ps1 now wrap this in try/catch instead -- this proves
+        # the underlying assumption on a real Windows runner rather than
+        # just reasoning about it: (1) the unwrapped pattern really does
+        # throw, and (2) try/catch really does suppress it while
+        # $LASTEXITCODE still correctly reflects the native process's
+        # real exit code afterward.
+        run: |
+          $ErrorActionPreference = "Stop"
+          $threw = $false
+          try {
+              cmd /c "echo fakeerror 1>&2 & exit 3" 2>$null 1>$null
+          } catch {
+              $threw = $true
+          }
+          Write-Host "Unwrapped call threw: $threw; LASTEXITCODE: $LASTEXITCODE"
+          if (-not $threw) { throw "expected the unwrapped native-stderr redirection to throw under ErrorActionPreference=Stop -- if it doesn't, the bug this fix targets may not be real" }
+          if ($LASTEXITCODE -ne 3) { throw "expected LASTEXITCODE to still be 3 after the caught exception, got $LASTEXITCODE" }
+          Write-Host "Confirmed: try/catch suppresses the spurious exception while LASTEXITCODE survives correctly."
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 

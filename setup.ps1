@@ -315,7 +315,17 @@ if (-not $DockerCmd) {
 }
 
 function Test-DockerRunning {
-    docker info 2>$null 1>$null
+    # try/catch, not just "2>$null" -- under $ErrorActionPreference = "Stop",
+    # Windows PowerShell promotes each line a native command writes to
+    # stderr into a terminating error BEFORE the redirection destination is
+    # honored, so "2>$null" alone does not actually suppress it. Confirmed
+    # live: a real tester's install crashed silently at exactly this kind
+    # of call (a different one, `docker volume inspect` on a volume that
+    # doesn't exist yet) -- this is the same class of bug, just not yet
+    # triggered here since `docker info` normally only writes to stderr
+    # while Docker Desktop is still starting, which is exactly the
+    # situation this function's own retry loop calls it in.
+    try { docker info 2>$null 1>$null } catch { }
     return $LASTEXITCODE -eq 0
 }
 
@@ -465,7 +475,18 @@ if ($Reconfigure) {
     # of this run -- if it did, we're reconfiguring an already-set-up
     # install and preserve its real POSTGRES_PASSWORD below regardless,
     # so there's no mismatch risk to warn about here.
-    docker volume inspect spool_pgdata 2>$null 1>$null
+    # try/catch, not just "2>$null" -- see Test-DockerRunning's own comment
+    # above for why. This exact line is a real, confirmed-live crash: on
+    # a fresh machine with no spool_pgdata volume yet, `docker volume
+    # inspect` writes "no such volume" to stderr, which -- without this
+    # try/catch -- became a terminating error and silently killed the
+    # whole script right here, every time, on every genuinely first-time
+    # Windows install. This is almost certainly the real root cause of
+    # the original silent-crash bug report (the STA fix made earlier was
+    # necessary but not sufficient), only actually visible once the
+    # script-wide `trap` handler existed to surface it instead of the
+    # window just closing.
+    try { docker volume inspect spool_pgdata 2>$null 1>$null } catch { }
     if ((-not $EnvExistedBefore) -and $LASTEXITCODE -eq 0) {
         Write-Host ""
         Write-Host "Found an existing SPOOL database from a previous setup, but there's"
