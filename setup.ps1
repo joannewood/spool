@@ -276,13 +276,46 @@ function Sync-WatchedRoots {
     $sql | docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U spool -d spool | Out-Null
 }
 
+# `docker compose up -d` recreating an already-running container that
+# publishes a host port (e.g. re-running the installer while SPOOL is
+# already up, or a fresh image just got pulled) can hit a real,
+# transient Docker race: the old container's port binding isn't always
+# released before the new one tries to claim it -- confirmed live on the
+# Mac side (setup.sh), re-running the installer against an already-
+# running SPOOL failed with "port is already allocated" even though
+# nothing else was actually using it. Retrying a few times with a short
+# pause self-heals this without the user needing to know or do anything.
+# $failed (not $LASTEXITCODE alone) tracks the outcome, since a caught
+# native-stderr-promoted exception (see Test-DockerRunning's own
+# try/catch above for why that happens under
+# $ErrorActionPreference = "Stop") can fire before the process has even
+# exited, at which point $LASTEXITCODE isn't reliably set yet.
+function Invoke-ComposeUpWithRetry {
+    for ($attempt = 1; $attempt -le 5; $attempt++) {
+        $failed = $false
+        try {
+            docker compose up -d 2>&1 | Write-Host
+            if ($LASTEXITCODE -ne 0) { $failed = $true }
+        } catch {
+            Write-Host $_.Exception.Message
+            $failed = $true
+        }
+        if (-not $failed) { return }
+        if ($attempt -eq 5) {
+            throw "docker compose up -d failed after $attempt attempts"
+        }
+        Write-Host "That didn't work -- retrying in case Docker is still releasing a port from the previous run ($attempt/5)..."
+        Start-Sleep -Seconds 3
+    }
+}
+
 # No --build: docker-compose.yml's api/watcher/worker/worker-step all
 # carry a ghcr.io image: tag now, so a plain `up` pulls the pre-built
 # image instead of compiling everything from source on the tester's own
 # machine. Developers working on SPOOL itself still use
 # `docker compose up -d --build` directly (see CONTRIBUTING.md).
 function Start-AndWait {
-    docker compose up -d
+    Invoke-ComposeUpWithRetry
 
     Write-Host -NoNewline "Waiting for the web app to respond"
     $ready = $false

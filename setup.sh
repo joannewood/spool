@@ -228,6 +228,33 @@ UPDATE watched_roots SET active = FALSE WHERE container_path = '/roots/downloads
   echo "$sql" | docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U spool -d spool >/dev/null
 }
 
+# `docker compose up -d` recreating an already-running container that
+# publishes a host port (e.g. re-running the installer while SPOOL is
+# already up, or a fresh image just got pulled) can hit a real, transient
+# Docker race: the old container's port binding isn't always released
+# before the new one tries to claim it — confirmed live, re-running the
+# installer against an already-running SPOOL failed with "port is
+# already allocated" even though nothing else was actually using it.
+# Retrying a few times with a short pause self-heals this without the
+# user needing to know or do anything; any other failure (a genuinely
+# different process holding the port long-term) still surfaces normally
+# once the retries are exhausted.
+compose_up_with_retry() {
+  local attempt output
+  for attempt in 1 2 3 4 5; do
+    if output=$(docker compose up -d 2>&1); then
+      echo "$output"
+      return 0
+    fi
+    if [ "$attempt" -eq 5 ] || ! echo "$output" | grep -qi "port is already allocated"; then
+      echo "$output" >&2
+      return 1
+    fi
+    echo "Docker's still releasing a port from the previous run — retrying ($attempt/5)..."
+    sleep 3
+  done
+}
+
 # Shared by the fast "Restart SPOOL" path above and the full setup flow's
 # own Step 3 below, so re-running the whole guided setup doesn't need a
 # second, duplicate copy of this.
@@ -239,7 +266,7 @@ UPDATE watched_roots SET active = FALSE WHERE container_path = '/roots/downloads
 # install). Developers working on SPOOL itself still use `docker compose up
 # -d --build` directly (see CONTRIBUTING.md) to pick up local changes.
 start_and_wait() {
-  docker compose up -d
+  compose_up_with_retry
 
   printf "Waiting for the web app to respond"
   READY=0
