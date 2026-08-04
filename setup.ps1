@@ -218,12 +218,17 @@ function New-DesktopShortcut {
 # browser URL otherwise (manual git-clone install, or the wrapper .exe
 # failed to install for some reason). Used both right after first-time
 # setup finishes and by the "Restart SPOOL" quick action, so neither path
-# regresses to a browser tab now that the shortcut itself doesn't.
+# regresses to a browser tab now that the shortcut itself doesn't. Prints
+# its own status line matching whichever path it actually takes, instead
+# of a caller-printed message that used to always say "http://localhost:
+# 8000" even when a real SPOOL.exe window was about to open instead.
 function Open-Spool {
     $wrapperExe = Join-Path $Dir "desktop\dist-app\SPOOL.exe"
     if (Test-Path $wrapperExe) {
+        Write-Host "SPOOL is ready -- opening the SPOOL app now."
         Start-Process $wrapperExe
     } else {
+        Write-Host "SPOOL is running at http://localhost:8000"
         Start-Process "http://localhost:8000"
     }
 }
@@ -300,7 +305,12 @@ function Start-AndWait {
     }
     Write-Host ""
     if ($ready) {
-        Write-Host "SPOOL is up: http://localhost:8000"
+        # Not "http://localhost:8000" here specifically -- New-
+        # DesktopShortcut (right below) hasn't run yet at this point, so
+        # whether the real answer is "a SPOOL.exe window" or "that URL"
+        # isn't known yet. Whichever caller invokes Open-Spool afterward
+        # prints the actual, accurate access method itself.
+        Write-Host "SPOOL is up."
         Sync-WatchedRoots
         New-DesktopShortcut
     } else {
@@ -627,9 +637,8 @@ powershell -ExecutionPolicy Bypass -File "host-helper\install_windows.ps1"
 
 WizardDone "All set"
 
-Write-Host "SPOOL is running at http://localhost:8000"
-Write-Host "A SPOOL shortcut has been added to your Desktop -- double-click it any time to open SPOOL."
 Open-Spool
+Write-Host "A SPOOL shortcut has been added to your Desktop -- double-click it any time to open SPOOL."
 Write-Host ""
 Write-Host "Unlike on a Mac, there's no extra permission step needed for the"
 Write-Host "duplicate-file delete feature -- Windows' normal file permissions"

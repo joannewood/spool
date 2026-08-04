@@ -163,12 +163,17 @@ WEBLOC
 # browser URL otherwise (manual git-clone install, or the app bundle
 # failed to install for some reason). Used both right after first-time
 # setup finishes and by the "Restart SPOOL" quick action, so neither path
-# regresses to a browser tab now that the shortcut itself doesn't.
+# regresses to a browser tab now that the shortcut itself doesn't. Prints
+# its own status line matching whichever path it actually takes, instead
+# of a caller-printed message that used to always say "http://localhost:
+# 8000" even when a real SPOOL.app window was about to open instead.
 open_spool() {
   local installed_app="$HOME/Applications/SPOOL.app"
   if [ -d "$installed_app" ]; then
+    echo "SPOOL is ready — opening the SPOOL app now."
     open "$installed_app" 2>/dev/null || true
   else
+    echo "SPOOL is running at http://localhost:8000"
     open "http://localhost:8000" 2>/dev/null || true
   fi
 }
@@ -256,7 +261,13 @@ start_and_wait() {
   done
   echo
   if [ "$READY" -eq 1 ]; then
-    echo "SPOOL is up: http://localhost:8000"
+    # Not "http://localhost:8000" here specifically -- create_desktop_
+    # shortcut (right below) hasn't run yet at this point, so whether the
+    # real answer is "a SPOOL.app window" or "that URL" isn't known yet.
+    # Whichever caller invokes open_spool afterward (immediately, for the
+    # "Restart SPOOL" quick action; later, once the full first-time setup
+    # flow finishes) prints the actual, accurate access method itself.
+    echo "SPOOL is up."
     reconcile_watched_roots
     create_desktop_shortcut
   else
@@ -499,9 +510,8 @@ host-helper/install.sh
 
 wizard_done "All set"
 
-echo "SPOOL is running at http://localhost:8000"
-echo "A SPOOL shortcut has been added to your Desktop — double-click it any time to open SPOOL."
 open_spool
+echo "A SPOOL shortcut has been added to your Desktop — double-click it any time to open SPOOL."
 echo
 echo "One thing that still needs a one-time manual click: deleting a"
 echo "duplicate file needs Full Disk Access, which macOS won't let any"
