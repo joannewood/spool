@@ -20,10 +20,11 @@ Fusion or Bambu Studio — no more digging through folders full of
   as files arrive, plus a periodic rescan catches anything a live filesystem
   event missed (moved, edited, or deleted files).
 - **Real previews, not icons** — STL/3MF/OBJ are rendered via `trimesh`/`pyrender`;
-  STEP is tessellated through OpenCASCADE (`cadquery-ocp`) first; SVG renders
-  itself; sliced `.gcode` shows the preview image your slicer already embedded
-  in it, if it wrote one; a watertightness check flags files that won't slice
-  cleanly.
+  STEP is tessellated through OpenCASCADE first (a small native tool linked
+  directly against it — no bundled Python OpenCASCADE distribution); SVG
+  renders itself; sliced `.gcode` shows the preview image your slicer already
+  embedded in it, if it wrote one; a watertightness check flags files that
+  won't slice cleanly.
 - **Search and browse** — search-as-you-type across filenames, tags, and
   print metadata (material, printer, slicer, your own print notes), filter by
   extension, color-coded by file type. Hyphens, underscores, and spaces are
@@ -40,6 +41,9 @@ Fusion or Bambu Studio — no more digging through folders full of
   extracted; nothing unrelated to 3D printing is ever touched.
 - **Duplicate cleanup** — files with byte-identical content are grouped for
   review, with bulk select/delete.
+- **Bulk actions on any search/browse page** — select files (or whole
+  collapsed project cards) and add them to a project or delete them, all at
+  once.
 - **Printed tracker** — mark a file as printed, rate it, and leave yourself
   notes on how it turned out.
 - **Open in your CAD/slicer app** — launches Fusion, Bambu Studio, or
@@ -218,6 +222,13 @@ file's own page — dimensions, whether it's watertight (manifold), tags,
 project membership, any auto-extracted or manually-entered print
 settings, related files, and buttons to open it directly in your CAD or
 slicer app.
+
+Every card has a small checkbox in its corner (a collapsed project card
+gets one too) for bulk actions — check a few (or use "Select all on this
+page"), then **Add to project** or **Delete selected** from the toolbar
+next to the pagination controls. Selecting a project card adds that whole
+project to another one (nesting it), or deletes the project along with
+its own files.
 
 ### Organizing: tags and projects
 

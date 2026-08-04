@@ -29,8 +29,11 @@ services/
             stub row + queues a job, or relocates (Downloads), then gets
             out of the way. Polls watched_roots every 10s to pick up
             admin-page changes (pause/label/mode) without a restart.
-  worker/   The heavy lane — trimesh/pyrender (mesh thumbnails), OCP/
-            OpenCASCADE (STEP), a plain Postgres job queue (`jobs` table,
+  worker/   The heavy lane — trimesh/pyrender (mesh thumbnails), a small
+            native OpenCASCADE-linked tool for STEP tessellation
+            (step_converter/, shelled out to from step_loader.py — see
+            its Dockerfile comment for why, vs. cadquery-ocp's Python
+            bindings), a plain Postgres job queue (`jobs` table,
             `FOR UPDATE SKIP LOCKED`, no Redis/Celery). Every function
             here takes `conn` as an explicit parameter instead of opening
             its own connection — this is what makes the test suite's
@@ -166,10 +169,12 @@ conventions above:
 
 Route tests use FastAPI's `TestClient` (in-process ASGI, no real server).
 
-The worker's heavy geometry deps (trimesh/pyrender/cadquery-ocp) are
-deliberately **not** in `requirements-dev.txt` — none of the
-lightweight-test-path modules import `render.py`/`step_loader.py`, and
-those are genuinely heavy to install. Modules that need to stay
+The worker's heavy geometry deps (trimesh/pyrender) are deliberately
+**not** in `requirements-dev.txt` — none of the lightweight-test-path
+modules import `render.py`/`step_loader.py`, and those are genuinely
+heavy to install (STEP tessellation itself no longer needs a Python
+dependency at all — `step_loader.py` just shells out to the compiled
+`step_converter` tool). Modules that need to stay
 importable without them (`job_queue.py`, `gcode_thumbnail.py`,
 `gcode_metadata.py`, `bambu_metadata.py`, `mesh_safety.py`, `rescan.py`)
 are kept stdlib/psycopg-only for exactly this reason — think about that
@@ -182,8 +187,8 @@ carry an `image: ghcr.io/joannewood/spool-*:latest` tag alongside their
 `build:` block — a plain `docker compose up -d` (what `setup.sh`/
 `setup.ps1` run on a tester's machine) pulls the pre-built image instead
 of compiling everything from source, which is most of what made a fresh
-install slow (cadquery-ocp's full OpenCASCADE bundle, trimesh/pyrender's
-EGL/Mesa stack). `docker compose up -d --build` (the local dev loop) is
+install slow (trimesh/pyrender's EGL/Mesa stack, mainly). `docker compose
+up -d --build` (the local dev loop) is
 unaffected either way — `--build` always builds locally and re-tags
 regardless of what's on the registry.
 
