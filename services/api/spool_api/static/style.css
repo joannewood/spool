@@ -568,12 +568,40 @@ main {
 .card-select-wrap .file-select-checkbox,
 .card-select-wrap .project-select-checkbox {
   position: absolute;
-  top: 8px;
   left: 8px;
   z-index: 1;
   width: 18px;
   height: 18px;
   cursor: pointer;
+  accent-color: var(--accent);
+  /* A plain browser-default checkbox reads poorly sitting directly on
+     photographic thumbnail content (low contrast against a bright
+     render, easy to lose against a dark one) -- same reasoning as
+     .dims-overlay's fixed dark chip elsewhere on this exact surface. */
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  border-radius: 3px;
+}
+.card-select-wrap .file-select-checkbox { top: 8px; }
+/* Vertically centered within .project-banner (measured ~24.5px tall,
+   starting ~2px into the wrap for .card's own border) instead of using
+   the same fixed offset as a plain file card's checkbox, which sits on
+   the thumbnail corner instead of a banner of a different height. */
+.card-select-wrap .project-select-checkbox { top: 5px; }
+/* Selected-state highlight -- every popular multi-select grid (Google
+   Photos/Drive, Finder icon view) gives a selected item its own
+   border/ring, not just a tiny checked checkbox easy to miss at a
+   glance. :has() lets the sibling checkbox drive .card's own styling
+   with no JS, same technique already used for the create-new-project
+   reveal elsewhere in this app. An outline (not border-color/box-shadow)
+   specifically because .card-project already has its own permanent
+   accent-colored 2px border -- an outline sits outside that border
+   entirely, so it stays a clearly distinct "you selected this" ring on
+   both card types instead of blending into a project card's own
+   already-accent-colored edge. */
+.card-select-wrap:has(.file-select-checkbox:checked) .card,
+.card-select-wrap:has(.project-select-checkbox:checked) .card {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
 }
 .bulk-select-bar {
   display: flex;
