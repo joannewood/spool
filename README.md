@@ -9,6 +9,10 @@ Fusion or Bambu Studio — no more digging through folders full of
 
 ![SPOOL library view](docs/screenshot-library.png)
 
+> **Looking for the native Mac app?** [spool-swift](https://github.com/joannewood/spool-swift)
+> is a from-scratch native macOS rewrite — same idea, no Docker/Postgres, a single
+> ordinary Mac app instead. Both are actively maintained.
+
 ## What it does
 
 - **Watches your folders** — a drop folder, your existing library, and
