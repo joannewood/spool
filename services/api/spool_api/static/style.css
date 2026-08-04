@@ -565,7 +565,8 @@ main {
    inside a thin wrapper that's otherwise a no-op when selectable=False
    (plain project/file-detail grids never render the checkbox at all). */
 .card-select-wrap { position: relative; }
-.card-select-wrap .file-select-checkbox {
+.card-select-wrap .file-select-checkbox,
+.card-select-wrap .project-select-checkbox {
   position: absolute;
   top: 8px;
   left: 8px;
