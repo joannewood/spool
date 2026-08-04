@@ -24,9 +24,14 @@ to host_helper_windows.py: APP_MAP (ext -> a friendly label) and
 APP_PATHS (that label -> the actual .exe path on this machine) — and
 still writes the label-only APP_MAP to host_helper_client.py, same as
 macOS, since that side never needs to know the real exe path. Icon
-extraction is macOS-only for now (sips + a bundle's Info.plist); a
-Windows app with no extracted icon just falls back to the UI's existing
-plain two-letter badge, never a broken image.
+extraction here is macOS-only (sips + a bundle's Info.plist) — a
+Windows app configured via *this* script has no extracted icon and
+falls back to the UI's plain two-letter badge, never a broken image.
+Windows icon extraction does exist, just not in this script: the
+default Windows setup path (host-helper/configure_apps_windows.ps1,
+what setup.ps1 actually calls) extracts real icons via .NET's
+System.Drawing.Icon — prefer that script on Windows if you want icons
+without also running this one.
 
 NOTE: the Windows path in this script has not been exercised against
 real Windows hardware — read the comments and double-check the result

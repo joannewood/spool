@@ -43,6 +43,7 @@ Add-Type -AssemblyName Microsoft.VisualBasic
 $RepoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $HostHelperTarget = Join-Path $RepoRoot "host-helper\host_helper_windows.py"
 $HostHelperClientPy = Join-Path $RepoRoot "services\api\spool_api\host_helper_client.py"
+$IconsDir = Join-Path $RepoRoot "services\api\spool_api\static\icons"
 
 # label, extensions handled -- same three groups as configure_apps.py's
 # GROUPS (kept in sync by hand; small and stable enough that a shared
@@ -101,6 +102,37 @@ function Select-AppExecutable($groupLabel, $hint) {
     return $null
 }
 
+# .NET's simplest icon-extraction API, built into every Windows
+# PowerShell install -- no extra dependency needed, unlike
+# configure_apps.py's Windows path, which has no icon extraction at all
+# (its own comment: "extraction is macOS-only for now"). Typically
+# returns a 32x32 icon (Windows' "associated icon" convention) --
+# smaller than the Mac side's 64x64 (sips downscales a much larger
+# source .icns), but a real extracted icon beats the plain two-letter
+# badge fallback either way; the UI already scales icons down to fit
+# their button regardless of source size. Never fatal on failure -- same
+# "just falls back to the badge" treatment as a skipped Mac extraction.
+function Get-IconSlug($appName) {
+    return ($appName.ToLower() -replace '[^a-z0-9]+', '-').Trim('-')
+}
+
+function Export-AppIcon($appName, $exePath) {
+    try {
+        $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($exePath)
+        if ($null -eq $icon) { return $null }
+        $bitmap = $icon.ToBitmap()
+        $slug = Get-IconSlug $appName
+        New-Item -ItemType Directory -Force -Path $IconsDir | Out-Null
+        $outPath = Join-Path $IconsDir "$slug.png"
+        $bitmap.Save($outPath, [System.Drawing.Imaging.ImageFormat]::Png)
+        $bitmap.Dispose()
+        $icon.Dispose()
+        return "$slug.png"
+    } catch {
+        return $null
+    }
+}
+
 function Confirm-AppLabel($default) {
     $typed = [Microsoft.VisualBasic.Interaction]::InputBox("Name to show in SPOOL for this app:", "SPOOL Setup", $default)
     if ([string]::IsNullOrWhiteSpace($typed)) { return $default }
@@ -151,10 +183,11 @@ Write-Host ""
 
 $AppMap = [ordered]@{}    # ext -> label
 $AppPaths = [ordered]@{}  # label -> exe path
+$AppIcons = [ordered]@{}  # label -> icon filename
 
 foreach ($group in $AppGroups) {
-    $exePath = Select-AppExecutable $group.Label $group.Hint
-    if (-not $exePath) {
+    $rawExePath = Select-AppExecutable $group.Label $group.Hint
+    if (-not $rawExePath) {
         Write-Host "$($group.Label): skipped"
         continue
     }
@@ -163,10 +196,15 @@ foreach ($group in $AppGroups) {
     # docstring, DROPFOLDER_HOST_PATH, etc.) -- os.path.isfile/subprocess
     # on Windows accept forward slashes just as readily as backslashes,
     # so this is purely for consistency with the rest of the codebase.
-    $exePath = $exePath -replace '\\', '/'
+    # Icon extraction below deliberately uses $rawExePath (real
+    # backslashes) instead, since that's a plain Windows file path, not
+    # a value this project's own path conventions apply to.
+    $exePath = $rawExePath -replace '\\', '/'
     $defaultLabel = Get-DefaultAppLabel $exePath
     $label = Confirm-AppLabel $defaultLabel
     $AppPaths[$label] = $exePath
+    $iconFile = Export-AppIcon $label $rawExePath
+    if ($iconFile) { $AppIcons[$label] = $iconFile }
     foreach ($ext in $group.Extensions) { $AppMap[$ext] = $label }
     Write-Host "$($group.Label): $label ($exePath)"
 }
@@ -181,11 +219,24 @@ if ($AppMap.Count -eq 0) {
 Set-PyBlock $HostHelperClientPy "APP_MAP" (Format-PyDict "APP_MAP" $AppMap)
 Set-PyBlock $HostHelperTarget "APP_MAP" (Format-PyDict "APP_MAP" $AppMap)
 Set-PyBlock $HostHelperTarget "APP_PATHS" (Format-PyDict "APP_PATHS" $AppPaths)
+# APP_ICONS only exists in host_helper_client.py (an api-side UI concern --
+# host_helper_windows.py itself never needs to know an app has an icon,
+# only how to launch it) -- if every app's icon extraction failed for some
+# reason, leave the existing block alone rather than overwriting real
+# icons with an empty dict.
+if ($AppIcons.Count -gt 0) {
+    Set-PyBlock $HostHelperClientPy "APP_ICONS" (Format-PyDict "APP_ICONS" $AppIcons)
+}
 
 Write-Host ""
 Write-Host "Configured:"
 foreach ($ext in $AppMap.Keys) {
     Write-Host "  $ext -> $($AppMap[$ext])"
+}
+if ($AppIcons.Count -lt $AppPaths.Count) {
+    Write-Host ""
+    Write-Host "Note: couldn't extract a real icon for every app -- any without one"
+    Write-Host "just shows a plain badge in SPOOL instead, nothing else is affected."
 }
 Write-Host ""
 Write-Host "Re-run host-helper\install_windows.ps1 and rebuild the api container"
