@@ -293,12 +293,30 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         .item(&quit_item)
         .build()?;
 
-    let mut tray_builder = TrayIconBuilder::new()
+    // A dedicated menu-bar icon (from the author's spool-swift native-Mac
+    // rewrite, which already had to design one) -- not the same image as
+    // the Dock icon. A full-color app icon reads as a colored blob at
+    // menu-bar size; this one is a simple monochrome glyph, embedded as a
+    // macOS "template image" (icon_as_template) so the system
+    // automatically inverts it for light/dark menu bars and applies the
+    // correct selected/highlighted appearance, the same way a native
+    // menu-bar app's icon behaves.
+    // tauri::image::Image has no PNG-decoding constructor -- new()/new_owned()
+    // both take raw RGBA pixels, not encoded bytes -- so the embedded PNG is
+    // decoded via the `image` crate first. .expect() rather than `?`: this is
+    // a compile-time-embedded asset, so a decode failure means the file
+    // itself is corrupt, not a runtime condition worth handling gracefully.
+    let tray_icon_bytes = include_bytes!("../icons/tray-icon.png");
+    let tray_icon_rgba = image::load_from_memory(tray_icon_bytes)
+        .expect("embedded tray-icon.png should always decode")
+        .into_rgba8();
+    let (tray_icon_width, tray_icon_height) = tray_icon_rgba.dimensions();
+    let tray_icon = tauri::image::Image::new_owned(tray_icon_rgba.into_raw(), tray_icon_width, tray_icon_height);
+    let tray_builder = TrayIconBuilder::new()
         .menu(&menu)
-        .show_menu_on_left_click(true);
-    if let Some(icon) = app.default_window_icon() {
-        tray_builder = tray_builder.icon(icon.clone());
-    }
+        .show_menu_on_left_click(true)
+        .icon(tray_icon)
+        .icon_as_template(true);
 
     let autostart_item_for_handler = autostart_item.clone();
     tray_builder

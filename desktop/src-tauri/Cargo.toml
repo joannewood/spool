@@ -24,3 +24,8 @@ log = "0.4"
 tauri = { version = "2.11.3", features = ["tray-icon"] }
 tauri-plugin-log = "2"
 tauri-plugin-autostart = "2"
+# Only for decoding the embedded tray-icon.png into the raw RGBA buffer
+# tauri::image::Image::new_owned() requires — tauri::image itself has no
+# PNG-decoding constructor (only new()/new_owned(), both raw-pixel-only).
+# default-features off + "png" only, since that's the one format we embed.
+image = { version = "0.25", default-features = false, features = ["png"] }
