@@ -888,6 +888,46 @@ def test_add_files_to_project_bulk_empty_list_is_a_no_op():
     queries.add_files_to_project_bulk([], 1)  # must not raise or query with an empty id list
 
 
+def test_get_file_ids_for_projects_returns_confirmed_members_only(make_file, db_conn):
+    project_id = queries.create_project("Get File Ids Target", "", None)
+    file_a = make_file(filename="get-ids-confirmed.stl")
+    file_b = make_file(filename="get-ids-suggested.stl")
+    try:
+        queries.add_file_to_project(file_a, project_id)
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'suggested')",
+                (project_id, file_b),
+            )
+        assert queries.get_file_ids_for_projects([project_id]) == [file_a]
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_get_file_ids_for_projects_empty_list_is_a_no_op():
+    assert queries.get_file_ids_for_projects([]) == []
+
+
+def test_delete_projects_bulk_deletes_the_rows_and_sets_children_to_top_level(db_conn):
+    parent_id = queries.create_project("Delete Bulk Parent", "", None)
+    child_id = queries.create_project("Delete Bulk Child", "", parent_id)
+    try:
+        queries.delete_projects_bulk([parent_id])
+        with db_conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM projects WHERE id = %s", (parent_id,))
+            assert cur.fetchone() is None
+            cur.execute("SELECT parent_project_id FROM projects WHERE id = %s", (child_id,))
+            assert cur.fetchone()[0] is None
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (child_id,))
+
+
+def test_delete_projects_bulk_empty_list_is_a_no_op():
+    queries.delete_projects_bulk([])  # must not raise or query with an empty id list
+
+
 def test_confirm_relationships_bulk_confirms_every_id_in_one_call(make_file, db_conn):
     file_a = make_file()
     file_b = make_file()

@@ -588,25 +588,34 @@ def add_to_project(file_id: int, project_id: str = Form(...), new_project_name: 
 
 
 # Bulk counterpart of add_to_project above, for the library grid's
-# "select files, add to project" toolbar (_results.html) — same
-# existing-or-new-project handling, just against every selected file id
-# instead of one. return_qs carries the searcher's current q/filter/sort/
-# page state back through so the redirect lands them where they were,
-# not a blank default search.
+# "select files/projects, add to project" toolbar (_results.html) — same
+# existing-or-new-project handling, just against every selected id
+# instead of one. A selected file becomes a confirmed member; a selected
+# project is re-parented under the target instead (set_project_parent,
+# same reparent already used by /projects/{id}/parent — its own cycle
+# guard silently no-ops reparenting a project under its own descendant
+# or itself, so no extra check is needed here). return_qs carries the
+# searcher's current q/filter/sort/page state back through so the
+# redirect lands them where they were, not a blank default search.
 @app.post("/files/bulk-add-to-project")
 def bulk_add_to_project(
     file_ids: list[int] = Form([]),
+    project_ids: list[int] = Form([]),
     project_id: str = Form(...),
     new_project_name: str = Form(""),
     return_qs: str = Form(""),
 ):
+    target_id = None
     if project_id == "__new__":
         name = new_project_name.strip()
-        if name and file_ids:
-            new_id = queries.create_project(name, "", None)
-            queries.add_files_to_project_bulk(file_ids, new_id)
-    elif file_ids:
-        queries.add_files_to_project_bulk(file_ids, int(project_id))
+        if name and (file_ids or project_ids):
+            target_id = queries.create_project(name, "", None)
+    elif file_ids or project_ids:
+        target_id = int(project_id)
+    if target_id is not None:
+        queries.add_files_to_project_bulk(file_ids, target_id)
+        for source_project_id in project_ids:
+            queries.set_project_parent(source_project_id, target_id)
     return RedirectResponse(f"/{'?' + return_qs if return_qs else ''}", status_code=303)
 
 
@@ -1136,13 +1145,21 @@ def delete_duplicates(file_ids: list[int] = Form([])):
 
 # Library grid's own bulk delete (_results.html) — same host-helper-backed
 # deletion as the admin duplicates page, just against an arbitrary
-# user-picked selection instead of a pre-identified duplicate set.
-# return_qs round-trips the searcher's current q/filter/sort/page state
-# (see bulk_add_to_project above) so both the redirect target AND any
-# error message land back on the same search the files were selected from.
+# user-picked selection instead of a pre-identified duplicate set. A
+# selected project deletes that project's own confirmed member files the
+# same way (never recursively into any of ITS sub-projects — those
+# surface at top level instead, same ON DELETE SET NULL behavior already
+# established by merge_projects) plus the project row itself. return_qs
+# round-trips the searcher's current q/filter/sort/page state (see
+# bulk_add_to_project above) so both the redirect target AND any error
+# message land back on the same search the files were selected from.
 @app.post("/files/bulk-delete")
-def bulk_delete_files(file_ids: list[int] = Form([]), return_qs: str = Form("")):
-    errors = _delete_files_via_host_helper(file_ids)
+def bulk_delete_files(
+    file_ids: list[int] = Form([]), project_ids: list[int] = Form([]), return_qs: str = Form("")
+):
+    all_file_ids = list(dict.fromkeys(file_ids + queries.get_file_ids_for_projects(project_ids)))
+    errors = _delete_files_via_host_helper(all_file_ids)
+    queries.delete_projects_bulk(project_ids)
     params = [(k, v) for k, v in parse_qsl(return_qs)]
     if errors:
         params.append(("bulk_errors", errors))

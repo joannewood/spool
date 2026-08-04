@@ -41,40 +41,59 @@
   {% if bulk_errors %}<p class="badge warn">⚠ {{ bulk_errors }}</p>{% endif %}
 
   {# The one outer form for both bulk actions (delete, add-to-project) --
-     each button below picks its own target via formaction, same
-     no-nested-forms pattern already used on the admin bulk-review pages
-     (see queries.py/main.py's own history of the nested-<form>-inside-
-     <form> bug those pages hit and fixed). Selection is deliberately
-     scoped to whatever's rendered on the CURRENT page only -- "select
-     all" only ever toggles checkboxes actually present in the DOM, never
-     the full result set behind pagination (see the memory this app's own
-     admin bulk-review pages already learned the hard way: never let a
-     "select all" reach further than what's visibly on screen). A
-     collapsed project card (f.is_project_card) has no checkbox at all --
-     it represents many files, not one, so bulk delete/add-to-project on
-     it is deliberately out of scope here; open the project itself for that. #}
-  <form id="bulk-select-form" class="bulk-select-bar add-project-form" method="POST">
+     the "Add to project" button just opens a <dialog> (modal.js, same
+     pattern as file_detail.html's own add-project modal); the modal's
+     select/input aren't inside this <form> at all (a <dialog> is a poor
+     fit for wrapping the page's whole grid), so they cross-reference it
+     via form="bulk-select-form" instead, same trick already used for
+     the checkboxes themselves. "Delete selected" picks its target via
+     formaction, same no-nested-forms pattern already used on the admin
+     bulk-review pages (see queries.py/main.py's own history of the
+     nested-<form>-inside-<form> bug those pages hit and fixed).
+     Selection is deliberately scoped to whatever's rendered on the
+     CURRENT page only -- "select all" only ever toggles checkboxes
+     actually present in the DOM, never the full result set behind
+     pagination (see the memory this app's own admin bulk-review pages
+     already learned the hard way: never let a "select all" reach
+     further than what's visibly on screen). Both files AND collapsed
+     project cards are selectable: a selected project is reparented
+     (added-to-project) or deleted along with its own confirmed member
+     files (not recursively into any of ITS sub-projects, which surface
+     at top level instead -- same ON DELETE SET NULL behavior already
+     established by merge_projects). #}
+  <form id="bulk-select-form" class="bulk-select-bar" method="POST">
     <input type="hidden" name="return_qs" value="{{ base_qs }}">
-    <label class="select-all-label" title="Only selects files rendered on this page — if 'Page size' above is set to All, that means everything currently matching your search/filters.">
-      <input type="checkbox" class="select-all-checkbox" data-target=".file-select-checkbox">
+    <label class="select-all-label" title="Only selects files/projects rendered on this page — if 'Page size' above is set to All, that means everything currently matching your search/filters.">
+      <input type="checkbox" class="select-all-checkbox" data-target=".file-select-checkbox, .project-select-checkbox">
       Select all on this page
     </label>
-    <select name="project_id" form="bulk-select-form">
-      <option value="">Add selected to project…</option>
-      {% for p in all_projects %}
-      <option value="{{ p.id }}">{{ p.name }}</option>
-      {% endfor %}
-      <option value="__new__">+ create new project…</option>
-    </select>
-    <input type="text" name="new_project_name" class="new-project-name" placeholder="new project name…" autocomplete="off" form="bulk-select-form">
-    <button type="submit" formaction="/files/bulk-add-to-project">Add to project</button>
-    <button type="submit" formaction="/files/bulk-delete" class="button-danger">Delete selected</button>
+    <button type="button" class="modal-trigger" data-modal="bulk-add-project-modal">Add to project</button>
+    <button type="submit" formaction="/files/bulk-delete" class="button-danger" title="Deletes selected files, or a selected project's own files, from disk">Delete selected</button>
   </form>
+
+  <dialog id="bulk-add-project-modal" class="modal">
+    <div class="stack-form add-project-form">
+      <h2>Add selected to project</h2>
+      <p class="note">Selected files are added as members; selected projects are nested under the chosen project.</p>
+      <select name="project_id" form="bulk-select-form" required autofocus>
+        <option value="" disabled selected>choose a project…</option>
+        {% for p in all_projects %}
+        <option value="{{ p.id }}">{{ p.name }}</option>
+        {% endfor %}
+        <option value="__new__">+ create new project…</option>
+      </select>
+      <input type="text" name="new_project_name" class="new-project-name" placeholder="new project name…" autocomplete="off" form="bulk-select-form">
+      <div class="modal-actions">
+        <button type="submit" form="bulk-select-form" formaction="/files/bulk-add-to-project">Add</button>
+        <button type="button" class="modal-cancel">Cancel</button>
+      </div>
+    </div>
+  </dialog>
 
   <div class="grid">
     {% for f in files %}
     {% if f.is_project_card %}
-    {{ cards.project_card(f) }}
+    {{ cards.project_card(f, selectable=True) }}
     {% else %}
     {{ cards.file_card(f, selectable=True) }}
     {% endif %}

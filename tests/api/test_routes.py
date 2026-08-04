@@ -1752,7 +1752,7 @@ def test_library_grid_renders_a_checkbox_per_file_card(client, make_file):
     assert resp.text.count('id="bulk-select-form"') == 1
 
 
-def test_library_grid_project_card_has_no_select_checkbox(client, make_file):
+def test_library_grid_project_card_has_a_project_select_checkbox(client, make_file):
     from spool_api import queries
 
     # Collapsing (_find_fully_matching_projects) requires *every* file in
@@ -1767,9 +1767,11 @@ def test_library_grid_project_card_has_no_select_checkbox(client, make_file):
         resp = client.get("/?q=collapse-select-match")
         assert resp.status_code == 200
         assert "card-project" in resp.text  # the collapsed project card rendered
-        # its collapsed card has no checkbox -- unlike an ordinary file
-        # card, which would (there are none left to render here, since
-        # both matching files collapsed into the one project card).
+        # the collapsed card gets its own project-select-checkbox -- not a
+        # file-select-checkbox, since there are no plain file cards left
+        # to render here (both matching files collapsed into the one card).
+        assert 'class="project-select-checkbox"' in resp.text
+        assert f'value="{project_id}"' in resp.text
         assert 'class="file-select-checkbox"' not in resp.text
     finally:
         with queries.get_connection() as conn:
@@ -1874,3 +1876,74 @@ def test_bulk_add_to_project_route_blank_new_project_name_is_a_no_op(client, mak
     )
     assert resp.status_code == 303
     assert queries.get_file_projects(file_id) == []
+
+
+def test_bulk_add_to_project_route_reparents_a_selected_project(client):
+    from spool_api import queries
+
+    target_id = queries.create_project("Bulk Reparent Target", "", None)
+    source_id = queries.create_project("Bulk Reparent Source", "", None)
+    try:
+        resp = client.post(
+            "/files/bulk-add-to-project",
+            data={"project_ids": [str(source_id)], "project_id": str(target_id)},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        with queries.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT parent_project_id FROM projects WHERE id = %s", (source_id,))
+                assert cur.fetchone()[0] == target_id
+    finally:
+        with queries.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM projects WHERE id IN (%s, %s)", (source_id, target_id))
+
+
+def test_bulk_delete_files_route_deletes_a_selected_project_and_its_files(client, make_file, monkeypatch):
+    from spool_api import host_helper_client, queries
+
+    project_id = queries.create_project("Bulk Delete Project", "", None)
+    member_id = make_file(filename="lib-bulk-delete-project-member.stl", path="/tmp/lib-bulk-delete-project-member.stl")
+    queries.add_file_to_project(member_id, project_id)
+
+    monkeypatch.setattr(host_helper_client, "request_delete", lambda path: (True, None))
+
+    resp = client.post(
+        "/files/bulk-delete",
+        data={"project_ids": [str(project_id)], "return_qs": ""},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert queries.get_file(member_id) is None  # its member file was deleted too
+
+    with queries.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM projects WHERE id = %s", (project_id,))
+            assert cur.fetchone() is None  # and the project row itself is gone
+
+
+def test_bulk_delete_files_route_deleting_a_project_does_not_touch_its_subproject(client, make_file, monkeypatch):
+    from spool_api import host_helper_client, queries
+
+    parent_id = queries.create_project("Bulk Delete Parent", "", None)
+    child_id = queries.create_project("Bulk Delete Child", "", parent_id)
+
+    monkeypatch.setattr(host_helper_client, "request_delete", lambda path: (True, None))
+    try:
+        resp = client.post(
+            "/files/bulk-delete",
+            data={"project_ids": [str(parent_id)], "return_qs": ""},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        with queries.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT parent_project_id FROM projects WHERE id = %s", (child_id,))
+                row = cur.fetchone()
+                assert row is not None  # the sub-project itself survives
+                assert row[0] is None  # surfaced to top level, not left dangling
+    finally:
+        with queries.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM projects WHERE id = %s", (child_id,))

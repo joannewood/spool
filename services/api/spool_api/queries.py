@@ -1140,6 +1140,41 @@ def add_files_to_project_bulk(file_ids, project_id):
                 )
 
 
+def get_file_ids_for_projects(project_ids):
+    """Every confirmed member file id across the given projects — used by
+    the library grid's bulk delete (a selected project deletes its own
+    files, same as selecting those files directly would). Deliberately
+    NOT recursive into any of these projects' own sub-projects — a
+    sub-project a user didn't select surfaces at top level instead once
+    its parent is gone (parent_project_id's ON DELETE SET NULL), the
+    same behavior already established by merge_projects, rather than
+    being silently swept away along with a parent it wasn't asked to
+    go with."""
+    if not project_ids:
+        return []
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT DISTINCT file_id FROM project_files WHERE project_id = ANY(%s) AND status = 'confirmed'",
+                (project_ids,),
+            )
+            return [row[0] for row in cur.fetchall()]
+
+
+def delete_projects_bulk(project_ids):
+    """Deletes the project rows themselves — project_files rows for these
+    ids CASCADE away (already gone if the caller deleted their member
+    files first via delete_files_bulk; removed here directly for any
+    that survived, e.g. a host-helper delete failure). Any sub-project
+    of a deleted project is never itself deleted — see
+    get_file_ids_for_projects' docstring."""
+    if not project_ids:
+        return
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = ANY(%s)", (project_ids,))
+
+
 def _delete_project_if_empty_and_auto_created(cur, project_id):
     """A project auto-created by suggest_folder_project (source_folder_path
     NOT NULL) that's lost its last project_files row — via a manual

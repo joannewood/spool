@@ -65,7 +65,11 @@
    cards — a "when was this searched-for group of files put together"
    date doesn't really mean anything, whereas the project's own actual
    creation date does). #}
-{% macro project_card(p) %}
+{% macro project_card(p, selectable=False) %}
+<div class="card-select-wrap">
+{% if selectable %}
+<input type="checkbox" name="project_ids" value="{{ p.id }}" class="project-select-checkbox" form="bulk-select-form" aria-label="Select project {{ p.name }}">
+{% endif %}
 <a class="card card-project" href="/projects/{{ p.id }}">
   <div class="thumb">
     <div class="project-banner">Project</div>
@@ -95,4 +99,5 @@
     </div>
   </div>
 </a>
+</div>
 {% endmacro %}
