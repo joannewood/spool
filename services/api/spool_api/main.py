@@ -1,6 +1,6 @@
 import os
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlencode
+from urllib.parse import parse_qsl, urlencode
 
 import psycopg
 from fastapi import FastAPI, Form, HTTPException, Query, Request
@@ -210,6 +210,7 @@ def index(
     sort: str = "newest",
     page: int = 1,
     page_size: str = None,
+    bulk_errors: str = "",
 ):
     if sort not in queries.SORT_CLAUSES:
         sort = "newest"
@@ -267,6 +268,8 @@ def index(
             "total_pages": total_pages,
             "base_qs": base_qs,
             "base_qs_no_size": base_qs_no_size,
+            "all_projects": queries.list_projects(),
+            "bulk_errors": bulk_errors,
         },
     )
     response.set_cookie(BULK_REVIEW_PAGE_SIZE_COOKIE, str(page_size), max_age=31536000)
@@ -582,6 +585,29 @@ def add_to_project(file_id: int, project_id: str = Form(...), new_project_name: 
     else:
         queries.add_file_to_project(file_id, int(project_id))
     return RedirectResponse(f"/files/{file_id}", status_code=303)
+
+
+# Bulk counterpart of add_to_project above, for the library grid's
+# "select files, add to project" toolbar (_results.html) — same
+# existing-or-new-project handling, just against every selected file id
+# instead of one. return_qs carries the searcher's current q/filter/sort/
+# page state back through so the redirect lands them where they were,
+# not a blank default search.
+@app.post("/files/bulk-add-to-project")
+def bulk_add_to_project(
+    file_ids: list[int] = Form([]),
+    project_id: str = Form(...),
+    new_project_name: str = Form(""),
+    return_qs: str = Form(""),
+):
+    if project_id == "__new__":
+        name = new_project_name.strip()
+        if name and file_ids:
+            new_id = queries.create_project(name, "", None)
+            queries.add_files_to_project_bulk(file_ids, new_id)
+    elif file_ids:
+        queries.add_files_to_project_bulk(file_ids, int(project_id))
+    return RedirectResponse(f"/{'?' + return_qs if return_qs else ''}", status_code=303)
 
 
 @app.delete("/files/{file_id}/projects/{project_id}", response_class=HTMLResponse)
@@ -1106,6 +1132,22 @@ def delete_duplicates(file_ids: list[int] = Form([])):
     errors = _delete_files_via_host_helper(file_ids)
     qs = urlencode({"delete_errors": errors}) if errors else ""
     return RedirectResponse(f"/admin/duplicates{'?' + qs if qs else ''}", status_code=303)
+
+
+# Library grid's own bulk delete (_results.html) — same host-helper-backed
+# deletion as the admin duplicates page, just against an arbitrary
+# user-picked selection instead of a pre-identified duplicate set.
+# return_qs round-trips the searcher's current q/filter/sort/page state
+# (see bulk_add_to_project above) so both the redirect target AND any
+# error message land back on the same search the files were selected from.
+@app.post("/files/bulk-delete")
+def bulk_delete_files(file_ids: list[int] = Form([]), return_qs: str = Form("")):
+    errors = _delete_files_via_host_helper(file_ids)
+    params = [(k, v) for k, v in parse_qsl(return_qs)]
+    if errors:
+        params.append(("bulk_errors", errors))
+    qs = urlencode(params)
+    return RedirectResponse(f"/{'?' + qs if qs else ''}", status_code=303)
 
 
 # Deliberately takes no ids from the client — same reasoning as the other

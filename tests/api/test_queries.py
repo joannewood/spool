@@ -865,6 +865,29 @@ def test_confirm_file_projects_bulk_confirms_every_pair_in_one_call(make_file, d
             cur.execute("DELETE FROM projects WHERE id IN (%s, %s)", (project_a, project_b))
 
 
+def test_add_files_to_project_bulk_adds_every_file_as_confirmed(make_file, db_conn):
+    project_id = queries.create_project("Bulk Add Target", "", None)
+    file_a = make_file(filename="bulk-add-a.stl")
+    file_b = make_file(filename="bulk-add-b.stl")
+    try:
+        queries.add_files_to_project_bulk([file_a, file_b], project_id)
+
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "SELECT file_id, status FROM project_files WHERE project_id = %s",
+                (project_id,),
+            )
+            rows = dict(cur.fetchall())
+        assert rows == {file_a: "confirmed", file_b: "confirmed"}
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_add_files_to_project_bulk_empty_list_is_a_no_op():
+    queries.add_files_to_project_bulk([], 1)  # must not raise or query with an empty id list
+
+
 def test_confirm_relationships_bulk_confirms_every_id_in_one_call(make_file, db_conn):
     file_a = make_file()
     file_b = make_file()

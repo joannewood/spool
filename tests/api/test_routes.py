@@ -1736,3 +1736,141 @@ def test_update_archive_settings_route_unchecked_checkbox_disables(client):
         assert queries.get_app_settings()["auto_accept_archives"] is False
     finally:
         queries.update_auto_accept_archives(original)
+
+
+# ---- library grid bulk select (checkbox render + bulk delete/add-to-project) --
+
+def test_library_grid_renders_a_checkbox_per_file_card(client, make_file):
+    make_file(filename="grid-select-a.stl")
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert 'class="file-select-checkbox"' in resp.text
+    assert 'form="bulk-select-form"' in resp.text
+    # exactly one outer bulk-select form -- the checkboxes reference it by
+    # id/form= rather than living inside it, so this also guards against
+    # ever reintroducing the nested-<form> bug already fixed elsewhere.
+    assert resp.text.count('id="bulk-select-form"') == 1
+
+
+def test_library_grid_project_card_has_no_select_checkbox(client, make_file):
+    from spool_api import queries
+
+    # Collapsing (_find_fully_matching_projects) requires *every* file in
+    # the project to match AND more than one matching file -- a
+    # single-file project never collapses, so this needs two.
+    project_id = queries.create_project("Bulk Select Collapse Target", "", None)
+    try:
+        f1 = make_file(filename="collapse-select-match-1.stl")
+        f2 = make_file(filename="collapse-select-match-2.stl")
+        queries.add_file_to_project(f1, project_id)
+        queries.add_file_to_project(f2, project_id)
+        resp = client.get("/?q=collapse-select-match")
+        assert resp.status_code == 200
+        assert "card-project" in resp.text  # the collapsed project card rendered
+        # its collapsed card has no checkbox -- unlike an ordinary file
+        # card, which would (there are none left to render here, since
+        # both matching files collapsed into the one project card).
+        assert 'class="file-select-checkbox"' not in resp.text
+    finally:
+        with queries.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_bulk_delete_files_route_deletes_selected_and_preserves_search_state(client, make_file, monkeypatch):
+    from spool_api import host_helper_client, queries
+
+    keep_id = make_file(filename="lib-bulk-delete-keep.stl", path="/tmp/lib-bulk-delete-keep.stl")
+    ok_id = make_file(filename="lib-bulk-delete-ok.stl", path="/tmp/lib-bulk-delete-ok.stl")
+
+    monkeypatch.setattr(host_helper_client, "request_delete", lambda path: (True, None))
+
+    resp = client.post(
+        "/files/bulk-delete",
+        data={"file_ids": [str(ok_id)], "return_qs": "q=lib-bulk-delete&sort=name_asc"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    location = resp.headers["location"]
+    assert location.startswith("/?")
+    assert "q=lib-bulk-delete" in location
+    assert "sort=name_asc" in location
+
+    assert queries.get_file(ok_id) is None
+    assert queries.get_file(keep_id) is not None
+
+    with queries.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM files WHERE id = %s", (keep_id,))
+
+
+def test_bulk_delete_files_route_reports_failures_via_bulk_errors(client, make_file, monkeypatch):
+    from spool_api import host_helper_client, queries
+
+    fail_id = make_file(filename="lib-bulk-delete-fail.stl", path="/tmp/lib-bulk-delete-fail.stl")
+    monkeypatch.setattr(host_helper_client, "request_delete", lambda path: (False, "simulated failure"))
+
+    resp = client.post(
+        "/files/bulk-delete",
+        data={"file_ids": [str(fail_id)], "return_qs": ""},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert "bulk_errors=" in resp.headers["location"]
+    assert queries.get_file(fail_id) is not None  # host-helper "failed", so kept
+
+    with queries.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM files WHERE id = %s", (fail_id,))
+
+
+def test_bulk_add_to_project_route_adds_to_an_existing_project(client, make_file):
+    from spool_api import queries
+
+    project_id = queries.create_project("Bulk Add Existing", "", None)
+    file_id = make_file(filename="lib-bulk-add-existing.stl")
+    try:
+        resp = client.post(
+            "/files/bulk-add-to-project",
+            data={"file_ids": [str(file_id)], "project_id": str(project_id), "return_qs": "q=x"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert resp.headers["location"] == "/?q=x"
+        assert queries.get_file_projects(file_id) == [{"id": project_id, "name": "Bulk Add Existing"}]
+    finally:
+        with queries.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+def test_bulk_add_to_project_route_creates_a_new_project(client, make_file):
+    from spool_api import queries
+
+    file_id = make_file(filename="lib-bulk-add-new.stl")
+    resp = client.post(
+        "/files/bulk-add-to-project",
+        data={"file_ids": [str(file_id)], "project_id": "__new__", "new_project_name": "Bulk Add Brand New"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    projects = queries.get_file_projects(file_id)
+    assert len(projects) == 1
+    assert projects[0]["name"] == "Bulk Add Brand New"
+
+    with queries.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM projects WHERE id = %s", (projects[0]["id"],))
+
+
+def test_bulk_add_to_project_route_blank_new_project_name_is_a_no_op(client, make_file):
+    from spool_api import queries
+
+    file_id = make_file(filename="lib-bulk-add-blank.stl")
+    resp = client.post(
+        "/files/bulk-add-to-project",
+        data={"file_ids": [str(file_id)], "project_id": "__new__", "new_project_name": "   "},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert queries.get_file_projects(file_id) == []

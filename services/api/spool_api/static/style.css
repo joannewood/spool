@@ -558,6 +558,39 @@ main {
 
 .empty { color: var(--ink-muted); grid-column: 1 / -1; }
 
+/* Bulk select on the library grid (checkbox + delete/add-to-project) --
+   the checkbox has to live outside .card's own <a> (nesting interactive
+   content inside an <a> is invalid HTML5, same reasoning as the printed
+   badge/project badge above), so it's an absolutely-positioned sibling
+   inside a thin wrapper that's otherwise a no-op when selectable=False
+   (plain project/file-detail grids never render the checkbox at all). */
+.card-select-wrap { position: relative; }
+.card-select-wrap .file-select-checkbox {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+.bulk-select-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.select-all-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  color: var(--ink);
+  cursor: pointer;
+}
+.button-danger { background: var(--danger); }
+
 /* pagination */
 .pagination {
   display: flex;

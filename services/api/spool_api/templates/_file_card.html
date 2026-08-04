@@ -5,7 +5,11 @@
    thumbnail_path, content_hash, render_status, is_manifold, bbox_x/y/z,
    printed, rating, comments, projects (list of {id, name}, possibly
    filtered by the caller — see project_detail's own route). #}
-{% macro file_card(f) %}
+{% macro file_card(f, selectable=False) %}
+<div class="card-select-wrap">
+{% if selectable %}
+<input type="checkbox" name="file_ids" value="{{ f.id }}" class="file-select-checkbox" form="bulk-select-form" aria-label="Select {{ f.display_name or (f.filename | clean_name) }}">
+{% endif %}
 <a class="card" href="/files/{{ f.id }}">
   <div class="thumb">
     {% if f.thumbnail_path %}
@@ -45,6 +49,7 @@
     {% endif %}
   </div>
 </a>
+</div>
 {% endmacro %}
 
 {# A whole project collapsed into one card — only used on the library

@@ -1120,6 +1120,26 @@ def add_file_to_project(file_id, project_id):
             )
 
 
+def add_files_to_project_bulk(file_ids, project_id):
+    """Same effect as calling add_file_to_project once per file, but one
+    connection for the whole batch — see confirm_file_projects_bulk's
+    docstring for why that matters at scale (the library grid's bulk
+    "add to project" action can select as many files as the current
+    page size allows, up to "all")."""
+    if not file_ids:
+        return
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            for file_id in file_ids:
+                cur.execute(
+                    """
+                    INSERT INTO project_files (project_id, file_id, status) VALUES (%s, %s, 'confirmed')
+                    ON CONFLICT (project_id, file_id) DO UPDATE SET status = 'confirmed'
+                    """,
+                    (project_id, file_id),
+                )
+
+
 def _delete_project_if_empty_and_auto_created(cur, project_id):
     """A project auto-created by suggest_folder_project (source_folder_path
     NOT NULL) that's lost its last project_files row — via a manual
