@@ -3,7 +3,7 @@ name: run-spool
 description: Launch, drive, and screenshot the SPOOL web UI (browse/search grid, file detail pages) in a headless browser. Use when asked to run SPOOL, start the app, take a screenshot, verify a UI change, or check the app works end to end. Also covers building/starting the full docker compose stack (postgres, api, watcher, worker, worker-step).
 ---
 
-Paths below are relative to the repo root (`data-platform/`), not this skill directory.
+Paths below are relative to the repo root (`spool/`), not this skill directory.
 
 SPOOL is a Docker Compose app (5 services — see `CLAUDE.md`) with no local
 dev-server mode; `api` only runs inside its container. This host has **no
